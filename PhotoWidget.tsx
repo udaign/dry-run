@@ -11,6 +11,9 @@ const DEFAULT_SLIDER_VALUE = 50;
 
 const PHOTO_WIDGET_INITIAL_STATE: PhotoWidgetState = {
     resolution: DEFAULT_SLIDER_VALUE,
+    exposure: DEFAULT_SLIDER_VALUE,
+    contrast: DEFAULT_SLIDER_VALUE,
+    saturation: DEFAULT_SLIDER_VALUE,
     pixelGap: 0,
     isCircular: true,
     isAntiAliased: false,
@@ -106,7 +109,7 @@ export const usePhotoWidgetPanel = ({ theme, footerLinks }: { theme: Theme, isMo
   const [showAdvanced, setShowAdvanced] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   
-  const { resolution, pixelGap, isCircular, isAntiAliased, aspectRatio } = livePhotoWidgetState;
+  const { resolution, exposure, contrast, saturation, pixelGap, isCircular, isAntiAliased, aspectRatio } = livePhotoWidgetState;
   
   const canvasWidth = useMemo(() => aspectRatio === '4x2' ? PHOTO_WIDGET_BASE_SIZE * 2 : PHOTO_WIDGET_BASE_SIZE, [aspectRatio]);
   const canvasHeight = useMemo(() => PHOTO_WIDGET_BASE_SIZE, []);
@@ -146,12 +149,36 @@ export const usePhotoWidgetPanel = ({ theme, footerLinks }: { theme: Theme, isMo
     tempCtx.drawImage(image, 0, 0, gridWidth, gridHeight);
     const imageData = tempCtx.getImageData(0, 0, gridWidth, gridHeight).data;
 
+    const calculatedExposure = (exposure - 50) * 2;
+    const calculatedContrast = contrast <= 50 ? contrast / 50 : 1 + ((contrast - 50) / 50) * 2;
+    const calculatedSaturation = saturation / 50;
+
     const fullMatrix: PhotoWidgetColorMatrix = Array.from({ length: gridHeight }, (_, y) => 
         Array.from({ length: gridWidth }, (_, x) => {
             const i = (y * gridWidth + x) * 4;
             if (imageData[i+3] <= 10) { return null; }
 
             let r = imageData[i], g = imageData[i+1], b = imageData[i+2];
+
+            // Contrast
+            let r_n = r / 255, g_n = g / 255, b_n = b / 255;
+            r_n = (r_n - 0.5) * calculatedContrast + 0.5;
+            g_n = (g_n - 0.5) * calculatedContrast + 0.5;
+            b_n = (b_n - 0.5) * calculatedContrast + 0.5;
+            r = r_n * 255; g = g_n * 255; b = b_n * 255;
+
+            // Exposure
+            r += calculatedExposure;
+            g += calculatedExposure;
+            b += calculatedExposure;
+            
+            // Saturation
+            if (calculatedSaturation !== 1) {
+              const gray = 0.299 * r + 0.587 * g + 0.114 * b;
+              r = gray * (1 - calculatedSaturation) + r * calculatedSaturation;
+              g = gray * (1 - calculatedSaturation) + g * calculatedSaturation;
+              b = gray * (1 - calculatedSaturation) + b * calculatedSaturation;
+            }
 
             return { 
                 r: Math.round(Math.max(0, Math.min(255, r))), 
@@ -186,7 +213,7 @@ export const usePhotoWidgetPanel = ({ theme, footerLinks }: { theme: Theme, isMo
     } else {
         setColorMatrix(null);
     }
-  }, [image, resolution]);
+  }, [image, resolution, exposure, contrast, saturation]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -199,31 +226,24 @@ export const usePhotoWidgetPanel = ({ theme, footerLinks }: { theme: Theme, isMo
   const handleDownload = () => {
     if (isDownloading || !colorMatrix) return;
     setIsDownloading(true);
+
     setTimeout(() => {
-        const downloadWidth = photoWidgetState.aspectRatio === '4x2' ? PHOTO_WIDGET_BASE_SIZE * 2 : PHOTO_WIDGET_BASE_SIZE;
-        const downloadHeight = PHOTO_WIDGET_BASE_SIZE;
-        const canvas = document.createElement('canvas');
-        canvas.width = downloadWidth;
-        canvas.height = downloadHeight;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
+        try {
+            const downloadWidth = photoWidgetState.aspectRatio === '4x2' ? PHOTO_WIDGET_BASE_SIZE * 2 : PHOTO_WIDGET_BASE_SIZE;
+            const downloadHeight = PHOTO_WIDGET_BASE_SIZE;
+            const canvas = document.createElement('canvas');
+            canvas.width = downloadWidth;
+            canvas.height = downloadHeight;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) return;
+            drawPhotoWidgetMatrix(ctx, { ...photoWidgetState, outputMode, width: downloadWidth, height: downloadHeight, matrix: colorMatrix });
+            const link = document.createElement('a');
+            link.download = `matrices-photowidget-${getTimestamp()}.png`;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        } finally {
             setIsDownloading(false);
-            return;
         }
-        drawPhotoWidgetMatrix(ctx, { ...photoWidgetState, outputMode, width: downloadWidth, height: downloadHeight, matrix: colorMatrix });
-        canvas.toBlob((blob) => {
-            if (blob) {
-                const url = URL.createObjectURL(blob);
-                const link = document.createElement('a');
-                link.download = `matrices-photowidget-${getTimestamp()}.png`;
-                link.href = url;
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-                URL.revokeObjectURL(url);
-            }
-            setIsDownloading(false);
-        }, 'image/png');
     }, 50);
   };
   
@@ -236,7 +256,7 @@ export const usePhotoWidgetPanel = ({ theme, footerLinks }: { theme: Theme, isMo
     <div className="max-w-md mx-auto w-full flex flex-col space-y-4 px-6 sm:px-6 md:px-8 pt-6 md:pt-3 pb-8 sm:pb-6 md:pb-8">
         <div className="pb-4">
             <OutputModeSelector 
-                label="Widget Background Preference"
+                label="Widget Preference"
                 selected={outputMode}
                 onSelect={setOutputMode}
                 theme={theme}
@@ -291,6 +311,9 @@ export const usePhotoWidgetPanel = ({ theme, footerLinks }: { theme: Theme, isMo
                             ))}
                         </div>
                     </div>
+                    <EnhancedSlider theme={theme} label="Exposure" value={exposure} onChange={v => setLivePhotoWidgetState(s => ({...s, exposure: v}))} onChangeCommitted={v => setPhotoWidgetState(s => ({...s, exposure: v}))} onReset={() => setPhotoWidgetState(s => ({...s, exposure: DEFAULT_SLIDER_VALUE}))} disabled={!imageSrc || isLoading} />
+                    <EnhancedSlider theme={theme} label="Contrast" value={contrast} onChange={v => setLivePhotoWidgetState(s => ({...s, contrast: v}))} onChangeCommitted={v => setPhotoWidgetState(s => ({...s, contrast: v}))} onReset={() => setPhotoWidgetState(s => ({...s, contrast: DEFAULT_SLIDER_VALUE}))} disabled={!imageSrc || isLoading} />
+                    <EnhancedSlider theme={theme} label="Saturation" value={saturation} onChange={v => setLivePhotoWidgetState(s => ({...s, saturation: v}))} onChangeCommitted={v => setPhotoWidgetState(s => ({...s, saturation: v}))} onReset={() => setPhotoWidgetState(s => ({...s, saturation: DEFAULT_SLIDER_VALUE}))} disabled={!imageSrc || isLoading} />
                 </div>
             </div>
         </div>

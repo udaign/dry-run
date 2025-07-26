@@ -210,27 +210,19 @@ export const usePfpPanel = ({ theme, footerLinks }: { theme: Theme, isMobile: bo
     if (isDownloading) return;
     setIsDownloading(true);
     setTimeout(() => {
-        const canvas = document.createElement('canvas');
-        canvas.width = CANVAS_SIZE; canvas.height = CANVAS_SIZE;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
+        try {
+            const canvas = document.createElement('canvas');
+            canvas.width = CANVAS_SIZE; canvas.height = CANVAS_SIZE;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) return;
+            drawPfpMatrix(ctx, { width: CANVAS_SIZE, height: CANVAS_SIZE, isTransparent: pfpState.isTransparent, gridColors, matrixMask, diameter, calculatedPixelGap, isCircular: pfpState.isCircular });
+            const link = document.createElement('a');
+            link.download = `matrices-glyphmirror-${getTimestamp()}.png`;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        } finally {
             setIsDownloading(false);
-            return;
         }
-        drawPfpMatrix(ctx, { width: CANVAS_SIZE, height: CANVAS_SIZE, isTransparent: pfpState.isTransparent, gridColors, matrixMask, diameter, calculatedPixelGap, isCircular: pfpState.isCircular });
-        canvas.toBlob((blob) => {
-            if (blob) {
-                const url = URL.createObjectURL(blob);
-                const link = document.createElement('a');
-                link.download = `matrices-glyphmirror-${getTimestamp()}.png`;
-                link.href = url;
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-                URL.revokeObjectURL(url);
-            }
-            setIsDownloading(false);
-        }, 'image/png');
     }, 50);
   };
   

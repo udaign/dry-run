@@ -74,10 +74,10 @@ const App: React.FC = () => {
   
   useEffect(() => {
     const generateFaviconSvg = (color: string) => {
-        const svgString = `<svg width="15" height="15" viewBox="0 0 15 15" xmlns="http://www.w3.org/2000/svg"><g fill="${color}">${Array.from({ length: 36 }, (_, i) => `<circle cx="${1.25 + (i % 6) * 2.5}" cy="${1.25 + Math.floor(i / 6) * 2.5}" r="1"/>`).join('')}</g></svg>`;
+        const svgString = `<svg width="25" height="25" viewBox="0 0 25 25" xmlns="http://www.w3.org/2000/svg"><g fill="${color}">${Array.from({ length: 100 }, (_, i) => `<circle cx="${1.25 + (i % 10) * 2.5}" cy="${1.25 + Math.floor(i / 10) * 2.5}" r="1"/>`).join('')}</g></svg>`;
         return `data:image/svg+xml;base64,${btoa(svgString)}`;
     };
-    const color = '#2a2b7a';
+    const color = theme === 'dark' ? '#FFFFFF' : '#000000';
     const faviconUrl = generateFaviconSvg(color);
     let link: HTMLLinkElement | null = document.querySelector("link[rel~='icon']");
     if (!link) {
@@ -86,7 +86,7 @@ const App: React.FC = () => {
         document.head.appendChild(link);
     }
     link.href = faviconUrl;
-  }, []);
+  }, [theme]);
 
   const tabDescriptions = {
     pfp: "Create glyph mirror styled profile pictures.",
@@ -109,7 +109,7 @@ const App: React.FC = () => {
 
       <div className={`min-h-screen md:h-screen w-full flex flex-col font-sans ${theme === 'dark' ? 'text-nothing-light bg-nothing-dark' : 'text-day-text bg-day-bg'} select-none`}>
         <header className={`flex-shrink-0 sticky top-0 z-30 flex justify-between items-center p-4 border-b ${theme === 'dark' ? 'bg-nothing-dark border-nothing-gray-dark' : 'bg-day-bg border-gray-300'}`}>
-          <h1 className="text-2xl sm:text-3xl font-bold">MATRICES FOR NOTHING COMMUNITY</h1>
+          <h1 className="text-xl sm:text-2xl font-bold">MATRICES FOR NOTHING COMMUNITY</h1>
           <button onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')} className={`p-2 transition-colors duration-300 rounded-md ${theme === 'dark' ? 'text-nothing-light bg-nothing-gray-dark hover:bg-nothing-gray-light hover:text-nothing-dark' : 'text-day-text bg-day-gray-light hover:bg-day-gray-dark hover:text-day-bg'}`} aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}>
             {theme === 'dark' ? (
               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="feather feather-sun h-6 w-6"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
