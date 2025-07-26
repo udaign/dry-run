@@ -1,6 +1,6 @@
 {
-  "homepage": "https://udaign.github.io/dry-run/",
-  "name": "copy-of-matrices-for-nothing-community-v3-major-fixes-&-polishes-done-except-swipe-transition",
+  "homepage": "https://udaign.github.io/matrices/",
+  "name": "copy-of-matrices-for-nothing-community-v3.0-for-deployment-testing-2",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -17,6 +17,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
+    "gh-pages": "^6.3.0",
     "typescript": "~5.7.2",
     "vite": "^6.2.0"
   }

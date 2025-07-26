@@ -50,15 +50,44 @@ export const useWallpaperPanel = ({ theme, isMobile, footerLinks }: { theme: The
   const [imageSrc, setImageSrc] = useState<string | null>(null);
   const [image, setImage] = useState<HTMLImageElement | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [isFullScreenPreview, setIsFullScreenPreview] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fullScreenCanvasRef = useRef<HTMLCanvasElement>(null);
+  const fullScreenContainerRef = useRef<HTMLDivElement>(null);
   
   useEffect(() => { setLiveWallpaperSettings(wallpaperSettings); }, [wallpaperSettings]);
 
   const liveWallpaperState = liveWallpaperSettings[wallpaperType];
   const { resolution, pixelGap, isCircular, background, cropOffsetX, cropOffsetY } = liveWallpaperState;
+  
+  useEffect(() => {
+    const handleFullScreenChange = () => {
+        if (!document.fullscreenElement) {
+            setIsFullScreenPreview(false);
+        }
+    };
+    document.addEventListener('fullscreenchange', handleFullScreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullScreenChange);
+  }, []);
+
+  useEffect(() => {
+      if (isFullScreenPreview && fullScreenContainerRef.current) {
+          fullScreenContainerRef.current.requestFullscreen()
+              .catch(err => {
+                  console.error(`Error attempting to enable full-screen mode: ${err.message} (${err.name})`);
+              });
+      }
+  }, [isFullScreenPreview]);
+
+  const exitFullScreen = useCallback(() => {
+      if (document.fullscreenElement) {
+          document.exitFullscreen();
+      } else {
+          setIsFullScreenPreview(false);
+      }
+  }, []);
 
   useEffect(() => {
     if (!imageSrc) { setImage(null); return; }
@@ -97,6 +126,7 @@ export const useWallpaperPanel = ({ theme, isMobile, footerLinks }: { theme: The
         tempCanvas.width = wallpaperGridWidth; tempCanvas.height = wallpaperGridHeight;
         const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
         if (!tempCtx) return;
+        tempCtx.imageSmoothingEnabled = false;
         tempCtx.drawImage(image, sx, sy, sWidth, sHeight, 0, 0, wallpaperGridWidth, wallpaperGridHeight);
         const data = tempCtx.getImageData(0, 0, wallpaperGridWidth, wallpaperGridHeight).data;
         const totalGapW = (wallpaperGridWidth - 1) * calculatedWallpaperPixelGap;
@@ -132,12 +162,20 @@ export const useWallpaperPanel = ({ theme, isMobile, footerLinks }: { theme: The
   };
   
   const handleDownload = () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const link = document.createElement('a');
-    link.download = `matrices-wallpaper-${getTimestamp()}.png`;
-    link.href = canvas.toDataURL('image/png');
-    link.click();
+    if (isDownloading) return;
+    setIsDownloading(true);
+    setTimeout(() => {
+        try {
+            const canvas = canvasRef.current;
+            if (!canvas) return;
+            const link = document.createElement('a');
+            link.download = `matrices-wallpaper-${getTimestamp()}.png`;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        } finally {
+            setIsDownloading(false);
+        }
+    }, 50);
   };
 
   const dragState = useRef({ isDragging: false, startX: 0, startY: 0, initialOffsetX: 0.5, initialOffsetY: 0.5 });
@@ -210,15 +248,6 @@ export const useWallpaperPanel = ({ theme, isMobile, footerLinks }: { theme: The
           disabled={isLoading} 
       />
       
-      <div className="space-y-4 pt-4">
-          <div className={`flex items-center justify-between ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'}`}>
-              <label htmlFor="wallpaper-circular-toggle" className="text-sm">Circular Pixels</label>
-              <button id="wallpaper-circular-toggle" role="switch" aria-checked={isCircular} onClick={() => setWallpaperSettings(s => ({ ...s, [wallpaperType]: { ...s[wallpaperType], isCircular: !s[wallpaperType].isCircular } }))} disabled={isLoading} className={`relative inline-flex items-center h-6 w-11 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 rounded-full ${theme === 'dark' ? 'focus:ring-offset-nothing-dark' : 'focus:ring-offset-day-bg'} disabled:opacity-50 ${isCircular ? 'bg-nothing-red' : (theme === 'dark' ? 'bg-nothing-gray-dark' : 'bg-day-gray-light')}`}>
-                  <span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform duration-300 ${isCircular ? 'translate-x-6' : 'translate-x-1'}`} />
-              </button>
-          </div>
-      </div>
-
       <div className={`border-t ${theme === 'dark' ? 'border-nothing-gray-dark' : 'border-gray-300'} mt-6 pt-4`}>
           <button onClick={() => setShowAdvanced(!showAdvanced)} className={`w-full flex justify-between items-center ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'} py-1 focus:outline-none`} aria-expanded={showAdvanced} aria-controls="wallpaper-advanced-options-panel">
               <span className="text-sm font-medium">More Controls</span>
@@ -227,8 +256,14 @@ export const useWallpaperPanel = ({ theme, isMobile, footerLinks }: { theme: The
               </svg>
           </button>
           <div id="wallpaper-advanced-options-panel" className={`overflow-hidden transition-all duration-500 ease-in-out ${showAdvanced ? 'max-h-96 pt-4' : 'max-h-0'}`}>
-              <div className="space-y-4 pt-4">
-                <ColorSelector label="Background Color" options={WALLPAPER_BG_OPTIONS} selected={liveWallpaperState.background} onSelect={(key) => setWallpaperSettings(s => ({ ...s, [wallpaperType]: { ...s[wallpaperType], background: key as WallpaperBgKey } }))} theme={theme} />
+              <div className="space-y-4">
+                  <div className={`flex items-center justify-between ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'}`}>
+                      <label htmlFor="wallpaper-circular-toggle" className="text-sm">Circular Pixels</label>
+                      <button id="wallpaper-circular-toggle" role="switch" aria-checked={isCircular} onClick={() => setWallpaperSettings(s => ({ ...s, [wallpaperType]: { ...s[wallpaperType], isCircular: !s[wallpaperType].isCircular } }))} disabled={isLoading} className={`relative inline-flex items-center h-6 w-11 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 rounded-full ${theme === 'dark' ? 'focus:ring-offset-nothing-dark' : 'focus:ring-offset-day-bg'} disabled:opacity-50 ${isCircular ? 'bg-nothing-red' : (theme === 'dark' ? 'bg-nothing-gray-dark' : 'bg-day-gray-light')}`}>
+                          <span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform duration-300 ${isCircular ? 'translate-x-6' : 'translate-x-1'}`} />
+                      </button>
+                  </div>
+                  <ColorSelector label="Background Color" options={WALLPAPER_BG_OPTIONS} selected={liveWallpaperState.background} onSelect={(key) => setWallpaperSettings(s => ({ ...s, [wallpaperType]: { ...s[wallpaperType], background: key as WallpaperBgKey } }))} theme={theme} />
               </div>
           </div>
       </div>
@@ -257,8 +292,12 @@ export const useWallpaperPanel = ({ theme, isMobile, footerLinks }: { theme: The
         </div>
         {isFullScreenPreview && createPortal(
             <div
+                ref={fullScreenContainerRef}
                 className="fixed inset-0 bg-black z-50 flex items-center justify-center"
-                onClick={(e) => { if (e.target === e.currentTarget) setIsFullScreenPreview(false); }}
+                onClick={(e) => { if (e.target === e.currentTarget) exitFullScreen(); }}
+                onMouseDown={handleWallpaperDragStart}
+                onTouchStart={handleWallpaperDragStart}
+                style={{ cursor: wallpaperCropIsNeeded ? 'grab' : 'default' }}
             >
                 <canvas
                     ref={fullScreenCanvasRef}
@@ -268,7 +307,7 @@ export const useWallpaperPanel = ({ theme, isMobile, footerLinks }: { theme: The
                     aria-label="Full-screen Wallpaper Canvas Preview"
                 />
                 <button
-                    onClick={() => setIsFullScreenPreview(false)}
+                    onClick={exitFullScreen}
                     className="fixed bottom-3 right-3 z-50 p-2 rounded-md transition-colors duration-300 text-nothing-light bg-nothing-gray-dark hover:bg-nothing-gray-light hover:text-nothing-dark"
                     aria-label="Exit full-screen preview"
                 >
@@ -285,7 +324,7 @@ export const useWallpaperPanel = ({ theme, isMobile, footerLinks }: { theme: The
     </>
   );
 
-  const downloadButton = <button onClick={handleDownload} disabled={isLoading} className={`w-full h-full p-4 text-center text-lg font-bold transition-all duration-300 disabled:opacity-50 ${theme === 'dark' ? 'bg-nothing-red text-nothing-light hover:bg-opacity-80' : 'bg-day-accent text-white hover:bg-opacity-80'}`} aria-label="Download the current wallpaper"> Download </button>;
+  const downloadButton = <button onClick={handleDownload} disabled={isLoading || isDownloading} className={`w-full h-full p-4 text-center text-lg font-bold transition-all duration-300 disabled:opacity-50 ${theme === 'dark' ? 'bg-nothing-red text-nothing-light hover:bg-opacity-80' : 'bg-day-accent text-white hover:bg-opacity-80'}`} aria-label="Download the current wallpaper"> Download </button>;
 
   const replaceButton = <Dropzone onFileSelect={handleFileSelect} isLoading={isLoading} compact={true} theme={theme}/>;
 

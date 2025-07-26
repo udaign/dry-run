@@ -91,7 +91,7 @@ const App: React.FC = () => {
   const tabDescriptions = {
     pfp: "Create glyph mirror styled profile pictures.",
     wallpaper: <>Create matrix styled wallpapers. <strong className={`font-bold ${theme === 'dark' ? 'text-nothing-light' : 'text-black'}`}>Drag to crop</strong> into desired area.</>,
-    photoWidget: "Create matrix style photo widgets (accepts PNG files only).",
+    photoWidget: "Create matrix style photo widgets.",
   };
     
   const previewContainerPadding = useMemo(() => {
@@ -100,34 +100,6 @@ const App: React.FC = () => {
     }
     return 'p-4 sm:p-6';
   }, [activeTab, panels.wallpaper.wallpaperType, isMobile]);
-  
-  const [touchStartX, setTouchStartX] = useState<number | null>(null);
-  const [touchStartY, setTouchStartY] = useState<number | null>(null);
-
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    if (!isMobile) return;
-    const target = e.target as HTMLElement;
-    if (target.closest('button, input, a, [role="slider"]')) return;
-    setTouchStartX(e.targetTouches[0].clientX);
-    setTouchStartY(e.targetTouches[0].clientY);
-  }, [isMobile]);
-
-  const handleTouchEnd = useCallback((e: React.TouchEvent) => {
-    if (!isMobile || touchStartX === null || touchStartY === null) return;
-    const touchEndX = e.changedTouches[0].clientX;
-    const touchEndY = e.changedTouches[0].clientY;
-    const deltaX = touchEndX - touchStartX;
-    const deltaY = touchEndY - touchStartY;
-    setTouchStartX(null);
-    setTouchStartY(null);
-
-    if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 50) {
-        if (e.cancelable) e.preventDefault();
-        const currentIdx = TABS.indexOf(activeTab);
-        if (deltaX > 0 && currentIdx > 0) setActiveTab(TABS[currentIdx - 1]);
-        else if (deltaX < 0 && currentIdx < TABS.length - 1) setActiveTab(TABS[currentIdx + 1]);
-    }
-  }, [isMobile, activeTab, touchStartX, touchStartY]);
 
   return (
     <>
@@ -162,7 +134,7 @@ const App: React.FC = () => {
           </div>
         </div>
 
-        <main className="flex-grow w-full flex flex-col md:flex-row min-h-0 md:pt-0 md:overflow-hidden" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
+        <main className="flex-grow w-full flex flex-col md:flex-row min-h-0 md:pt-0 md:overflow-hidden">
           <div className={`md:w-1/3 w-full flex flex-col ${!imageSrc ? 'flex-grow md:flex-grow-0' : ''} border-b md:border-b-0 md:border-r ${theme === 'dark' ? 'border-nothing-gray-dark' : 'border-gray-300'} md:overflow-y-auto`}>
             <div className={`flex-grow ${previewContainerPadding} ${!imageSrc ? 'min-h-[50vh] md:min-h-0' : 'min-h-0'} flex flex-col items-center justify-center`}>
               {Object.entries(panels).map(([key, panel]) => (

@@ -78,7 +78,7 @@ export const Dropzone: React.FC<{ onFileSelect: (file: File) => void; isLoading:
                         <span className="text-6xl" role="img" aria-label="Folder icon">📁</span>
                         <p className={`text-xl font-semibold ${theme === 'dark' ? 'text-nothing-light' : 'text-day-text'}`}>Drag & Drop Image Here</p>
                         <p className="text-sm">or click to browse</p>
-                        {accept === "image/png" && <p className="text-xs mt-1">(Transparent PNGs only)</p>}
+                        {accept === "image/png" && <p className="text-xs mt-1">(accepts PNG files only)</p>}
                     </>
                 )}
             </div>
@@ -186,27 +186,27 @@ export const ColorSelector: React.FC<{
     theme: Theme;
     label: string;
 }> = ({ options, selected, onSelect, theme, label }) => {
+    const baseButtonClasses = `w-1/2 py-2 text-sm font-semibold transition-colors duration-200 focus:outline-none rounded-md flex items-center justify-center space-x-2`;
+    const selectedClasses = theme === 'dark' ? 'bg-nothing-light text-nothing-dark font-bold' : 'bg-day-text text-day-bg font-bold';
+    const unselectedClasses = theme === 'dark' ? 'bg-nothing-gray-dark hover:bg-gray-700 text-nothing-light' : 'bg-day-gray-light hover:bg-gray-300 text-day-text';
+
     return (
         <div className="space-y-2">
             <label className={`text-sm ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'}`}>{label}</label>
-            <div className="grid grid-cols-2 gap-2 pt-2">
+            <div className={`flex space-x-1 p-1 rounded-lg ${theme === 'dark' ? 'bg-nothing-darker' : 'bg-gray-200'}`}>
                 {Object.entries(options).map(([key, { color, name }]) => (
                     <button
                         key={key}
                         onClick={() => onSelect(key)}
-                        className={`flex items-center space-x-2 p-2 border-2 transition-all duration-200 focus:outline-none rounded-md ${
-                            selected === key
-                                ? (theme === 'dark' ? 'border-white' : 'border-black')
-                                : (theme === 'dark' ? 'border-gray-800 hover:border-gray-600' : 'border-gray-300 hover:border-gray-400')
-                        }`}
+                        className={`${baseButtonClasses} ${selected === key ? selectedClasses : unselectedClasses}`}
                         aria-label={`Select background color ${name}`}
                         aria-pressed={selected === key}
                     >
                         <div
-                            className={`w-6 h-6 border rounded-full ${color === '#FFFFFF' || color === '#f1f0f1' ? 'border-gray-400' : 'border-transparent'}`}
+                            className={`w-5 h-5 rounded-full border ${color === '#FFFFFF' || color === '#f1f0f1' ? 'border-gray-400' : 'border-transparent'}`}
                             style={{ backgroundColor: color }}
                         ></div>
-                        <span className={`text-sm font-medium ${theme === 'dark' ? 'text-nothing-light' : 'text-day-text'}`}>{name}</span>
+                        <span className={`text-sm font-medium`}>{name}</span>
                     </button>
                 ))}
             </div>

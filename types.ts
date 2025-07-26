@@ -33,14 +33,17 @@ export type WallpaperState = {
 
 // Photo Widget
 export type PhotoWidgetOutputMode = 'transparent' | 'dark' | 'light';
+export type PhotoWidgetAspectRatio = '2x2' | '4x2';
 
 export type PhotoWidgetState = {
     resolution: number;
+    exposure: number;
+    contrast: number;
+    saturation: number;
     pixelGap: number;
     isCircular: boolean;
     isAntiAliased: boolean;
-    isBordered: boolean;
-    outputMode: PhotoWidgetOutputMode;
+    aspectRatio: PhotoWidgetAspectRatio;
 };
 
 export type PhotoWidgetColorMatrix = ({ r: number; g: number; b: number; a: number; } | null)[][];
