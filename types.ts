@@ -37,9 +37,6 @@ export type PhotoWidgetAspectRatio = '2x2' | '4x2';
 
 export type PhotoWidgetState = {
     resolution: number;
-    exposure: number;
-    contrast: number;
-    saturation: number;
     pixelGap: number;
     isCircular: boolean;
     isAntiAliased: boolean;

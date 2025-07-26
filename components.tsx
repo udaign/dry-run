@@ -1,5 +1,5 @@
 
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { Theme, PhotoWidgetOutputMode } from './types';
 
 export const Dropzone: React.FC<{ onFileSelect: (file: File) => void; isLoading: boolean; compact?: boolean; theme: Theme; accept?: string; }> = ({ onFileSelect, isLoading, compact = false, theme, accept = "image/*" }) => {
@@ -95,11 +95,79 @@ export const EnhancedSlider: React.FC<{
   disabled?: boolean;
   theme: Theme;
 }> = ({ label, value, onChange, onChangeCommitted, onReset, disabled, theme }) => {
-    const handleCommit = (val: number) => {
-        const clampedValue = Math.max(0, Math.min(100, val));
-        onChange(clampedValue);
-        onChangeCommitted(clampedValue);
-    };
+    const rangeInputRef = useRef<HTMLInputElement>(null);
+
+    useEffect(() => {
+        const inputElement = rangeInputRef.current;
+        if (!inputElement || disabled) return;
+
+        const touchState = {
+            startX: 0,
+            startY: 0,
+            isScrolling: false,
+            isLocked: false
+        };
+
+        const handleTouchStart = (e: TouchEvent) => {
+            if (e.touches.length > 1) return;
+            touchState.startX = e.touches[0].clientX;
+            touchState.startY = e.touches[0].clientY;
+            touchState.isScrolling = false;
+            touchState.isLocked = false;
+        };
+
+        const handleTouchMove = (e: TouchEvent) => {
+            if (touchState.isLocked) {
+                if (!touchState.isScrolling) {
+                    e.preventDefault();
+                }
+                return;
+            }
+            if (e.touches.length > 1) return;
+
+            const deltaX = Math.abs(e.touches[0].clientX - touchState.startX);
+            const deltaY = Math.abs(e.touches[0].clientY - touchState.startY);
+            const threshold = 5;
+
+            if (deltaX > threshold || deltaY > threshold) {
+                touchState.isLocked = true;
+                if (deltaY > deltaX) {
+                    touchState.isScrolling = true;
+                } else {
+                    touchState.isScrolling = false;
+                    e.preventDefault();
+                }
+            }
+        };
+
+        const handleInput = (e: Event) => {
+            if (touchState.isScrolling) {
+                (e.target as HTMLInputElement).value = String(value);
+                return;
+            }
+            onChange(Number((e.target as HTMLInputElement).value));
+        };
+
+        const handleChange = (e: Event) => {
+            if (touchState.isScrolling) {
+                return;
+            }
+            onChangeCommitted(Number((e.target as HTMLInputElement).value));
+        };
+
+        inputElement.addEventListener('touchstart', handleTouchStart, { passive: true });
+        inputElement.addEventListener('touchmove', handleTouchMove, { passive: false });
+        inputElement.addEventListener('input', handleInput);
+        inputElement.addEventListener('change', handleChange);
+
+        return () => {
+            inputElement.removeEventListener('touchstart', handleTouchStart);
+            inputElement.removeEventListener('touchmove', handleTouchMove);
+            inputElement.removeEventListener('input', handleInput);
+            inputElement.removeEventListener('change', handleChange);
+        };
+    }, [value, onChange, onChangeCommitted, disabled]);
+
 
     const handleNumberInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const numValue = parseInt(e.target.value, 10);
@@ -107,7 +175,9 @@ export const EnhancedSlider: React.FC<{
     };
 
     const handleNumberInputBlur = () => {
-        handleCommit(value);
+        const clampedValue = Math.max(0, Math.min(100, value));
+        onChange(clampedValue);
+        onChangeCommitted(clampedValue);
     };
     
     return (
@@ -115,14 +185,13 @@ export const EnhancedSlider: React.FC<{
             <label htmlFor={label} className="text-sm">{label}</label>
             <div className="flex items-center space-x-3">
                 <input
+                    ref={rangeInputRef}
                     id={label}
                     type="range"
                     min="0"
                     max="100"
                     value={value}
-                    onChange={(e) => onChange(Number(e.target.value))}
-                    onMouseUp={() => handleCommit(value)}
-                    onTouchEnd={() => handleCommit(value)}
+                    onChange={() => {}}
                     disabled={disabled}
                     className={`w-full h-2 appearance-none cursor-pointer disabled:opacity-50 rounded-lg ${theme === 'dark' ? 'bg-nothing-gray-dark accent-white' : 'bg-day-gray-light accent-black'}`}
                 />
