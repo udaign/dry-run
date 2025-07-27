@@ -111,7 +111,7 @@ export const EnhancedSlider: React.FC<{
     };
     
     return (
-        <div className={`${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'} space-y-2`}>
+        <div className={`${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'} space-y-2 touch-pan-y`}>
             <label htmlFor={label} className="text-sm">{label}</label>
             <div className="flex items-center space-x-3">
                 <input

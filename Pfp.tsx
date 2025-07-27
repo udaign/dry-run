@@ -214,13 +214,29 @@ export const usePfpPanel = ({ theme, footerLinks }: { theme: Theme, isMobile: bo
             const canvas = document.createElement('canvas');
             canvas.width = CANVAS_SIZE; canvas.height = CANVAS_SIZE;
             const ctx = canvas.getContext('2d');
-            if (!ctx) return;
+            if (!ctx) {
+                throw new Error('Failed to get canvas context for download.');
+            }
             drawPfpMatrix(ctx, { width: CANVAS_SIZE, height: CANVAS_SIZE, isTransparent: pfpState.isTransparent, gridColors, matrixMask, diameter, calculatedPixelGap, isCircular: pfpState.isCircular });
-            const link = document.createElement('a');
-            link.download = `matrices-glyphmirror-${getTimestamp()}.png`;
-            link.href = canvas.toDataURL('image/png');
-            link.click();
-        } finally {
+            
+            canvas.toBlob((blob) => {
+                try {
+                    if (blob) {
+                        const url = URL.createObjectURL(blob);
+                        const link = document.createElement('a');
+                        link.download = `matrices-glyphmirror-${getTimestamp()}.png`;
+                        link.href = url;
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                        URL.revokeObjectURL(url);
+                    }
+                } finally {
+                    setIsDownloading(false);
+                }
+            }, 'image/png');
+        } catch(e) {
+            console.error("Error preparing PFP for download:", e);
             setIsDownloading(false);
         }
     }, 50);

@@ -167,59 +167,107 @@ export const useWallpaperPanel = ({ theme, isMobile, footerLinks }: { theme: The
     setTimeout(() => {
         try {
             const canvas = canvasRef.current;
-            if (!canvas) return;
-            const link = document.createElement('a');
-            link.download = `matrices-wallpaper-${getTimestamp()}.png`;
-            link.href = canvas.toDataURL('image/png');
-            link.click();
-        } finally {
+            if (!canvas) {
+                throw new Error('Wallpaper canvas not found for download.');
+            }
+            canvas.toBlob((blob) => {
+                try {
+                    if (blob) {
+                        const url = URL.createObjectURL(blob);
+                        const link = document.createElement('a');
+                        link.download = `matrices-wallpaper-${getTimestamp()}.png`;
+                        link.href = url;
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                        URL.revokeObjectURL(url);
+                    }
+                } finally {
+                    setIsDownloading(false);
+                }
+            }, 'image/png');
+        } catch(e) {
+            console.error("Error preparing wallpaper for download:", e);
             setIsDownloading(false);
         }
     }, 50);
   };
 
-  const dragState = useRef({ isDragging: false, startX: 0, startY: 0, initialOffsetX: 0.5, initialOffsetY: 0.5 });
+  const dragState = useRef({ isDragging: false, startX: 0, startY: 0, initialOffsetX: 0.5, initialOffsetY: 0.5, hasMoved: false });
+  
   const handleWallpaperDragStart = useCallback((e: React.MouseEvent | React.TouchEvent) => {
       if (!wallpaperCropIsNeeded) return;
+      
+      e.preventDefault();
+
       dragState.current.isDragging = true;
+      dragState.current.hasMoved = false;
+      
       const point = 'touches' in e ? e.touches[0] : e;
       dragState.current.startX = point.clientX;
       dragState.current.startY = point.clientY;
       dragState.current.initialOffsetX = liveWallpaperSettings[wallpaperType].cropOffsetX;
       dragState.current.initialOffsetY = liveWallpaperSettings[wallpaperType].cropOffsetY;
-      if ('preventDefault' in e) e.preventDefault();
+      
       document.body.style.cursor = 'grabbing';
   }, [wallpaperCropIsNeeded, liveWallpaperSettings, wallpaperType]);
 
   const handleWallpaperDragMove = useCallback((e: MouseEvent | TouchEvent) => {
       if (!dragState.current.isDragging || !image) return;
+      
+      dragState.current.hasMoved = true;
+
       const point = 'touches' in e ? e.touches[0] : e;
-      let deltaX = point.clientX - dragState.current.startX, deltaY = point.clientY - dragState.current.startY;
-      if (wallpaperType === 'desktop') { deltaX *= 2.5; deltaY *= 2.5; }
-      const imgAspect = image.width / image.height, canvasAspect = currentWallpaperWidth / currentWallpaperHeight;
+      
+      let deltaX = point.clientX - dragState.current.startX;
+      let deltaY = point.clientY - dragState.current.startY;
+
+      if (wallpaperType === 'desktop') {
+          const sensitivityMultiplier = isMobile ? 4.0 : 2.5;
+          deltaX *= sensitivityMultiplier;
+          deltaY *= sensitivityMultiplier;
+      }
+      
+      const imgAspect = image.width / image.height;
+      const canvasAspect = currentWallpaperWidth / currentWallpaperHeight;
+      
       let panRangeX = 0, panRangeY = 0;
-      if (imgAspect > canvasAspect) panRangeX = (currentWallpaperHeight * imgAspect) - currentWallpaperWidth;
-      else panRangeY = (currentWallpaperWidth / imgAspect) - currentWallpaperHeight;
+      if (imgAspect > canvasAspect) { panRangeX = (currentWallpaperHeight * imgAspect) - currentWallpaperWidth; }
+      else if (imgAspect < canvasAspect) { panRangeY = (currentWallpaperWidth / imgAspect) - currentWallpaperHeight; }
+      
       let newOffsetX = panRangeX > 0 ? dragState.current.initialOffsetX - (deltaX / panRangeX) : dragState.current.initialOffsetX;
       let newOffsetY = panRangeY > 0 ? dragState.current.initialOffsetY - (deltaY / panRangeY) : dragState.current.initialOffsetY;
+      
       setLiveWallpaperSettings(s => ({ ...s, [wallpaperType]: { ...s[wallpaperType], cropOffsetX: Math.max(0, Math.min(1, newOffsetX)), cropOffsetY: Math.max(0, Math.min(1, newOffsetY)) } }));
-  }, [image, currentWallpaperWidth, currentWallpaperHeight, wallpaperType]);
+  }, [image, currentWallpaperWidth, currentWallpaperHeight, wallpaperType, isMobile]);
 
   const handleWallpaperDragEnd = useCallback(() => {
       if (dragState.current.isDragging) {
           dragState.current.isDragging = false;
+          
           const { cropOffsetX: liveCropOffsetX, cropOffsetY: liveCropOffsetY } = liveWallpaperSettings[wallpaperType];
           setWallpaperSettings(s => ({ ...s, [wallpaperType]: { ...s[wallpaperType], cropOffsetX: liveCropOffsetX, cropOffsetY: liveCropOffsetY } }));
+          
           document.body.style.cursor = 'default';
       }
   }, [liveWallpaperSettings, wallpaperType, setWallpaperSettings]);
 
   useEffect(() => {
-      document.addEventListener('mousemove', handleWallpaperDragMove); document.addEventListener('mouseup', handleWallpaperDragEnd);
-      document.addEventListener('touchmove', handleWallpaperDragMove); document.addEventListener('touchend', handleWallpaperDragEnd);
+      const onMove = (e: MouseEvent | TouchEvent) => handleWallpaperDragMove(e);
+      const onEnd = () => handleWallpaperDragEnd();
+
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onEnd);
+      document.addEventListener('touchmove', onMove);
+      document.addEventListener('touchend', onEnd);
+      document.addEventListener('touchcancel', onEnd);
+
       return () => {
-          document.removeEventListener('mousemove', handleWallpaperDragMove); document.removeEventListener('mouseup', handleWallpaperDragEnd);
-          document.removeEventListener('touchmove', handleWallpaperDragMove); document.removeEventListener('touchend', handleWallpaperDragEnd);
+          document.removeEventListener('mousemove', onMove);
+          document.removeEventListener('mouseup', onEnd);
+          document.removeEventListener('touchmove', onMove);
+          document.removeEventListener('touchend', onEnd);
+          document.removeEventListener('touchcancel', onEnd);
       }
   }, [handleWallpaperDragMove, handleWallpaperDragEnd]);
 
@@ -278,8 +326,20 @@ export const useWallpaperPanel = ({ theme, isMobile, footerLinks }: { theme: The
     <Dropzone onFileSelect={handleFileSelect} isLoading={isLoading} theme={theme}/>
   ) : (
     <>
-        <div onMouseDown={handleWallpaperDragStart} onTouchStart={handleWallpaperDragStart} style={{ cursor: wallpaperCropIsNeeded ? 'grab' : 'default' }} className="relative flex items-center justify-center w-full h-full">
-            <canvas ref={canvasRef} width={currentWallpaperWidth} height={currentWallpaperHeight} className={`border-2 rounded-lg ${theme === 'dark' ? 'border-nothing-gray-dark' : 'border-gray-300'} ${wallpaperType === 'phone' ? (isMobile ? 'w-4/5 h-auto' : 'max-h-full w-auto') : 'max-w-full max-h-full'}`} aria-label="Wallpaper Canvas" />
+        <div className="relative flex items-center justify-center w-full h-full">
+            <canvas 
+                ref={canvasRef} 
+                width={currentWallpaperWidth} 
+                height={currentWallpaperHeight} 
+                className={`border-2 rounded-lg ${theme === 'dark' ? 'border-nothing-gray-dark' : 'border-gray-300'} ${wallpaperType === 'phone' ? (isMobile ? 'w-4/5 h-auto' : 'max-h-full w-auto') : 'max-w-full max-h-full'}`} 
+                aria-label="Wallpaper Canvas" 
+                onMouseDown={handleWallpaperDragStart}
+                onTouchStart={handleWallpaperDragStart}
+                style={{
+                    cursor: wallpaperCropIsNeeded ? 'grab' : 'default',
+                    touchAction: wallpaperCropIsNeeded ? 'none' : 'auto'
+                }}
+            />
             <button
                 onClick={() => setIsFullScreenPreview(true)}
                 className={`absolute bottom-3 right-3 z-10 p-2 rounded-md transition-colors duration-300 ${theme === 'dark' ? 'text-nothing-light bg-nothing-gray-dark hover:bg-nothing-gray-light hover:text-nothing-dark' : 'text-day-text bg-day-gray-light hover:bg-day-gray-dark hover:text-day-bg'}`}
@@ -294,10 +354,12 @@ export const useWallpaperPanel = ({ theme, isMobile, footerLinks }: { theme: The
             <div
                 ref={fullScreenContainerRef}
                 className="fixed inset-0 bg-black z-50 flex items-center justify-center"
-                onClick={(e) => { if (e.target === e.currentTarget) exitFullScreen(); }}
-                onMouseDown={handleWallpaperDragStart}
-                onTouchStart={handleWallpaperDragStart}
-                style={{ cursor: wallpaperCropIsNeeded ? 'grab' : 'default' }}
+                onMouseDown={(e) => {
+                    if (e.target === e.currentTarget) {
+                        dragState.current.hasMoved = false;
+                    }
+                }}
+                onClick={(e) => { if (e.target === e.currentTarget && !dragState.current.hasMoved) exitFullScreen(); }}
             >
                 <canvas
                     ref={fullScreenCanvasRef}
@@ -305,6 +367,12 @@ export const useWallpaperPanel = ({ theme, isMobile, footerLinks }: { theme: The
                     height={currentWallpaperHeight}
                     className="max-w-full max-h-full"
                     aria-label="Full-screen Wallpaper Canvas Preview"
+                    onMouseDown={handleWallpaperDragStart}
+                    onTouchStart={handleWallpaperDragStart}
+                    style={{
+                        cursor: wallpaperCropIsNeeded ? 'grab' : 'default',
+                        touchAction: wallpaperCropIsNeeded ? 'none' : 'auto'
+                    }}
                 />
                 <button
                     onClick={exitFullScreen}
