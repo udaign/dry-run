@@ -12,7 +12,6 @@ export type PfpState = {
     isCircular: boolean;
     isTransparent: boolean;
     isAntiAliased: boolean;
-    isMatrixSquare: boolean;
 };
 
 // Wallpaper
@@ -25,7 +24,6 @@ export type WallpaperBgKey = keyof typeof WALLPAPER_BG_OPTIONS;
 export type WallpaperState = {
     resolution: number;
     pixelGap: number;
-    isCircular: boolean;
     background: WallpaperBgKey;
     cropOffsetX: number;
     cropOffsetY: number;

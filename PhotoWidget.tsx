@@ -103,8 +103,8 @@ export const usePhotoWidgetPanel = ({ theme, footerLinks }: { theme: Theme, isMo
   const [isLoading, setIsLoading] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [colorMatrix, setColorMatrix] = useState<PhotoWidgetColorMatrix | null>(null);
-  const [showAdvanced, setShowAdvanced] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [isPrefsOpen, setIsPrefsOpen] = useState(false);
   
   const { resolution, pixelGap, isCircular, isAntiAliased, aspectRatio } = livePhotoWidgetState;
   
@@ -242,73 +242,77 @@ export const usePhotoWidgetPanel = ({ theme, footerLinks }: { theme: Theme, isMo
 
   const controlsPanel = imageSrc ? (
     <div className="max-w-md mx-auto w-full flex flex-col space-y-4 px-6 sm:px-6 md:px-8 pt-6 md:pt-3 pb-8 sm:pb-6 md:pb-8">
-        <div className="pb-4">
-            <OutputModeSelector 
-                label="Widget Background"
-                selected={outputMode}
-                onSelect={setOutputMode}
-                theme={theme}
+      <div className={`rounded-lg transition-all duration-300 ${theme === 'dark' ? 'bg-nothing-darker' : 'bg-white border border-gray-300'}`}>
+        <button
+          onClick={() => setIsPrefsOpen(!isPrefsOpen)}
+          className="w-full flex justify-between items-center p-4"
+          aria-expanded={isPrefsOpen}
+          aria-controls="widget-prefs-content"
+        >
+          <span className={`font-semibold ${theme === 'dark' ? 'text-nothing-light' : 'text-day-text'}`}>Widget Preferences</span>
+          <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 transition-transform duration-300 ${isPrefsOpen ? 'rotate-180' : ''} ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'}`} viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+          </svg>
+        </button>
+        <div
+          id="widget-prefs-content"
+          className={`overflow-hidden transition-all duration-300 ease-in-out ${isPrefsOpen ? 'max-h-96' : 'max-h-0'}`}
+        >
+          <div className="px-4 pb-4 pt-0 space-y-3">
+            <OutputModeSelector
+              selected={outputMode}
+              onSelect={setOutputMode}
+              theme={theme}
             />
+            <div className={`flex space-x-1 p-1 rounded-lg ${theme === 'dark' ? 'bg-nothing-darker' : 'bg-gray-200'}`}>
+              {(['2x2', '4x2'] as const).map(ratio => (
+                <button
+                  key={ratio}
+                  onClick={() => setPhotoWidgetState(s => ({ ...s, aspectRatio: ratio }))}
+                  className={`w-1/2 py-2 text-sm font-semibold transition-colors duration-200 focus:outline-none rounded-md ${aspectRatio === ratio ? (theme === 'dark' ? 'bg-nothing-light text-nothing-dark font-bold' : 'bg-day-text text-day-bg font-bold') : (theme === 'dark' ? 'bg-nothing-gray-dark hover:bg-gray-700 text-nothing-light' : 'bg-day-gray-light hover:bg-gray-300 text-day-text')}`}
+                  aria-pressed={aspectRatio === ratio}
+                >
+                  {ratio.replace('x', '×')}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
-        <UndoRedoControls onUndo={undoPhotoWidget} onRedo={redoPhotoWidget} canUndo={canUndoPhotoWidget} canRedo={canRedoPhotoWidget} theme={theme} />
+      </div>
+
+      <UndoRedoControls onUndo={undoPhotoWidget} onRedo={redoPhotoWidget} canUndo={canUndoPhotoWidget} canRedo={canRedoPhotoWidget} theme={theme} />
         
+      <div className={`p-4 rounded-lg space-y-4 ${theme === 'dark' ? 'bg-nothing-darker' : 'bg-white border border-gray-300'}`}>
         <EnhancedSlider theme={theme} label="Resolution" value={resolution} onChange={v => setLivePhotoWidgetState(s => ({...s, resolution: v}))} onChangeCommitted={v => setPhotoWidgetState(s => ({...s, resolution: v}))} onReset={() => setPhotoWidgetState(s => ({...s, resolution: DEFAULT_SLIDER_VALUE}))} disabled={isLoading} />
         <EnhancedSlider theme={theme} label="Pixel Gap" value={pixelGap} onChange={v => setLivePhotoWidgetState(s => ({...s, pixelGap: v}))} onChangeCommitted={v => setPhotoWidgetState(s => ({...s, pixelGap: v}))} onReset={() => setPhotoWidgetState(s => ({...s, pixelGap: 0}))} disabled={isLoading} />
+      </div>
         
-        <div className="pt-4 space-y-4">
-            <div className={`flex items-center justify-between ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'}`}>
-                <label htmlFor="pw-circular-toggle" className="text-sm">Circular Pixels</label>
-                <button id="pw-circular-toggle" role="switch" aria-checked={isCircular} onClick={() => setPhotoWidgetState(s => ({...s, isCircular: !s.isCircular}))} disabled={isLoading} className={`relative inline-flex items-center h-6 w-11 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 rounded-full ${theme === 'dark' ? 'focus:ring-offset-nothing-dark' : 'focus:ring-offset-day-bg'} ${isCircular ? 'bg-nothing-red' : (theme === 'dark' ? 'bg-nothing-gray-dark' : 'bg-day-gray-light')}`}>
-                    <span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform duration-300 ${isCircular ? 'translate-x-6' : 'translate-x-1'}`} />
-                </button>
-            </div>
-            <div className={`flex items-center justify-between ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'}`}>
-                <label htmlFor="pw-aa-toggle" className="text-sm">Anti-aliasing</label>
-                <button id="pw-aa-toggle" role="switch" aria-checked={isAntiAliased} onClick={() => {
-                    setPhotoWidgetState(s => ({
-                        ...s,
-                        isAntiAliased: !s.isAntiAliased,
-                    }));
-                }} disabled={isLoading} className={`relative inline-flex items-center h-6 w-11 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 rounded-full ${theme === 'dark' ? 'focus:ring-offset-nothing-dark' : 'focus:ring-offset-day-bg'} disabled:opacity-50 ${isAntiAliased ? 'bg-nothing-red' : (theme === 'dark' ? 'bg-nothing-gray-dark' : 'bg-day-gray-light')}`}>
-                    <span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform duration-300 ${isAntiAliased ? 'translate-x-6' : 'translate-x-1'}`} />
-                </button>
-            </div>
+      <div className={`p-4 rounded-lg space-y-4 ${theme === 'dark' ? 'bg-nothing-darker' : 'bg-white border border-gray-300'}`}>
+        <div className={`flex items-center justify-between ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'}`}>
+          <label htmlFor="pw-circular-toggle" className="text-sm">Circular Pixels</label>
+          <button id="pw-circular-toggle" role="switch" aria-checked={isCircular} onClick={() => setPhotoWidgetState(s => ({...s, isCircular: !s.isCircular}))} disabled={isLoading} className={`relative inline-flex items-center h-6 w-11 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 rounded-full ${theme === 'dark' ? 'focus:ring-offset-nothing-dark' : 'focus:ring-offset-day-bg'} ${isCircular ? 'bg-nothing-red' : (theme === 'dark' ? 'bg-nothing-gray-dark' : 'bg-day-gray-light')}`}>
+            <span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform duration-300 ${isCircular ? 'translate-x-6' : 'translate-x-1'}`} />
+          </button>
         </div>
-
-        <div className={`border-t ${theme === 'dark' ? 'border-nothing-gray-dark' : 'border-gray-300'} mt-6 pt-4`}>
-            <button onClick={() => setShowAdvanced(!showAdvanced)} className={`w-full flex justify-between items-center ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'} py-1 focus:outline-none`} aria-expanded={showAdvanced} aria-controls="pw-advanced-options-panel">
-                <span className="text-sm font-medium">More Controls</span>
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`h-5 w-5 transform transition-transform duration-300 ${showAdvanced ? 'rotate-180' : ''}`}>
-                  <polyline points="6 9 12 15 18 9"></polyline>
-                </svg>
-            </button>
-            <div id="pw-advanced-options-panel" className={`overflow-hidden transition-all duration-500 ease-in-out ${showAdvanced ? 'max-h-96 pt-4' : 'max-h-0'}`}>
-                <div className="space-y-4">
-                    <div className="space-y-2">
-                        <label className={`text-sm ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'}`}>Aspect Ratio</label>
-                        <div className={`flex space-x-1 p-1 rounded-lg ${theme === 'dark' ? 'bg-nothing-darker' : 'bg-gray-200'}`}>
-                            {(['2x2', '4x2'] as const).map(ratio => (
-                                <button
-                                    key={ratio}
-                                    onClick={() => setPhotoWidgetState(s => ({ ...s, aspectRatio: ratio }))}
-                                    className={`w-1/2 py-2 text-sm font-semibold transition-colors duration-200 focus:outline-none rounded-md ${aspectRatio === ratio ? (theme === 'dark' ? 'bg-nothing-light text-nothing-dark font-bold' : 'bg-day-text text-day-bg font-bold') : (theme === 'dark' ? 'bg-nothing-gray-dark hover:bg-gray-700 text-nothing-light' : 'bg-day-gray-light hover:bg-gray-300 text-day-text')}`}
-                                    aria-pressed={aspectRatio === ratio}
-                                >
-                                    {ratio.replace('x', '×')}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                </div>
-            </div>
+        <div className={`flex items-center justify-between ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'}`}>
+          <label htmlFor="pw-aa-toggle" className="text-sm">Anti-aliasing</label>
+          <button id="pw-aa-toggle" role="switch" aria-checked={isAntiAliased} onClick={() => {
+              setPhotoWidgetState(s => ({
+                  ...s,
+                  isAntiAliased: !s.isAntiAliased,
+              }));
+          }} disabled={isLoading} className={`relative inline-flex items-center h-6 w-11 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 rounded-full ${theme === 'dark' ? 'focus:ring-offset-nothing-dark' : 'focus:ring-offset-day-bg'} disabled:opacity-50 ${isAntiAliased ? 'bg-nothing-red' : (theme === 'dark' ? 'bg-nothing-gray-dark' : 'bg-day-gray-light')}`}>
+            <span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform duration-300 ${isAntiAliased ? 'translate-x-6' : 'translate-x-1'}`} />
+          </button>
         </div>
+      </div>
         
-        <div className="pt-6">
-            <button onClick={handleReset} disabled={isLoading} className={`w-full border font-semibold py-2 px-4 transition-all duration-300 disabled:opacity-50 rounded-md ${theme === 'dark' ? 'border-gray-700 text-nothing-gray-light hover:bg-gray-800' : 'border-gray-300 text-day-gray-dark hover:bg-gray-200'}`} aria-label="Restore photo widget settings to their default values"> Restore Defaults </button>
-        </div>
-        <div className="block md:hidden pt-8">
-            <footer className="text-center tracking-wide">{footerLinks}</footer>
-        </div>
+      <div className="pt-2">
+        <button onClick={handleReset} disabled={isLoading} className={`w-full border font-semibold py-2 px-4 transition-all duration-300 disabled:opacity-50 rounded-md ${theme === 'dark' ? 'border-gray-700 text-nothing-gray-light hover:bg-gray-800' : 'border-gray-300 text-day-gray-dark hover:bg-gray-200'}`} aria-label="Restore photo widget settings to their default values"> Restore Defaults </button>
+      </div>
+      <div className="block md:hidden pt-8">
+          <footer className="text-center tracking-wide">{footerLinks}</footer>
+      </div>
     </div>
   ) : null;
   

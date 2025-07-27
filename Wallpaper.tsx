@@ -17,7 +17,6 @@ const WALLPAPER_RESOLUTION_MULTIPLIER = 56.16;
 const WALLPAPER_INITIAL_STATE: WallpaperState = {
     resolution: DEFAULT_SLIDER_VALUE,
     pixelGap: DEFAULT_SLIDER_VALUE,
-    isCircular: true,
     background: 'black' as WallpaperBgKey,
     cropOffsetX: 0.5,
     cropOffsetY: 0.5,
@@ -46,21 +45,21 @@ export const useWallpaperPanel = ({ theme, isMobile, footerLinks }: { theme: The
   } = useHistory(DUAL_WALLPAPER_INITIAL_STATE);
   
   const [liveWallpaperSettings, setLiveWallpaperSettings] = useState(wallpaperSettings);
-  const [wallpaperType, setWallpaperType] = useState<'phone' | 'desktop'>('phone');
+  const [wallpaperType, setWallpaperType] = useState<'phone' | 'desktop'>(isMobile ? 'phone' : 'desktop');
   const [imageSrc, setImageSrc] = useState<string | null>(null);
   const [image, setImage] = useState<HTMLImageElement | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
-  const [showAdvanced, setShowAdvanced] = useState(false);
   const [isFullScreenPreview, setIsFullScreenPreview] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fullScreenCanvasRef = useRef<HTMLCanvasElement>(null);
   const fullScreenContainerRef = useRef<HTMLDivElement>(null);
-  
+  const [isPrefsOpen, setIsPrefsOpen] = useState(false);
+
   useEffect(() => { setLiveWallpaperSettings(wallpaperSettings); }, [wallpaperSettings]);
 
   const liveWallpaperState = liveWallpaperSettings[wallpaperType];
-  const { resolution, pixelGap, isCircular, background, cropOffsetX, cropOffsetY } = liveWallpaperState;
+  const { resolution, pixelGap, background, cropOffsetX, cropOffsetY } = liveWallpaperState;
   
   useEffect(() => {
     const handleFullScreenChange = () => {
@@ -137,18 +136,21 @@ export const useWallpaperPanel = ({ theme, isMobile, footerLinks }: { theme: The
             for (let x = 0; x < wallpaperGridWidth; x++) {
                 const i = (y * wallpaperGridWidth + x) * 4;
                 ctx.fillStyle = `rgb(${data[i]}, ${data[i+1]}, ${data[i+2]})`;
-                const drawX = x * (pxRenderW + calculatedWallpaperPixelGap), drawY = y * (pxRenderH + calculatedWallpaperPixelGap);
-                if (isCircular) {
+                const drawX = x * (pxRenderW + calculatedWallpaperPixelGap);
+                const drawY = y * (pxRenderH + calculatedWallpaperPixelGap);
+                
+                const radius = Math.min(pxRenderW, pxRenderH) / 2;
+                if (radius > 0) {
                     ctx.beginPath();
-                    ctx.arc(drawX + pxRenderW / 2, drawY + pxRenderH / 2, Math.min(pxRenderW, pxRenderH) / 2, 0, 2 * Math.PI);
+                    const centerX = drawX + pxRenderW / 2;
+                    const centerY = drawY + pxRenderH / 2;
+                    ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
                     ctx.fill();
-                } else {
-                    ctx.fillRect(drawX, drawY, pxRenderW, pxRenderH);
                 }
             }
         }
       }
-  }, [image, wallpaperGridWidth, wallpaperGridHeight, calculatedWallpaperPixelGap, isCircular, background, currentWallpaperWidth, currentWallpaperHeight, cropOffsetX, cropOffsetY, isFullScreenPreview]);
+  }, [image, wallpaperGridWidth, wallpaperGridHeight, calculatedWallpaperPixelGap, background, currentWallpaperWidth, currentWallpaperHeight, cropOffsetX, cropOffsetY, isFullScreenPreview]);
   
   const handleFileSelect = (file: File) => {
     setIsLoading(true);
@@ -221,11 +223,17 @@ export const useWallpaperPanel = ({ theme, isMobile, footerLinks }: { theme: The
       
       let deltaX = point.clientX - dragState.current.startX;
       let deltaY = point.clientY - dragState.current.startY;
+      
+      const activeCanvas = isFullScreenPreview ? fullScreenCanvasRef.current : canvasRef.current;
 
-      if (wallpaperType === 'desktop') {
-          const sensitivityMultiplier = isMobile ? 4.0 : 2.5;
-          deltaX *= sensitivityMultiplier;
-          deltaY *= sensitivityMultiplier;
+      if (activeCanvas) {
+          const rect = activeCanvas.getBoundingClientRect();
+          if (rect.width > 0 && rect.height > 0) {
+              const scaleX = currentWallpaperWidth / rect.width;
+              const scaleY = currentWallpaperHeight / rect.height;
+              deltaX *= scaleX;
+              deltaY *= scaleY;
+          }
       }
       
       const imgAspect = image.width / image.height;
@@ -239,7 +247,7 @@ export const useWallpaperPanel = ({ theme, isMobile, footerLinks }: { theme: The
       let newOffsetY = panRangeY > 0 ? dragState.current.initialOffsetY - (deltaY / panRangeY) : dragState.current.initialOffsetY;
       
       setLiveWallpaperSettings(s => ({ ...s, [wallpaperType]: { ...s[wallpaperType], cropOffsetX: Math.max(0, Math.min(1, newOffsetX)), cropOffsetY: Math.max(0, Math.min(1, newOffsetY)) } }));
-  }, [image, currentWallpaperWidth, currentWallpaperHeight, wallpaperType, isMobile]);
+  }, [image, currentWallpaperWidth, currentWallpaperHeight, wallpaperType, isFullScreenPreview]);
 
   const handleWallpaperDragEnd = useCallback(() => {
       if (dragState.current.isDragging) {
@@ -273,49 +281,52 @@ export const useWallpaperPanel = ({ theme, isMobile, footerLinks }: { theme: The
 
   const controlsPanel = imageSrc ? (
      <div className="max-w-md mx-auto w-full flex flex-col space-y-4 px-6 sm:px-6 md:px-8 pt-6 md:pt-3 pb-8 sm:pb-6 md:pb-8">
-      <div className="pb-4">
-          <WallpaperTypeSelector selected={wallpaperType} onSelect={setWallpaperType} theme={theme} />
+      <div className={`rounded-lg transition-all duration-300 ${theme === 'dark' ? 'bg-nothing-darker' : 'bg-white border border-gray-300'}`}>
+        <button
+          onClick={() => setIsPrefsOpen(!isPrefsOpen)}
+          className="w-full flex justify-between items-center p-4"
+          aria-expanded={isPrefsOpen}
+          aria-controls="wallpaper-prefs-content"
+        >
+          <span className={`font-semibold ${theme === 'dark' ? 'text-nothing-light' : 'text-day-text'}`}>Wallpaper Preferences</span>
+          <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 transition-transform duration-300 ${isPrefsOpen ? 'rotate-180' : ''} ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'}`} viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+          </svg>
+        </button>
+        <div
+          id="wallpaper-prefs-content"
+          className={`overflow-hidden transition-all duration-300 ease-in-out ${isPrefsOpen ? 'max-h-96' : 'max-h-0'}`}
+        >
+          <div className="px-4 pb-4 pt-0 space-y-2">
+            <WallpaperTypeSelector selected={wallpaperType} onSelect={setWallpaperType} theme={theme} />
+            <ColorSelector options={WALLPAPER_BG_OPTIONS} selected={liveWallpaperState.background} onSelect={(key) => setWallpaperSettings(s => ({ ...s, [wallpaperType]: { ...s[wallpaperType], background: key as WallpaperBgKey } }))} theme={theme} />
+          </div>
+        </div>
       </div>
       <UndoRedoControls onUndo={undoWallpaper} onRedo={redoWallpaper} canUndo={canUndoWallpaper} canRedo={canRedoWallpaper} theme={theme} />
-      <EnhancedSlider 
-          theme={theme} 
-          label="Resolution" 
-          value={resolution} 
-          onChange={v => setLiveWallpaperSettings(s => ({ ...s, [wallpaperType]: { ...s[wallpaperType], resolution: v } }))} 
-          onChangeCommitted={v => setWallpaperSettings(s => ({ ...s, [wallpaperType]: { ...s[wallpaperType], resolution: v } }))}
-          onReset={() => setWallpaperSettings(s => ({ ...s, [wallpaperType]: { ...s[wallpaperType], resolution: DEFAULT_SLIDER_VALUE } }))}
-          disabled={isLoading} 
-      />
-      <EnhancedSlider 
-          theme={theme} 
-          label="Pixel Gap" 
-          value={pixelGap} 
-          onChange={v => setLiveWallpaperSettings(s => ({ ...s, [wallpaperType]: { ...s[wallpaperType], pixelGap: v } }))}
-          onChangeCommitted={v => setWallpaperSettings(s => ({ ...s, [wallpaperType]: { ...s[wallpaperType], pixelGap: v } }))} 
-          onReset={() => setWallpaperSettings(s => ({ ...s, [wallpaperType]: { ...s[wallpaperType], pixelGap: DEFAULT_SLIDER_VALUE } }))}
-          disabled={isLoading} 
-      />
       
-      <div className={`border-t ${theme === 'dark' ? 'border-nothing-gray-dark' : 'border-gray-300'} mt-6 pt-4`}>
-          <button onClick={() => setShowAdvanced(!showAdvanced)} className={`w-full flex justify-between items-center ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'} py-1 focus:outline-none`} aria-expanded={showAdvanced} aria-controls="wallpaper-advanced-options-panel">
-              <span className="text-sm font-medium">More Controls</span>
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`h-5 w-5 transform transition-transform duration-300 ${showAdvanced ? 'rotate-180' : ''}`}>
-                <polyline points="6 9 12 15 18 9"></polyline>
-              </svg>
-          </button>
-          <div id="wallpaper-advanced-options-panel" className={`overflow-hidden transition-all duration-500 ease-in-out ${showAdvanced ? 'max-h-96 pt-4' : 'max-h-0'}`}>
-              <div className="space-y-4">
-                  <div className={`flex items-center justify-between ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'}`}>
-                      <label htmlFor="wallpaper-circular-toggle" className="text-sm">Circular Pixels</label>
-                      <button id="wallpaper-circular-toggle" role="switch" aria-checked={isCircular} onClick={() => setWallpaperSettings(s => ({ ...s, [wallpaperType]: { ...s[wallpaperType], isCircular: !s[wallpaperType].isCircular } }))} disabled={isLoading} className={`relative inline-flex items-center h-6 w-11 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 rounded-full ${theme === 'dark' ? 'focus:ring-offset-nothing-dark' : 'focus:ring-offset-day-bg'} disabled:opacity-50 ${isCircular ? 'bg-nothing-red' : (theme === 'dark' ? 'bg-nothing-gray-dark' : 'bg-day-gray-light')}`}>
-                          <span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform duration-300 ${isCircular ? 'translate-x-6' : 'translate-x-1'}`} />
-                      </button>
-                  </div>
-                  <ColorSelector label="Background Color" options={WALLPAPER_BG_OPTIONS} selected={liveWallpaperState.background} onSelect={(key) => setWallpaperSettings(s => ({ ...s, [wallpaperType]: { ...s[wallpaperType], background: key as WallpaperBgKey } }))} theme={theme} />
-              </div>
-          </div>
+      <div className={`p-4 rounded-lg space-y-4 ${theme === 'dark' ? 'bg-nothing-darker' : 'bg-white border border-gray-300'}`}>
+        <EnhancedSlider 
+            theme={theme} 
+            label="Resolution" 
+            value={resolution} 
+            onChange={v => setLiveWallpaperSettings(s => ({ ...s, [wallpaperType]: { ...s[wallpaperType], resolution: v } }))} 
+            onChangeCommitted={v => setWallpaperSettings(s => ({ ...s, [wallpaperType]: { ...s[wallpaperType], resolution: v } }))}
+            onReset={() => setWallpaperSettings(s => ({ ...s, [wallpaperType]: { ...s[wallpaperType], resolution: DEFAULT_SLIDER_VALUE } }))}
+            disabled={isLoading} 
+        />
+        <EnhancedSlider 
+            theme={theme} 
+            label="Pixel Gap" 
+            value={pixelGap} 
+            onChange={v => setLiveWallpaperSettings(s => ({ ...s, [wallpaperType]: { ...s[wallpaperType], pixelGap: v } }))}
+            onChangeCommitted={v => setWallpaperSettings(s => ({ ...s, [wallpaperType]: { ...s[wallpaperType], pixelGap: v } }))} 
+            onReset={() => setWallpaperSettings(s => ({ ...s, [wallpaperType]: { ...s[wallpaperType], pixelGap: DEFAULT_SLIDER_VALUE } }))}
+            disabled={isLoading} 
+        />
       </div>
-      <div className="pt-6">
+      
+      <div className="pt-2">
         <button onClick={() => resetWallpaperHistory()} disabled={isLoading} className={`w-full border font-semibold py-2 px-4 transition-all duration-300 disabled:opacity-50 rounded-md ${theme === 'dark' ? 'border-gray-700 text-nothing-gray-light hover:bg-gray-800' : 'border-gray-300 text-day-gray-dark hover:bg-gray-200'}`} aria-label="Restore wallpaper settings to their default values"> Restore Defaults </button>
       </div>
       <div className="block md:hidden pt-8"><footer className="text-center tracking-wide">{footerLinks}</footer></div>

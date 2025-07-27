@@ -18,7 +18,6 @@ const PFP_INITIAL_STATE: PfpState = {
     isCircular: false,
     isTransparent: false,
     isAntiAliased: false,
-    isMatrixSquare: false,
 };
 
 const drawPfpMatrix = (ctx: CanvasRenderingContext2D, options: {
@@ -30,8 +29,9 @@ const drawPfpMatrix = (ctx: CanvasRenderingContext2D, options: {
     diameter: number;
     calculatedPixelGap: number;
     isCircular: boolean;
+    padding: number;
 }) => {
-    const { width, height, isTransparent: transparent, gridColors: colors, matrixMask: mask, diameter: diam, calculatedPixelGap: gap, isCircular: circular } = options;
+    const { width, height, isTransparent: transparent, gridColors: colors, matrixMask: mask, diameter: diam, calculatedPixelGap: gap, isCircular: circular, padding } = options;
 
     if (transparent) {
         ctx.clearRect(0, 0, width, height);
@@ -40,7 +40,7 @@ const drawPfpMatrix = (ctx: CanvasRenderingContext2D, options: {
         ctx.fillRect(0, 0, width, height);
     }
 
-    const drawableArea = width - PADDING * 2;
+    const drawableArea = width - padding * 2;
     if (drawableArea <= 0) return;
 
     const totalGapSize = (diam - 1) * gap;
@@ -53,8 +53,8 @@ const drawPfpMatrix = (ctx: CanvasRenderingContext2D, options: {
         row.forEach((color, x) => {
             const coverage = mask[y]?.[x] ?? 0;
             if (coverage > 0) {
-                const drawX = PADDING + x * (pixelRenderSize + gap);
-                const drawY = PADDING + y * (pixelRenderSize + gap);
+                const drawX = padding + x * (pixelRenderSize + gap);
+                const drawY = padding + y * (pixelRenderSize + gap);
                 
                 const finalPixelSize = pixelRenderSize * Math.pow(coverage, 0.35);
                 const offset = (pixelRenderSize - finalPixelSize) / 2;
@@ -79,14 +79,12 @@ export const usePfpPanel = ({ theme, footerLinks }: { theme: Theme, isMobile: bo
   const [imageSrc, setImageSrc] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
-  const [showAdvanced, setShowAdvanced] = useState(false);
-  const [aaWasOnBeforeSquare, setAaWasOnBeforeSquare] = useState(false);
   
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const previewCanvasRef = useRef<HTMLCanvasElement>(null);
   const [rawPixelGrid, setRawPixelGrid] = useState<(RawPixel | null)[][]>([]);
 
-  const { resolution, exposure, contrast, pixelGap, isCircular, isTransparent, isAntiAliased, isMatrixSquare } = livePfpState;
+  const { resolution, exposure, contrast, pixelGap, isCircular, isTransparent, isAntiAliased } = livePfpState;
 
   useEffect(() => { setLivePfpState(pfpState); }, [pfpState]);
 
@@ -99,7 +97,6 @@ export const usePfpPanel = ({ theme, footerLinks }: { theme: Theme, isMobile: bo
   const calculatedPixelGap = useMemo(() => (pixelGap / 100) * 27.6, [pixelGap]);
 
   const matrixMask = useMemo(() => {
-    if (isMatrixSquare) return Array(diameter).fill(0).map(() => Array(diameter).fill(1));
     const mask: number[][] = Array(diameter).fill(0).map(() => Array(diameter).fill(0));
     const isOriginalPixel = (x: number, y: number) => Math.sqrt(Math.pow(x - center, 2) + Math.pow(y - center, 2)) <= radius;
     if (!isAntiAliased) {
@@ -124,7 +121,7 @@ export const usePfpPanel = ({ theme, footerLinks }: { theme: Theme, isMobile: bo
       }
     }
     return mask;
-  }, [diameter, center, radius, isAntiAliased, isMatrixSquare]);
+  }, [diameter, center, radius, isAntiAliased]);
 
   const generateDefaultGridData = useCallback(() => matrixMask.map(row => row.map(coverage => (coverage > 0 ? 107 : null))), [matrixMask]);
 
@@ -174,25 +171,58 @@ export const usePfpPanel = ({ theme, footerLinks }: { theme: Theme, isMobile: bo
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx || gridColors.length !== diameter || matrixMask.length !== diameter) return;
-    drawPfpMatrix(ctx, { width: CANVAS_SIZE, height: CANVAS_SIZE, isTransparent, gridColors, matrixMask, diameter, calculatedPixelGap, isCircular });
+    
+    // Draw main canvas
+    drawPfpMatrix(ctx, { 
+      width: CANVAS_SIZE, 
+      height: CANVAS_SIZE, 
+      isTransparent, 
+      gridColors, 
+      matrixMask, 
+      diameter, 
+      calculatedPixelGap, 
+      isCircular,
+      padding: PADDING
+    });
+    
     const previewCanvas = previewCanvasRef.current;
     if (!previewCanvas) return;
     const previewCtx = previewCanvas.getContext('2d');
     if (!previewCtx) return;
+
+    // Prepare preview canvas background
     previewCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
     if (isTransparent) {
-        previewCtx.fillStyle = theme === 'dark' ? '#101119' : '#efefef';
+        previewCtx.fillStyle = theme === 'dark' ? '#14151f' : '#efefef';
         previewCtx.fillRect(0, 0, previewCanvas.width, previewCanvas.height);
     }
+
+    // Set up circular clipping mask
     previewCtx.save();
-    if (!isMatrixSquare) {
-      previewCtx.beginPath();
-      previewCtx.arc(previewCanvas.width / 2, previewCanvas.height / 2, previewCanvas.width / 2, 0, Math.PI * 2);
-      previewCtx.clip();
-    }
-    previewCtx.drawImage(canvas, 0, 0, previewCanvas.width, previewCanvas.height);
+    previewCtx.beginPath();
+    previewCtx.arc(previewCanvas.width / 2, previewCanvas.height / 2, previewCanvas.width / 2, 0, Math.PI * 2);
+    previewCtx.clip();
+    
+    // Calculate scaled parameters for preview
+    const scaleFactor = previewCanvas.width / CANVAS_SIZE;
+    const previewPadding = PADDING * scaleFactor;
+    const previewPixelGap = calculatedPixelGap * scaleFactor;
+    
+    // Draw matrix directly into the clipped circle, avoiding browser scaling artifacts
+    drawPfpMatrix(previewCtx, {
+      width: previewCanvas.width,
+      height: previewCanvas.height,
+      isTransparent,
+      gridColors, 
+      matrixMask, 
+      diameter, 
+      calculatedPixelGap: previewPixelGap,
+      isCircular,
+      padding: previewPadding
+    });
+    
     previewCtx.restore();
-  }, [gridColors, calculatedPixelGap, diameter, isCircular, matrixMask, isMatrixSquare, isTransparent, theme]);
+  }, [gridColors, calculatedPixelGap, diameter, isCircular, matrixMask, isTransparent, theme]);
 
   const handleFileSelect = (file: File) => {
     setIsLoading(true);
@@ -200,7 +230,6 @@ export const usePfpPanel = ({ theme, footerLinks }: { theme: Theme, isMobile: bo
     reader.onload = (e) => {
       setImageSrc(e.target?.result as string);
       resetPfp();
-      setAaWasOnBeforeSquare(false);
       setIsLoading(false);
     };
     reader.readAsDataURL(file);
@@ -217,7 +246,17 @@ export const usePfpPanel = ({ theme, footerLinks }: { theme: Theme, isMobile: bo
             if (!ctx) {
                 throw new Error('Failed to get canvas context for download.');
             }
-            drawPfpMatrix(ctx, { width: CANVAS_SIZE, height: CANVAS_SIZE, isTransparent: pfpState.isTransparent, gridColors, matrixMask, diameter, calculatedPixelGap, isCircular: pfpState.isCircular });
+            drawPfpMatrix(ctx, {
+              width: CANVAS_SIZE,
+              height: CANVAS_SIZE,
+              isTransparent: pfpState.isTransparent,
+              gridColors,
+              matrixMask,
+              diameter,
+              calculatedPixelGap,
+              isCircular: pfpState.isCircular,
+              padding: PADDING
+            });
             
             canvas.toBlob((blob) => {
                 try {
@@ -250,12 +289,15 @@ export const usePfpPanel = ({ theme, footerLinks }: { theme: Theme, isMobile: bo
   const controlsPanel = imageSrc ? (
     <div className="max-w-md mx-auto w-full flex flex-col space-y-4 px-6 sm:px-6 md:px-8 pt-6 md:pt-3 pb-8 sm:pb-6 md:pb-8">
         <UndoRedoControls onUndo={undoPfp} onRedo={redoPfp} canUndo={canUndoPfp} canRedo={canRedoPfp} theme={theme} />
-        <EnhancedSlider theme={theme} label="Exposure" value={exposure} onChange={v => setLivePfpState(s => ({...s, exposure: v}))} onChangeCommitted={v => setPfpState(s => ({...s, exposure: v}))} onReset={() => setPfpState(s => ({...s, exposure: DEFAULT_SLIDER_VALUE}))} disabled={!imageSrc || isLoading} />
-        <EnhancedSlider theme={theme} label="Contrast" value={contrast} onChange={v => setLivePfpState(s => ({...s, contrast: v}))} onChangeCommitted={v => setPfpState(s => ({...s, contrast: v}))} onReset={() => setPfpState(s => ({...s, contrast: DEFAULT_SLIDER_VALUE}))} disabled={!imageSrc || isLoading} />
-        <EnhancedSlider theme={theme} label="Resolution" value={resolution} onChange={v => setLivePfpState(s => ({...s, resolution: v}))} onChangeCommitted={v => setPfpState(s => ({...s, resolution: v}))} onReset={() => setPfpState(s => ({...s, resolution: DEFAULT_SLIDER_VALUE}))} disabled={isLoading} />
-        <EnhancedSlider theme={theme} label="Pixel Gap" value={pixelGap} onChange={v => setLivePfpState(s => ({...s, pixelGap: v}))} onChangeCommitted={v => setPfpState(s => ({...s, pixelGap: v}))} onReset={() => setPfpState(s => ({...s, pixelGap: DEFAULT_SLIDER_VALUE}))} disabled={isLoading} />
         
-        <div className="pt-4 space-y-4">
+        <div className={`p-4 rounded-lg space-y-4 ${theme === 'dark' ? 'bg-nothing-darker' : 'bg-white border border-gray-300'}`}>
+          <EnhancedSlider theme={theme} label="Exposure" value={exposure} onChange={v => setLivePfpState(s => ({...s, exposure: v}))} onChangeCommitted={v => setPfpState(s => ({...s, exposure: v}))} onReset={() => setPfpState(s => ({...s, exposure: DEFAULT_SLIDER_VALUE}))} disabled={!imageSrc || isLoading} />
+          <EnhancedSlider theme={theme} label="Contrast" value={contrast} onChange={v => setLivePfpState(s => ({...s, contrast: v}))} onChangeCommitted={v => setPfpState(s => ({...s, contrast: v}))} onReset={() => setPfpState(s => ({...s, contrast: DEFAULT_SLIDER_VALUE}))} disabled={!imageSrc || isLoading} />
+          <EnhancedSlider theme={theme} label="Resolution" value={resolution} onChange={v => setLivePfpState(s => ({...s, resolution: v}))} onChangeCommitted={v => setPfpState(s => ({...s, resolution: v}))} onReset={() => setPfpState(s => ({...s, resolution: DEFAULT_SLIDER_VALUE}))} disabled={isLoading} />
+          <EnhancedSlider theme={theme} label="Pixel Gap" value={pixelGap} onChange={v => setLivePfpState(s => ({...s, pixelGap: v}))} onChangeCommitted={v => setPfpState(s => ({...s, pixelGap: v}))} onReset={() => setPfpState(s => ({...s, pixelGap: DEFAULT_SLIDER_VALUE}))} disabled={isLoading} />
+        </div>
+        
+        <div className={`p-4 rounded-lg space-y-4 ${theme === 'dark' ? 'bg-nothing-darker' : 'bg-white border border-gray-300'}`}>
             <div className={`flex items-center justify-between ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'}`}>
                 <label htmlFor="circular-toggle" className="text-sm">Circular Pixels</label>
                 <button id="circular-toggle" role="switch" aria-checked={isCircular} onClick={() => setPfpState(s => ({...s, isCircular: !s.isCircular}))} disabled={isLoading} className={`relative inline-flex items-center h-6 w-11 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 rounded-full ${theme === 'dark' ? 'focus:ring-offset-nothing-dark' : 'focus:ring-offset-day-bg'} ${isCircular ? 'bg-nothing-red' : (theme === 'dark' ? 'bg-nothing-gray-dark' : 'bg-day-gray-light')}`} >
@@ -269,43 +311,22 @@ export const usePfpPanel = ({ theme, footerLinks }: { theme: Theme, isMobile: bo
                     setPfpState(s => ({
                         ...s,
                         isAntiAliased: !s.isAntiAliased,
-                        isMatrixSquare: !s.isAntiAliased ? false : s.isMatrixSquare,
                     }));
                 }} disabled={isLoading} className={`relative inline-flex items-center h-6 w-11 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 rounded-full ${theme === 'dark' ? 'focus:ring-offset-nothing-dark' : 'focus:ring-offset-day-bg'} disabled:opacity-50 ${isAntiAliased ? 'bg-nothing-red' : (theme === 'dark' ? 'bg-nothing-gray-dark' : 'bg-day-gray-light')}`}>
                     <span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform duration-300 ${isAntiAliased ? 'translate-x-6' : 'translate-x-1'}`} />
                 </button>
             </div>
-        </div>
-
-        <div className={`border-t ${theme === 'dark' ? 'border-nothing-gray-dark' : 'border-gray-300'} mt-6 pt-4`}>
-            <button onClick={() => setShowAdvanced(!showAdvanced)} className={`w-full flex justify-between items-center ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'} py-1 focus:outline-none`} aria-expanded={showAdvanced} aria-controls="advanced-options-panel">
-                <span className="text-sm font-medium">More Controls</span>
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`h-5 w-5 transform transition-transform duration-300 ${showAdvanced ? 'rotate-180' : ''}`}>
-                  <polyline points="6 9 12 15 18 9"></polyline>
-                </svg>
-            </button>
-            <div id="advanced-options-panel" className={`overflow-hidden transition-all duration-500 ease-in-out ${showAdvanced ? 'max-h-96 pt-4' : 'max-h-0'}`}>
-              <div className="space-y-4">
-                  <div className={`flex items-center justify-between ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'}`}>
-                      <label htmlFor="transparent-toggle" className="text-sm">Transparent Output</label>
-                      <button id="transparent-toggle" role="switch" aria-checked={isTransparent} onClick={() => setPfpState(s => ({...s, isTransparent: !s.isTransparent}))} disabled={isLoading} className={`relative inline-flex items-center h-6 w-11 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 rounded-full ${theme === 'dark' ? 'focus:ring-offset-nothing-dark' : 'focus:ring-offset-day-bg'} ${isTransparent ? 'bg-nothing-red' : (theme === 'dark' ? 'bg-nothing-gray-dark' : 'bg-day-gray-light')}`} >
-                          <span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform duration-300 ${isTransparent ? 'translate-x-6' : 'translate-x-1'}`} />
-                      </button>
-                  </div>
-                  <div className={`flex items-center justify-between ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'}`}>
-                      <label htmlFor="matrix-shape-toggle" className="text-sm">Square Matrix</label>
-                      <button id="matrix-shape-toggle" role="switch" aria-checked={isMatrixSquare} onClick={() => {
-                          if (!isMatrixSquare) { setAaWasOnBeforeSquare(isAntiAliased); setPfpState(s => ({ ...s, isMatrixSquare: true, isAntiAliased: false }));
-                          } else { setPfpState(s => ({ ...s, isMatrixSquare: false, isAntiAliased: aaWasOnBeforeSquare })); }
-                      }} disabled={isLoading} className={`relative inline-flex items-center h-6 w-11 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 rounded-full ${theme === 'dark' ? 'focus:ring-offset-nothing-dark' : 'focus:ring-offset-day-bg'} disabled:opacity-50 ${isMatrixSquare ? 'bg-nothing-red' : (theme === 'dark' ? 'bg-nothing-gray-dark' : 'bg-day-gray-light')}`}>
-                          <span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform duration-300 ${isMatrixSquare ? 'translate-x-6' : 'translate-x-1'}`} />
-                      </button>
-                  </div>
-              </div>
+            
+            <div className={`flex items-center justify-between ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'}`}>
+                <label htmlFor="transparent-toggle" className="text-sm">Transparent Output</label>
+                <button id="transparent-toggle" role="switch" aria-checked={isTransparent} onClick={() => setPfpState(s => ({...s, isTransparent: !s.isTransparent}))} disabled={isLoading} className={`relative inline-flex items-center h-6 w-11 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 rounded-full ${theme === 'dark' ? 'focus:ring-offset-nothing-dark' : 'focus:ring-offset-day-bg'} ${isTransparent ? 'bg-nothing-red' : (theme === 'dark' ? 'bg-nothing-gray-dark' : 'bg-day-gray-light')}`} >
+                    <span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform duration-300 ${isTransparent ? 'translate-x-6' : 'translate-x-1'}`} />
+                </button>
             </div>
         </div>
-        <div className="pt-6">
-            <button onClick={() => { resetPfp(); setAaWasOnBeforeSquare(false); }} disabled={isLoading} className={`w-full border font-semibold py-2 px-4 transition-all duration-300 disabled:opacity-50 rounded-md ${theme === 'dark' ? 'border-gray-700 text-nothing-gray-light hover:bg-gray-800' : 'border-gray-300 text-day-gray-dark hover:bg-gray-200'}`} aria-label="Restore all settings to their default values"> Restore Defaults </button>
+
+        <div className="pt-2">
+            <button onClick={() => resetPfp()} disabled={isLoading} className={`w-full border font-semibold py-2 px-4 transition-all duration-300 disabled:opacity-50 rounded-md ${theme === 'dark' ? 'border-gray-700 text-nothing-gray-light hover:bg-gray-800' : 'border-gray-300 text-day-gray-dark hover:bg-gray-200'}`} aria-label="Restore all settings to their default values"> Restore Defaults </button>
         </div>
         <div className="block md:hidden pt-8">
             <footer className="text-center tracking-wide">{footerLinks}</footer>

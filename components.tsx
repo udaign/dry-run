@@ -184,32 +184,25 @@ export const ColorSelector: React.FC<{
     selected: string;
     onSelect: (key: string) => void;
     theme: Theme;
-    label: string;
-}> = ({ options, selected, onSelect, theme, label }) => {
+}> = ({ options, selected, onSelect, theme }) => {
     const baseButtonClasses = `w-1/2 py-2 text-sm font-semibold transition-colors duration-200 focus:outline-none rounded-md flex items-center justify-center space-x-2`;
     const selectedClasses = theme === 'dark' ? 'bg-nothing-light text-nothing-dark font-bold' : 'bg-day-text text-day-bg font-bold';
     const unselectedClasses = theme === 'dark' ? 'bg-nothing-gray-dark hover:bg-gray-700 text-nothing-light' : 'bg-day-gray-light hover:bg-gray-300 text-day-text';
 
     return (
-        <div className="space-y-2">
-            <label className={`text-sm ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'}`}>{label}</label>
-            <div className={`flex space-x-1 p-1 rounded-lg ${theme === 'dark' ? 'bg-nothing-darker' : 'bg-gray-200'}`}>
-                {Object.entries(options).map(([key, { color, name }]) => (
-                    <button
-                        key={key}
-                        onClick={() => onSelect(key)}
-                        className={`${baseButtonClasses} ${selected === key ? selectedClasses : unselectedClasses}`}
-                        aria-label={`Select background color ${name}`}
-                        aria-pressed={selected === key}
-                    >
-                        <div
-                            className={`w-5 h-5 rounded-full border ${color === '#FFFFFF' || color === '#f1f0f1' ? 'border-gray-400' : 'border-transparent'}`}
-                            style={{ backgroundColor: color }}
-                        ></div>
-                        <span className={`text-sm font-medium`}>{name}</span>
-                    </button>
-                ))}
-            </div>
+        <div className={`flex space-x-1 p-1 rounded-lg ${theme === 'dark' ? 'bg-nothing-darker' : 'bg-gray-200'}`}>
+            {Object.entries(options).map(([key, { name, color }]) => (
+                <button
+                    key={key}
+                    onClick={() => onSelect(key)}
+                    className={`${baseButtonClasses} ${selected === key ? selectedClasses : unselectedClasses}`}
+                    aria-label={`Select background color ${name}`}
+                    aria-pressed={selected === key}
+                >
+                    <span style={{ backgroundColor: color }} className={`w-4 h-4 rounded-full border ${key === 'white' ? 'border-gray-400' : 'border-transparent'}`}></span>
+                    <span className={`text-sm font-medium`}>{name}</span>
+                </button>
+            ))}
         </div>
     );
 };
@@ -224,24 +217,21 @@ export const WallpaperTypeSelector: React.FC<{
     const unselectedClasses = theme === 'dark' ? 'bg-nothing-gray-dark hover:bg-gray-700 text-nothing-light' : 'bg-day-gray-light hover:bg-gray-300 text-day-text';
 
     return (
-        <div className="space-y-2">
-            <label className={`text-sm ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'}`}>Wallpaper for</label>
-            <div className={`flex space-x-2 p-1 rounded-lg ${theme === 'dark' ? 'bg-nothing-darker' : 'bg-gray-200'}`}>
-                <button
-                    onClick={() => onSelect('phone')}
-                    className={`${baseButtonClasses} ${selected === 'phone' ? selectedClasses : unselectedClasses}`}
-                    aria-pressed={selected === 'phone'}
-                >
-                    Phone
-                </button>
-                <button
-                    onClick={() => onSelect('desktop')}
-                    className={`${baseButtonClasses} ${selected === 'desktop' ? selectedClasses : unselectedClasses}`}
-                    aria-pressed={selected === 'desktop'}
-                >
-                    Desktop
-                </button>
-            </div>
+        <div className={`flex space-x-2 p-1 rounded-lg ${theme === 'dark' ? 'bg-nothing-darker' : 'bg-gray-200'}`}>
+            <button
+                onClick={() => onSelect('phone')}
+                className={`${baseButtonClasses} ${selected === 'phone' ? selectedClasses : unselectedClasses}`}
+                aria-pressed={selected === 'phone'}
+            >
+                Phone
+            </button>
+            <button
+                onClick={() => onSelect('desktop')}
+                className={`${baseButtonClasses} ${selected === 'desktop' ? selectedClasses : unselectedClasses}`}
+                aria-pressed={selected === 'desktop'}
+            >
+                Desktop
+            </button>
         </div>
     );
 };
@@ -250,8 +240,7 @@ export const OutputModeSelector: React.FC<{
     selected: PhotoWidgetOutputMode;
     onSelect: (mode: PhotoWidgetOutputMode) => void;
     theme: Theme;
-    label: string;
-}> = ({ selected, onSelect, theme, label }) => {
+}> = ({ selected, onSelect, theme }) => {
     const baseButtonClasses = `w-1/3 py-2 text-sm font-semibold transition-colors duration-200 focus:outline-none rounded-md`;
     const selectedClasses = theme === 'dark' ? 'bg-nothing-light text-nothing-dark font-bold' : 'bg-day-text text-day-bg font-bold';
     const unselectedClasses = theme === 'dark' ? 'bg-nothing-gray-dark hover:bg-gray-700 text-nothing-light' : 'bg-day-gray-light hover:bg-gray-300 text-day-text';
@@ -262,20 +251,17 @@ export const OutputModeSelector: React.FC<{
     ];
 
     return (
-        <div className="space-y-2">
-            <label className={`text-sm ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'}`}>{label}</label>
-            <div className={`flex space-x-1 p-1 rounded-lg ${theme === 'dark' ? 'bg-nothing-darker' : 'bg-gray-200'}`}>
-                {modes.map(mode => (
-                    <button
-                        key={mode.key}
-                        onClick={() => onSelect(mode.key)}
-                        className={`${baseButtonClasses} ${selected === mode.key ? selectedClasses : unselectedClasses}`}
-                        aria-pressed={selected === mode.key}
-                    >
-                        {mode.name}
-                    </button>
-                ))}
-            </div>
+        <div className={`flex space-x-1 p-1 rounded-lg ${theme === 'dark' ? 'bg-nothing-darker' : 'bg-gray-200'}`}>
+            {modes.map(mode => (
+                <button
+                    key={mode.key}
+                    onClick={() => onSelect(mode.key)}
+                    className={`${baseButtonClasses} ${selected === mode.key ? selectedClasses : unselectedClasses}`}
+                    aria-pressed={selected === mode.key}
+                >
+                    {mode.name}
+                </button>
+            ))}
         </div>
     );
 };

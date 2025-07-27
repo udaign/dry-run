@@ -1,6 +1,6 @@
 {
   "homepage": "https://udaign.github.io/dry-run",
-  "name": "copy-of-matrices-for-nothing-community-v3.0-testing-2-fixes-donw-except-accidental-slider-interaction-ready-for-testing-phase-3",
+  "name": "copy-of-matrices-for-nothing-community-v3.0-for-testing-4-or-deployment",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -17,6 +17,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
+    "gh-pages": "^6.3.0",
     "typescript": "~5.7.2",
     "vite": "^6.2.0"
   }
