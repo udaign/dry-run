@@ -135,7 +135,7 @@ export const usePhotoWidgetPanel = ({ theme, isMobile, footerLinks }: { theme: T
   
   useEffect(() => {
     if (!image) { setColorMatrix(null); return; }
-    const resValue = 20 + Math.floor(((resolution * 0.515) / 100) * 130);
+    const resValue = 20 + Math.floor(((resolution * 0.6592) / 100) * 130);
     const tempCanvas = document.createElement('canvas');
     const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
     if (!tempCtx) return;

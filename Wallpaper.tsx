@@ -11,8 +11,8 @@ const WALLPAPER_PHONE_WIDTH = 1260;
 const WALLPAPER_PHONE_HEIGHT = 2800;
 const WALLPAPER_DESKTOP_WIDTH = 3840;
 const WALLPAPER_DESKTOP_HEIGHT = 2160;
-const WALLPAPER_PIXEL_GAP_MULTIPLIER = 0.08832;
-const WALLPAPER_RESOLUTION_MULTIPLIER = 56.16;
+const WALLPAPER_PIXEL_GAP_MULTIPLIER = 0.0423936;
+const WALLPAPER_RESOLUTION_MULTIPLIER = 71.8848;
 
 const WALLPAPER_INITIAL_STATE: WallpaperState = {
     resolution: DEFAULT_SLIDER_VALUE,
@@ -490,7 +490,7 @@ export const useWallpaperPanel = ({ theme, isMobile, footerLinks }: { theme: The
                             </div>
                           </div>
                           <div>
-                            <button onClick={() => { handleResetCurrentWallpaper(); setIsFullScreenControlsOpen(false); }} disabled={isLoading} className={`w-full font-semibold py-2 px-4 transition-all duration-300 disabled:opacity-50 rounded-md ${theme === 'dark' ? 'border border-gray-600 text-gray-300 hover:bg-gray-700' : 'border border-gray-300 text-day-gray-dark hover:bg-gray-200'}`} aria-label="Restore wallpaper settings to their default values"> Restore Defaults </button>
+                            <button onClick={handleResetCurrentWallpaper} disabled={isLoading} className={`w-full font-semibold py-2 px-4 transition-all duration-300 disabled:opacity-50 rounded-md ${theme === 'dark' ? 'border border-gray-600 text-gray-300 hover:bg-gray-700' : 'border border-gray-300 text-day-gray-dark hover:bg-gray-200'}`} aria-label="Restore wallpaper settings to their default values"> Restore Defaults </button>
                           </div>
                         </div>
 
@@ -506,11 +506,11 @@ export const useWallpaperPanel = ({ theme, isMobile, footerLinks }: { theme: The
 
                 <button
                     onClick={exitFullScreen}
-                    className="fixed top-3 right-3 z-50 p-2 rounded-full transition-colors duration-300 text-nothing-light bg-black/50 hover:bg-black/80"
+                    className="fixed bottom-3 right-3 z-50 p-2 rounded-full transition-colors duration-300 text-nothing-light bg-black/50 hover:bg-black/80"
                     aria-label="Exit full-screen preview"
                 >
                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6">
-                      <line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>
+                      <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"></path>
                     </svg>
                 </button>
             </div>,
