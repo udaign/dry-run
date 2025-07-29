@@ -94,7 +94,8 @@ export const EnhancedSlider: React.FC<{
   onReset: () => void;
   disabled?: boolean;
   theme: Theme;
-}> = ({ label, value, onChange, onChangeCommitted, onReset, disabled, theme }) => {
+  isMobile: boolean;
+}> = ({ label, value, onChange, onChangeCommitted, onReset, disabled, theme, isMobile }) => {
     const handleCommit = (val: number) => {
         const clampedValue = Math.max(0, Math.min(100, val));
         onChange(clampedValue);
@@ -111,7 +112,7 @@ export const EnhancedSlider: React.FC<{
     };
     
     return (
-        <div className={`${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'} space-y-2 touch-pan-y`}>
+        <div className={`${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'} space-y-2`}>
             <label htmlFor={label} className="text-sm">{label}</label>
             <div className="flex items-center space-x-3">
                 <input
@@ -124,7 +125,7 @@ export const EnhancedSlider: React.FC<{
                     onMouseUp={() => handleCommit(value)}
                     onTouchEnd={() => handleCommit(value)}
                     disabled={disabled}
-                    className={`w-full h-2 appearance-none cursor-pointer disabled:opacity-50 rounded-lg ${theme === 'dark' ? 'bg-nothing-gray-dark accent-white' : 'bg-day-gray-light accent-black'}`}
+                    className={`w-full h-2 appearance-none cursor-pointer disabled:opacity-50 rounded-lg ${theme === 'dark' ? 'bg-nothing-gray-dark accent-white' : 'bg-day-gray-light accent-black'} ${isMobile ? 'touch-none' : ''}`}
                 />
                 <input
                     type="number"
@@ -133,6 +134,7 @@ export const EnhancedSlider: React.FC<{
                     value={value.toString()}
                     onChange={handleNumberInputChange}
                     onBlur={handleNumberInputBlur}
+                    onFocus={(e) => e.target.select()}
                     onKeyDown={(e) => {
                         if (e.key === 'Enter') {
                             (e.target as HTMLInputElement).blur();

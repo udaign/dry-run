@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { useHistory } from './hooks';
 import { getTimestamp } from './utils';
-import { PhotoWidgetState, PhotoWidgetColorMatrix, Theme, PhotoWidgetOutputMode, PhotoWidgetAspectRatio } from './types';
+import { PhotoWidgetState, PhotoWidgetColorMatrix, Theme, PhotoWidgetOutputMode } from './types';
 import { Dropzone, EnhancedSlider, UndoRedoControls, OutputModeSelector } from './components';
 
 const PHOTO_WIDGET_BASE_SIZE = 1176;
@@ -14,7 +14,6 @@ const PHOTO_WIDGET_INITIAL_STATE: PhotoWidgetState = {
     pixelGap: 0,
     isCircular: true,
     isAntiAliased: false,
-    aspectRatio: '2x2',
 };
 
 const drawPhotoWidgetMatrix = (ctx: CanvasRenderingContext2D, options: {
@@ -94,7 +93,7 @@ const drawPhotoWidgetMatrix = (ctx: CanvasRenderingContext2D, options: {
     }
 };
 
-export const usePhotoWidgetPanel = ({ theme, footerLinks }: { theme: Theme, isMobile: boolean, footerLinks: React.ReactNode }) => {
+export const usePhotoWidgetPanel = ({ theme, isMobile, footerLinks }: { theme: Theme, isMobile: boolean, footerLinks: React.ReactNode }) => {
   const { state: photoWidgetState, setState: setPhotoWidgetState, undo: undoPhotoWidget, redo: redoPhotoWidget, reset: resetPhotoWidget, canUndo: canUndoPhotoWidget, canRedo: canRedoPhotoWidget } = useHistory(PHOTO_WIDGET_INITIAL_STATE);
   const [livePhotoWidgetState, setLivePhotoWidgetState] = useState(photoWidgetState);
   const [outputMode, setOutputMode] = useState<PhotoWidgetOutputMode>('transparent');
@@ -106,9 +105,9 @@ export const usePhotoWidgetPanel = ({ theme, footerLinks }: { theme: Theme, isMo
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isPrefsOpen, setIsPrefsOpen] = useState(false);
   
-  const { resolution, pixelGap, isCircular, isAntiAliased, aspectRatio } = livePhotoWidgetState;
+  const { resolution, pixelGap, isCircular, isAntiAliased } = livePhotoWidgetState;
   
-  const canvasWidth = useMemo(() => aspectRatio === '4x2' ? PHOTO_WIDGET_BASE_SIZE * 2 : PHOTO_WIDGET_BASE_SIZE, [aspectRatio]);
+  const canvasWidth = useMemo(() => PHOTO_WIDGET_BASE_SIZE, []);
   const canvasHeight = useMemo(() => PHOTO_WIDGET_BASE_SIZE, []);
 
   useEffect(() => { setLivePhotoWidgetState(photoWidgetState); }, [photoWidgetState]);
@@ -202,7 +201,7 @@ export const usePhotoWidgetPanel = ({ theme, footerLinks }: { theme: Theme, isMo
 
     setTimeout(() => {
         try {
-            const downloadWidth = photoWidgetState.aspectRatio === '4x2' ? PHOTO_WIDGET_BASE_SIZE * 2 : PHOTO_WIDGET_BASE_SIZE;
+            const downloadWidth = PHOTO_WIDGET_BASE_SIZE;
             const downloadHeight = PHOTO_WIDGET_BASE_SIZE;
             const canvas = document.createElement('canvas');
             canvas.width = downloadWidth;
@@ -264,18 +263,6 @@ export const usePhotoWidgetPanel = ({ theme, footerLinks }: { theme: Theme, isMo
               onSelect={setOutputMode}
               theme={theme}
             />
-            <div className={`flex space-x-1 p-1 rounded-lg ${theme === 'dark' ? 'bg-nothing-darker' : 'bg-gray-200'}`}>
-              {(['2x2', '4x2'] as const).map(ratio => (
-                <button
-                  key={ratio}
-                  onClick={() => setPhotoWidgetState(s => ({ ...s, aspectRatio: ratio }))}
-                  className={`w-1/2 py-2 text-sm font-semibold transition-colors duration-200 focus:outline-none rounded-md ${aspectRatio === ratio ? (theme === 'dark' ? 'bg-nothing-light text-nothing-dark font-bold' : 'bg-day-text text-day-bg font-bold') : (theme === 'dark' ? 'bg-nothing-gray-dark hover:bg-gray-700 text-nothing-light' : 'bg-day-gray-light hover:bg-gray-300 text-day-text')}`}
-                  aria-pressed={aspectRatio === ratio}
-                >
-                  {ratio.replace('x', '×')}
-                </button>
-              ))}
-            </div>
           </div>
         </div>
       </div>
@@ -283,8 +270,8 @@ export const usePhotoWidgetPanel = ({ theme, footerLinks }: { theme: Theme, isMo
       <UndoRedoControls onUndo={undoPhotoWidget} onRedo={redoPhotoWidget} canUndo={canUndoPhotoWidget} canRedo={canRedoPhotoWidget} theme={theme} />
         
       <div className={`p-4 rounded-lg space-y-4 ${theme === 'dark' ? 'bg-nothing-darker' : 'bg-white border border-gray-300'}`}>
-        <EnhancedSlider theme={theme} label="Resolution" value={resolution} onChange={v => setLivePhotoWidgetState(s => ({...s, resolution: v}))} onChangeCommitted={v => setPhotoWidgetState(s => ({...s, resolution: v}))} onReset={() => setPhotoWidgetState(s => ({...s, resolution: DEFAULT_SLIDER_VALUE}))} disabled={isLoading} />
-        <EnhancedSlider theme={theme} label="Pixel Gap" value={pixelGap} onChange={v => setLivePhotoWidgetState(s => ({...s, pixelGap: v}))} onChangeCommitted={v => setPhotoWidgetState(s => ({...s, pixelGap: v}))} onReset={() => setPhotoWidgetState(s => ({...s, pixelGap: 0}))} disabled={isLoading} />
+        <EnhancedSlider theme={theme} isMobile={isMobile} label="Resolution" value={resolution} onChange={v => setLivePhotoWidgetState(s => ({...s, resolution: v}))} onChangeCommitted={v => setPhotoWidgetState(s => ({...s, resolution: v}))} onReset={() => setPhotoWidgetState(s => ({...s, resolution: DEFAULT_SLIDER_VALUE}))} disabled={isLoading} />
+        <EnhancedSlider theme={theme} isMobile={isMobile} label="Pixel Gap" value={pixelGap} onChange={v => setLivePhotoWidgetState(s => ({...s, pixelGap: v}))} onChangeCommitted={v => setPhotoWidgetState(s => ({...s, pixelGap: v}))} onReset={() => setPhotoWidgetState(s => ({...s, pixelGap: 0}))} disabled={isLoading} />
       </div>
         
       <div className={`p-4 rounded-lg space-y-4 ${theme === 'dark' ? 'bg-nothing-darker' : 'bg-white border border-gray-300'}`}>

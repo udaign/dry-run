@@ -73,7 +73,7 @@ const drawPfpMatrix = (ctx: CanvasRenderingContext2D, options: {
     });
 };
 
-export const usePfpPanel = ({ theme, footerLinks }: { theme: Theme, isMobile: boolean, footerLinks: React.ReactNode }) => {
+export const usePfpPanel = ({ theme, isMobile, footerLinks }: { theme: Theme, isMobile: boolean, footerLinks: React.ReactNode }) => {
   const { state: pfpState, setState: setPfpState, undo: undoPfp, redo: redoPfp, reset: resetPfp, canUndo: canUndoPfp, canRedo: canRedoPfp } = useHistory(PFP_INITIAL_STATE);
   const [livePfpState, setLivePfpState] = useState(pfpState);
   const [imageSrc, setImageSrc] = useState<string | null>(null);
@@ -291,10 +291,10 @@ export const usePfpPanel = ({ theme, footerLinks }: { theme: Theme, isMobile: bo
         <UndoRedoControls onUndo={undoPfp} onRedo={redoPfp} canUndo={canUndoPfp} canRedo={canRedoPfp} theme={theme} />
         
         <div className={`p-4 rounded-lg space-y-4 ${theme === 'dark' ? 'bg-nothing-darker' : 'bg-white border border-gray-300'}`}>
-          <EnhancedSlider theme={theme} label="Exposure" value={exposure} onChange={v => setLivePfpState(s => ({...s, exposure: v}))} onChangeCommitted={v => setPfpState(s => ({...s, exposure: v}))} onReset={() => setPfpState(s => ({...s, exposure: DEFAULT_SLIDER_VALUE}))} disabled={!imageSrc || isLoading} />
-          <EnhancedSlider theme={theme} label="Contrast" value={contrast} onChange={v => setLivePfpState(s => ({...s, contrast: v}))} onChangeCommitted={v => setPfpState(s => ({...s, contrast: v}))} onReset={() => setPfpState(s => ({...s, contrast: DEFAULT_SLIDER_VALUE}))} disabled={!imageSrc || isLoading} />
-          <EnhancedSlider theme={theme} label="Resolution" value={resolution} onChange={v => setLivePfpState(s => ({...s, resolution: v}))} onChangeCommitted={v => setPfpState(s => ({...s, resolution: v}))} onReset={() => setPfpState(s => ({...s, resolution: DEFAULT_SLIDER_VALUE}))} disabled={isLoading} />
-          <EnhancedSlider theme={theme} label="Pixel Gap" value={pixelGap} onChange={v => setLivePfpState(s => ({...s, pixelGap: v}))} onChangeCommitted={v => setPfpState(s => ({...s, pixelGap: v}))} onReset={() => setPfpState(s => ({...s, pixelGap: DEFAULT_SLIDER_VALUE}))} disabled={isLoading} />
+          <EnhancedSlider theme={theme} isMobile={isMobile} label="Exposure" value={exposure} onChange={v => setLivePfpState(s => ({...s, exposure: v}))} onChangeCommitted={v => setPfpState(s => ({...s, exposure: v}))} onReset={() => setPfpState(s => ({...s, exposure: DEFAULT_SLIDER_VALUE}))} disabled={!imageSrc || isLoading} />
+          <EnhancedSlider theme={theme} isMobile={isMobile} label="Contrast" value={contrast} onChange={v => setLivePfpState(s => ({...s, contrast: v}))} onChangeCommitted={v => setPfpState(s => ({...s, contrast: v}))} onReset={() => setPfpState(s => ({...s, contrast: DEFAULT_SLIDER_VALUE}))} disabled={!imageSrc || isLoading} />
+          <EnhancedSlider theme={theme} isMobile={isMobile} label="Resolution" value={resolution} onChange={v => setLivePfpState(s => ({...s, resolution: v}))} onChangeCommitted={v => setPfpState(s => ({...s, resolution: v}))} onReset={() => setPfpState(s => ({...s, resolution: DEFAULT_SLIDER_VALUE}))} disabled={isLoading} />
+          <EnhancedSlider theme={theme} isMobile={isMobile} label="Pixel Gap" value={pixelGap} onChange={v => setLivePfpState(s => ({...s, pixelGap: v}))} onChangeCommitted={v => setPfpState(s => ({...s, pixelGap: v}))} onReset={() => setPfpState(s => ({...s, pixelGap: DEFAULT_SLIDER_VALUE}))} disabled={isLoading} />
         </div>
         
         <div className={`p-4 rounded-lg space-y-4 ${theme === 'dark' ? 'bg-nothing-darker' : 'bg-white border border-gray-300'}`}>

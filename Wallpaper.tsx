@@ -20,6 +20,7 @@ const WALLPAPER_INITIAL_STATE: WallpaperState = {
     background: 'black' as WallpaperBgKey,
     cropOffsetX: 0.5,
     cropOffsetY: 0.5,
+    isMonochrome: false,
 };
 
 type WallpaperSettingsContainer = {
@@ -55,30 +56,46 @@ export const useWallpaperPanel = ({ theme, isMobile, footerLinks }: { theme: The
   const fullScreenCanvasRef = useRef<HTMLCanvasElement>(null);
   const fullScreenContainerRef = useRef<HTMLDivElement>(null);
   const [isPrefsOpen, setIsPrefsOpen] = useState(false);
+  const [isFullScreenControlsOpen, setIsFullScreenControlsOpen] = useState(false);
 
   useEffect(() => { setLiveWallpaperSettings(wallpaperSettings); }, [wallpaperSettings]);
 
   const liveWallpaperState = liveWallpaperSettings[wallpaperType];
-  const { resolution, pixelGap, background, cropOffsetX, cropOffsetY } = liveWallpaperState;
+  const { resolution, pixelGap, background, cropOffsetX, cropOffsetY, isMonochrome } = liveWallpaperState;
   
   useEffect(() => {
     const handleFullScreenChange = () => {
         if (!document.fullscreenElement) {
             setIsFullScreenPreview(false);
+            setIsFullScreenControlsOpen(false); // Close controls on exit
         }
     };
     document.addEventListener('fullscreenchange', handleFullScreenChange);
     return () => document.removeEventListener('fullscreenchange', handleFullScreenChange);
   }, []);
 
+  const requestFullScreen = useCallback(() => {
+    if (fullScreenContainerRef.current) {
+      fullScreenContainerRef.current.requestFullscreen()
+        .catch(err => {
+            console.error(`Error attempting to enable full-screen mode: ${err.message} (${err.name})`);
+        });
+    }
+  }, []);
+  
+  const enterFullScreen = () => {
+      setIsFullScreenPreview(true);
+  };
+  
   useEffect(() => {
-      if (isFullScreenPreview && fullScreenContainerRef.current) {
-          fullScreenContainerRef.current.requestFullscreen()
-              .catch(err => {
-                  console.error(`Error attempting to enable full-screen mode: ${err.message} (${err.name})`);
-              });
-      }
-  }, [isFullScreenPreview]);
+    if (isFullScreenPreview) {
+      // The request must be called in a user-initiated event handler.
+      // We set state and then call it, but it's better to call it directly.
+      // The button onClick will call `enterFullScreen`, which sets state.
+      // A useEffect watching that state is a good place to trigger the API.
+      requestFullScreen();
+    }
+  }, [isFullScreenPreview, requestFullScreen]);
 
   const exitFullScreen = useCallback(() => {
       if (document.fullscreenElement) {
@@ -96,6 +113,20 @@ export const useWallpaperPanel = ({ theme, isMobile, footerLinks }: { theme: The
     img.onerror = () => { setImageSrc(null); setImage(null); setIsLoading(false); };
     img.src = imageSrc;
   }, [imageSrc]);
+
+  const handleResetCurrentWallpaper = useCallback(() => {
+    setWallpaperSettings(currentSettings => {
+      const { cropOffsetX, cropOffsetY } = currentSettings[wallpaperType];
+      return {
+        ...currentSettings,
+        [wallpaperType]: {
+          ...DUAL_WALLPAPER_INITIAL_STATE[wallpaperType],
+          cropOffsetX,
+          cropOffsetY,
+        }
+      };
+    });
+  }, [wallpaperType, setWallpaperSettings]);
 
   const [currentWallpaperWidth, currentWallpaperHeight] = useMemo(() => wallpaperType === 'desktop' ? [WALLPAPER_DESKTOP_WIDTH, WALLPAPER_DESKTOP_HEIGHT] : [WALLPAPER_PHONE_WIDTH, WALLPAPER_PHONE_HEIGHT], [wallpaperType]);
 
@@ -135,7 +166,13 @@ export const useWallpaperPanel = ({ theme, isMobile, footerLinks }: { theme: The
         for (let y = 0; y < wallpaperGridHeight; y++) {
             for (let x = 0; x < wallpaperGridWidth; x++) {
                 const i = (y * wallpaperGridWidth + x) * 4;
-                ctx.fillStyle = `rgb(${data[i]}, ${data[i+1]}, ${data[i+2]})`;
+                const r = data[i], g = data[i+1], b = data[i+2];
+                if (isMonochrome) {
+                    const gray = Math.round(0.299 * r + 0.587 * g + 0.114 * b);
+                    ctx.fillStyle = `rgb(${gray}, ${gray}, ${gray})`;
+                } else {
+                    ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
+                }
                 const drawX = x * (pxRenderW + calculatedWallpaperPixelGap);
                 const drawY = y * (pxRenderH + calculatedWallpaperPixelGap);
                 
@@ -150,7 +187,7 @@ export const useWallpaperPanel = ({ theme, isMobile, footerLinks }: { theme: The
             }
         }
       }
-  }, [image, wallpaperGridWidth, wallpaperGridHeight, calculatedWallpaperPixelGap, background, currentWallpaperWidth, currentWallpaperHeight, cropOffsetX, cropOffsetY, isFullScreenPreview]);
+  }, [image, wallpaperGridWidth, wallpaperGridHeight, calculatedWallpaperPixelGap, background, currentWallpaperWidth, currentWallpaperHeight, cropOffsetX, cropOffsetY, isFullScreenPreview, isMonochrome]);
   
   const handleFileSelect = (file: File) => {
     setIsLoading(true);
@@ -307,7 +344,8 @@ export const useWallpaperPanel = ({ theme, isMobile, footerLinks }: { theme: The
       
       <div className={`p-4 rounded-lg space-y-4 ${theme === 'dark' ? 'bg-nothing-darker' : 'bg-white border border-gray-300'}`}>
         <EnhancedSlider 
-            theme={theme} 
+            theme={theme}
+            isMobile={isMobile}
             label="Resolution" 
             value={resolution} 
             onChange={v => setLiveWallpaperSettings(s => ({ ...s, [wallpaperType]: { ...s[wallpaperType], resolution: v } }))} 
@@ -316,7 +354,8 @@ export const useWallpaperPanel = ({ theme, isMobile, footerLinks }: { theme: The
             disabled={isLoading} 
         />
         <EnhancedSlider 
-            theme={theme} 
+            theme={theme}
+            isMobile={isMobile}
             label="Pixel Gap" 
             value={pixelGap} 
             onChange={v => setLiveWallpaperSettings(s => ({ ...s, [wallpaperType]: { ...s[wallpaperType], pixelGap: v } }))}
@@ -325,9 +364,18 @@ export const useWallpaperPanel = ({ theme, isMobile, footerLinks }: { theme: The
             disabled={isLoading} 
         />
       </div>
+
+      <div className={`p-4 rounded-lg ${theme === 'dark' ? 'bg-nothing-darker' : 'bg-white border border-gray-300'}`}>
+        <div className={`flex items-center justify-between ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'}`}>
+          <label htmlFor="monochrome-toggle" className="text-sm">Monochrome</label>
+          <button id="monochrome-toggle" role="switch" aria-checked={isMonochrome} onClick={() => setWallpaperSettings(s => ({...s, [wallpaperType]: { ...s[wallpaperType], isMonochrome: !s[wallpaperType].isMonochrome }}))} disabled={isLoading} className={`relative inline-flex items-center h-6 w-11 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 rounded-full ${theme === 'dark' ? 'focus:ring-offset-nothing-dark' : 'focus:ring-offset-day-bg'} ${isMonochrome ? 'bg-nothing-red' : (theme === 'dark' ? 'bg-nothing-gray-dark' : 'bg-day-gray-light')}`}>
+            <span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform duration-300 ${isMonochrome ? 'translate-x-6' : 'translate-x-1'}`} />
+          </button>
+        </div>
+      </div>
       
       <div className="pt-2">
-        <button onClick={() => resetWallpaperHistory()} disabled={isLoading} className={`w-full border font-semibold py-2 px-4 transition-all duration-300 disabled:opacity-50 rounded-md ${theme === 'dark' ? 'border-gray-700 text-nothing-gray-light hover:bg-gray-800' : 'border-gray-300 text-day-gray-dark hover:bg-gray-200'}`} aria-label="Restore wallpaper settings to their default values"> Restore Defaults </button>
+        <button onClick={handleResetCurrentWallpaper} disabled={isLoading} className={`w-full border font-semibold py-2 px-4 transition-all duration-300 disabled:opacity-50 rounded-md ${theme === 'dark' ? 'border-gray-700 text-nothing-gray-light hover:bg-gray-800' : 'border-gray-300 text-day-gray-dark hover:bg-gray-200'}`} aria-label="Restore wallpaper settings to their default values"> Restore Defaults </button>
       </div>
       <div className="block md:hidden pt-8"><footer className="text-center tracking-wide">{footerLinks}</footer></div>
     </div>
@@ -352,7 +400,7 @@ export const useWallpaperPanel = ({ theme, isMobile, footerLinks }: { theme: The
                 }}
             />
             <button
-                onClick={() => setIsFullScreenPreview(true)}
+                onClick={enterFullScreen}
                 className={`absolute bottom-3 right-3 z-10 p-2 rounded-md transition-colors duration-300 ${theme === 'dark' ? 'text-nothing-light bg-nothing-gray-dark hover:bg-nothing-gray-light hover:text-nothing-dark' : 'text-day-text bg-day-gray-light hover:bg-day-gray-dark hover:text-day-bg'}`}
                 aria-label="Enter full-screen preview"
             >
@@ -370,7 +418,15 @@ export const useWallpaperPanel = ({ theme, isMobile, footerLinks }: { theme: The
                         dragState.current.hasMoved = false;
                     }
                 }}
-                onClick={(e) => { if (e.target === e.currentTarget && !dragState.current.hasMoved) exitFullScreen(); }}
+                onClick={(e) => {
+                    if (e.target === e.currentTarget && !dragState.current.hasMoved) {
+                        if (isFullScreenControlsOpen) {
+                            setIsFullScreenControlsOpen(false);
+                        } else {
+                            exitFullScreen();
+                        }
+                    }
+                }}
             >
                 <canvas
                     ref={fullScreenCanvasRef}
@@ -385,16 +441,76 @@ export const useWallpaperPanel = ({ theme, isMobile, footerLinks }: { theme: The
                         touchAction: wallpaperCropIsNeeded ? 'none' : 'auto'
                     }}
                 />
+                
+                {!isMobile && (
+                  <div className="fixed bottom-4 left-4 z-[51] w-80">
+                    {isFullScreenControlsOpen ? (
+                      <div className={`w-full ${theme === 'dark' ? 'bg-nothing-dark/80' : 'bg-day-bg/90 border border-gray-300/50'} backdrop-blur-sm rounded-lg p-4 max-h-[calc(100vh-5rem)] flex flex-col space-y-4 shadow-2xl`}>
+                        <div className="flex justify-between items-center flex-shrink-0">
+                          <h3 className={`font-bold text-lg ${theme === 'dark' ? 'text-white' : 'text-day-text'}`}>Controls</h3>
+                          <button onClick={() => setIsFullScreenControlsOpen(false)} className={`p-1 ${theme === 'dark' ? 'text-white hover:bg-white/20' : 'text-day-text hover:bg-black/10'} rounded-full transition-colors`} aria-label="Collapse controls">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                          </button>
+                        </div>
+
+                        <div className="overflow-y-auto space-y-4 pr-2 -mr-2">
+                           <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-black/40' : 'bg-white/60'} space-y-3`}>
+                              <WallpaperTypeSelector selected={wallpaperType} onSelect={setWallpaperType} theme={theme} />
+                              <ColorSelector options={WALLPAPER_BG_OPTIONS} selected={liveWallpaperState.background} onSelect={(key) => setWallpaperSettings(s => ({ ...s, [wallpaperType]: { ...s[wallpaperType], background: key as WallpaperBgKey } }))} theme={theme} />
+                          </div>
+                          <UndoRedoControls onUndo={undoWallpaper} onRedo={redoWallpaper} canUndo={canUndoWallpaper} canRedo={canRedoWallpaper} theme={theme} />
+                          <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-black/40' : 'bg-white/60'} space-y-4`}>
+                              <EnhancedSlider 
+                                  theme={theme}
+                                  isMobile={isMobile}
+                                  label="Resolution" 
+                                  value={resolution} 
+                                  onChange={v => setLiveWallpaperSettings(s => ({ ...s, [wallpaperType]: { ...s[wallpaperType], resolution: v } }))} 
+                                  onChangeCommitted={v => setWallpaperSettings(s => ({ ...s, [wallpaperType]: { ...s[wallpaperType], resolution: v } }))}
+                                  onReset={() => setWallpaperSettings(s => ({ ...s, [wallpaperType]: { ...s[wallpaperType], resolution: DEFAULT_SLIDER_VALUE } }))}
+                                  disabled={isLoading} 
+                              />
+                              <EnhancedSlider 
+                                  theme={theme}
+                                  isMobile={isMobile}
+                                  label="Pixel Gap" 
+                                  value={pixelGap} 
+                                  onChange={v => setLiveWallpaperSettings(s => ({ ...s, [wallpaperType]: { ...s[wallpaperType], pixelGap: v } }))}
+                                  onChangeCommitted={v => setWallpaperSettings(s => ({ ...s, [wallpaperType]: { ...s[wallpaperType], pixelGap: v } }))} 
+                                  onReset={() => setWallpaperSettings(s => ({ ...s, [wallpaperType]: { ...s[wallpaperType], pixelGap: DEFAULT_SLIDER_VALUE } }))}
+                                  disabled={isLoading} 
+                              />
+                          </div>
+                           <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-black/40' : 'bg-white/60'}`}>
+                            <div className={`flex items-center justify-between ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'}`}>
+                                <label htmlFor="monochrome-toggle-fs" className="text-sm">Monochrome</label>
+                                <button id="monochrome-toggle-fs" role="switch" aria-checked={isMonochrome} onClick={() => setWallpaperSettings(s => ({...s, [wallpaperType]: { ...s[wallpaperType], isMonochrome: !s[wallpaperType].isMonochrome }}))} disabled={isLoading} className={`relative inline-flex items-center h-6 w-11 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 rounded-full ${theme === 'dark' ? 'focus:ring-offset-nothing-dark' : 'focus:ring-offset-day-bg'} ${isMonochrome ? 'bg-nothing-red' : (theme === 'dark' ? 'bg-nothing-gray-dark' : 'bg-day-gray-light')}`}>
+                                    <span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform duration-300 ${isMonochrome ? 'translate-x-6' : 'translate-x-1'}`} />
+                                </button>
+                            </div>
+                          </div>
+                          <div>
+                            <button onClick={() => { handleResetCurrentWallpaper(); setIsFullScreenControlsOpen(false); }} disabled={isLoading} className={`w-full font-semibold py-2 px-4 transition-all duration-300 disabled:opacity-50 rounded-md ${theme === 'dark' ? 'border border-gray-600 text-gray-300 hover:bg-gray-700' : 'border border-gray-300 text-day-gray-dark hover:bg-gray-200'}`} aria-label="Restore wallpaper settings to their default values"> Restore Defaults </button>
+                          </div>
+                        </div>
+
+                      </div>
+                    ) : (
+                      <button onClick={() => setIsFullScreenControlsOpen(true)} className={`w-full ${theme === 'dark' ? 'bg-nothing-dark/80 text-white hover:bg-nothing-dark' : 'bg-day-bg/90 text-day-text hover:bg-day-gray-light border border-gray-300/50'} backdrop-blur-sm font-semibold py-3 px-4 rounded-lg flex items-center justify-between shadow-lg transition-colors`} aria-label="Expand controls">
+                        <span>Controls</span>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6"><polyline points="18 15 12 9 6 15"></polyline></svg>
+                      </button>
+                    )}
+                  </div>
+                )}
+
                 <button
                     onClick={exitFullScreen}
-                    className="fixed bottom-3 right-3 z-50 p-2 rounded-md transition-colors duration-300 text-nothing-light bg-nothing-gray-dark hover:bg-nothing-gray-light hover:text-nothing-dark"
+                    className="fixed top-3 right-3 z-50 p-2 rounded-full transition-colors duration-300 text-nothing-light bg-black/50 hover:bg-black/80"
                     aria-label="Exit full-screen preview"
                 >
                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6">
-                      <polyline points="4 14 10 14 10 20"></polyline>
-                      <polyline points="20 10 14 10 14 4"></polyline>
-                      <line x1="14" y1="10" x2="21" y2="3"></line>
-                      <line x1="3" y1="21" x2="10" y2="14"></line>
+                      <line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>
                     </svg>
                 </button>
             </div>,
