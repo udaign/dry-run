@@ -489,8 +489,16 @@ export const useWallpaperPanel = ({ theme, isMobile, footerLinks }: { theme: The
                                 </button>
                             </div>
                           </div>
-                          <div>
+                          <div className="space-y-2">
                             <button onClick={handleResetCurrentWallpaper} disabled={isLoading} className={`w-full font-semibold py-2 px-4 transition-all duration-300 disabled:opacity-50 rounded-md ${theme === 'dark' ? 'border border-gray-600 text-gray-300 hover:bg-gray-700' : 'border border-gray-300 text-day-gray-dark hover:bg-gray-200'}`} aria-label="Restore wallpaper settings to their default values"> Restore Defaults </button>
+                            <button
+                                onClick={handleDownload}
+                                disabled={isLoading || isDownloading}
+                                className={`w-full font-semibold py-2 px-4 transition-all duration-300 disabled:opacity-50 rounded-md ${theme === 'dark' ? 'bg-nothing-red text-nothing-light hover:bg-opacity-80' : 'bg-day-accent text-white hover:bg-opacity-80'}`}
+                                aria-label="Download the current wallpaper"
+                            >
+                                Download
+                            </button>
                           </div>
                         </div>
 

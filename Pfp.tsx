@@ -18,20 +18,24 @@ const PFP_INITIAL_STATE: PfpState = {
     isCircular: false,
     isTransparent: false,
     isAntiAliased: false,
+    glow: 0,
 };
+
+type PixelInfo = { color: string; brightness: number };
 
 const drawPfpMatrix = (ctx: CanvasRenderingContext2D, options: {
     width: number;
     height: number;
     isTransparent: boolean;
-    gridColors: string[][];
+    pixelData: (PixelInfo | null)[][];
     matrixMask: number[][];
     diameter: number;
     calculatedPixelGap: number;
     isCircular: boolean;
     padding: number;
+    glow: number;
 }) => {
-    const { width, height, isTransparent: transparent, gridColors: colors, matrixMask: mask, diameter: diam, calculatedPixelGap: gap, isCircular: circular, padding } = options;
+    const { width, height, isTransparent: transparent, pixelData, matrixMask: mask, diameter: diam, calculatedPixelGap: gap, isCircular: circular, padding, glow } = options;
 
     if (transparent) {
         ctx.clearRect(0, 0, width, height);
@@ -49,17 +53,18 @@ const drawPfpMatrix = (ctx: CanvasRenderingContext2D, options: {
 
     if (pixelRenderSize <= 0) return;
     
-    colors.forEach((row, y) => {
-        row.forEach((color, x) => {
+    // Pass 1: Draw all the pixels.
+    pixelData.forEach((row, y) => {
+        row.forEach((pixelInfo, x) => {
             const coverage = mask[y]?.[x] ?? 0;
-            if (coverage > 0) {
+            if (pixelInfo && coverage > 0) {
                 const drawX = padding + x * (pixelRenderSize + gap);
                 const drawY = padding + y * (pixelRenderSize + gap);
                 
                 const finalPixelSize = pixelRenderSize * Math.pow(coverage, 0.35);
                 const offset = (pixelRenderSize - finalPixelSize) / 2;
                 
-                ctx.fillStyle = color;
+                ctx.fillStyle = pixelInfo.color;
 
                 if (circular) {
                     ctx.beginPath();
@@ -71,6 +76,39 @@ const drawPfpMatrix = (ctx: CanvasRenderingContext2D, options: {
             }
         });
     });
+
+    // Pass 2: Draw all the glows on top.
+    if (glow > 0) {
+        pixelData.forEach((row, y) => {
+            row.forEach((pixelInfo, x) => {
+                const coverage = mask[y]?.[x] ?? 0;
+                if (pixelInfo && coverage > 0 && pixelInfo.brightness > 0) {
+                    const drawX = padding + x * (pixelRenderSize + gap);
+                    const drawY = padding + y * (pixelRenderSize + gap);
+
+                    const finalPixelSize = pixelRenderSize * Math.pow(coverage, 0.35);
+                    const offset = (pixelRenderSize - finalPixelSize) / 2;
+                    
+                    const glowStrength = (glow / 100) * pixelInfo.brightness;
+                    ctx.shadowColor = pixelInfo.color;
+                    ctx.shadowBlur = glowStrength * pixelRenderSize * 1.875;
+                    ctx.fillStyle = pixelInfo.color; // Set fill style to draw the pixel and its shadow
+
+                    if (circular) {
+                        ctx.beginPath();
+                        ctx.arc(drawX + pixelRenderSize / 2, drawY + pixelRenderSize / 2, finalPixelSize / 2, 0, 2 * Math.PI);
+                        ctx.fill();
+                    } else {
+                        ctx.fillRect(drawX + offset, drawY + offset, finalPixelSize, finalPixelSize);
+                    }
+                }
+            });
+        });
+
+        // Reset shadow for subsequent canvas operations
+        ctx.shadowBlur = 0;
+        ctx.shadowColor = 'transparent';
+    }
 };
 
 export const usePfpPanel = ({ theme, isMobile, footerLinks }: { theme: Theme, isMobile: boolean, footerLinks: React.ReactNode }) => {
@@ -84,7 +122,7 @@ export const usePfpPanel = ({ theme, isMobile, footerLinks }: { theme: Theme, is
   const previewCanvasRef = useRef<HTMLCanvasElement>(null);
   const [rawPixelGrid, setRawPixelGrid] = useState<(RawPixel | null)[][]>([]);
 
-  const { resolution, exposure, contrast, pixelGap, isCircular, isTransparent, isAntiAliased } = livePfpState;
+  const { resolution, exposure, contrast, pixelGap, isCircular, isTransparent, isAntiAliased, glow } = livePfpState;
 
   useEffect(() => { setLivePfpState(pfpState); }, [pfpState]);
 
@@ -158,31 +196,35 @@ export const usePfpPanel = ({ theme, isMobile, footerLinks }: { theme: Theme, is
     regenerateGrid();
   }, [diameter, matrixMask, imageSrc, generateDefaultGridData]);
 
-  const gridColors = useMemo(() => rawPixelGrid.map(row => row.map(pixel => {
-    if (pixel === null) return NOTHING_DARK_COLOR;
+  const pixelData = useMemo(() => rawPixelGrid.map(row => row.map(pixel => {
+    if (pixel === null) return null;
     const val = typeof pixel === 'number' ? pixel : (pixel.r * 0.299 + pixel.g * 0.587 + pixel.b * 0.114);
     let adjusted = imageSrc ? ((val / 255.0 - 0.5) * calculatedContrast + 0.5) * 255.0 + calculatedExposure : val;
     const finalGray = Math.round(Math.max(0, Math.min(255, adjusted)));
-    return `rgb(${finalGray}, ${finalGray}, ${finalGray})`;
+    return {
+        color: `rgb(${finalGray}, ${finalGray}, ${finalGray})`,
+        brightness: finalGray / 255.0,
+    };
   })), [rawPixelGrid, calculatedExposure, calculatedContrast, imageSrc]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
-    if (!ctx || gridColors.length !== diameter || matrixMask.length !== diameter) return;
+    if (!ctx || !pixelData || pixelData.length !== diameter || matrixMask.length !== diameter) return;
     
     // Draw main canvas
     drawPfpMatrix(ctx, { 
       width: CANVAS_SIZE, 
       height: CANVAS_SIZE, 
       isTransparent, 
-      gridColors, 
+      pixelData, 
       matrixMask, 
       diameter, 
       calculatedPixelGap, 
       isCircular,
-      padding: PADDING
+      padding: PADDING,
+      glow,
     });
     
     const previewCanvas = previewCanvasRef.current;
@@ -213,16 +255,17 @@ export const usePfpPanel = ({ theme, isMobile, footerLinks }: { theme: Theme, is
       width: previewCanvas.width,
       height: previewCanvas.height,
       isTransparent,
-      gridColors, 
+      pixelData, 
       matrixMask, 
       diameter, 
       calculatedPixelGap: previewPixelGap,
       isCircular,
-      padding: previewPadding
+      padding: previewPadding,
+      glow,
     });
     
     previewCtx.restore();
-  }, [gridColors, calculatedPixelGap, diameter, isCircular, matrixMask, isTransparent, theme]);
+  }, [pixelData, calculatedPixelGap, diameter, isCircular, matrixMask, isTransparent, theme, glow]);
 
   const handleFileSelect = (file: File) => {
     setIsLoading(true);
@@ -249,13 +292,14 @@ export const usePfpPanel = ({ theme, isMobile, footerLinks }: { theme: Theme, is
             drawPfpMatrix(ctx, {
               width: CANVAS_SIZE,
               height: CANVAS_SIZE,
-              isTransparent: pfpState.isTransparent,
-              gridColors,
+              isTransparent: livePfpState.isTransparent,
+              pixelData,
               matrixMask,
               diameter,
               calculatedPixelGap,
-              isCircular: pfpState.isCircular,
-              padding: PADDING
+              isCircular: livePfpState.isCircular,
+              padding: PADDING,
+              glow: livePfpState.glow
             });
             
             canvas.toBlob((blob) => {
@@ -295,6 +339,7 @@ export const usePfpPanel = ({ theme, isMobile, footerLinks }: { theme: Theme, is
           <EnhancedSlider theme={theme} isMobile={isMobile} label="Contrast" value={contrast} onChange={v => setLivePfpState(s => ({...s, contrast: v}))} onChangeCommitted={v => setPfpState(s => ({...s, contrast: v}))} onReset={() => setPfpState(s => ({...s, contrast: DEFAULT_SLIDER_VALUE}))} disabled={!imageSrc || isLoading} />
           <EnhancedSlider theme={theme} isMobile={isMobile} label="Resolution" value={resolution} onChange={v => setLivePfpState(s => ({...s, resolution: v}))} onChangeCommitted={v => setPfpState(s => ({...s, resolution: v}))} onReset={() => setPfpState(s => ({...s, resolution: DEFAULT_SLIDER_VALUE}))} disabled={isLoading} />
           <EnhancedSlider theme={theme} isMobile={isMobile} label="Pixel Gap" value={pixelGap} onChange={v => setLivePfpState(s => ({...s, pixelGap: v}))} onChangeCommitted={v => setPfpState(s => ({...s, pixelGap: v}))} onReset={() => setPfpState(s => ({...s, pixelGap: DEFAULT_SLIDER_VALUE}))} disabled={isLoading} />
+          <EnhancedSlider theme={theme} isMobile={isMobile} label="Glow" value={glow} onChange={v => setLivePfpState(s => ({...s, glow: v}))} onChangeCommitted={v => setPfpState(s => ({...s, glow: v}))} onReset={() => setPfpState(s => ({...s, glow: 0}))} disabled={isLoading} />
         </div>
         
         <div className={`p-4 rounded-lg space-y-4 ${theme === 'dark' ? 'bg-nothing-darker' : 'bg-white border border-gray-300'}`}>

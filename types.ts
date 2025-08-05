@@ -12,6 +12,7 @@ export type PfpState = {
     isCircular: boolean;
     isTransparent: boolean;
     isAntiAliased: boolean;
+    glow: number;
 };
 
 // Wallpaper
