@@ -1,4 +1,3 @@
-
 export type RawPixel = number | { r: number; g: number; b: number };
 export type Theme = 'light' | 'dark';
 export type Tab = 'pfp' | 'wallpaper' | 'photoWidget';
@@ -12,7 +11,10 @@ export type PfpState = {
     isCircular: boolean;
     isTransparent: boolean;
     isAntiAliased: boolean;
-    glow: number;
+    isGlowEnabled: boolean;
+    glowIntensity: number;
+    cropOffsetX: number;
+    cropOffsetY: number;
 };
 
 // Wallpaper

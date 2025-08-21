@@ -1,6 +1,7 @@
 
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { Theme, PhotoWidgetOutputMode } from './types';
+import { trackEvent } from './analytics';
 
 export const Dropzone: React.FC<{ onFileSelect: (file: File) => void; isLoading: boolean; compact?: boolean; theme: Theme; accept?: string; }> = ({ onFileSelect, isLoading, compact = false, theme, accept = "image/*" }) => {
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -144,7 +145,7 @@ export const EnhancedSlider: React.FC<{
                     className={`w-16 text-center p-1 font-sans text-sm rounded-md focus:outline-none focus:ring-2 ${theme === 'dark' ? 'bg-nothing-gray-dark text-nothing-light focus:ring-white' : 'bg-day-gray-light text-day-text focus:ring-black'}`}
                 />
                 <button onClick={onReset} disabled={disabled} className={`${theme === 'dark' ? 'text-nothing-gray-light hover:text-white disabled:hover:text-nothing-gray-light' : 'text-day-gray-dark hover:text-black disabled:hover:text-day-gray-dark'} transition-colors disabled:opacity-50`} aria-label={`Reset ${label}`}>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
                       <polyline points="23 4 23 10 17 10"></polyline>
                       <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
                     </svg>
@@ -161,7 +162,7 @@ export const UndoRedoControls: React.FC<{ onUndo: () => void; onRedo: () => void
       disabled={!canUndo}
       className={`flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed rounded-md ${theme === 'dark' ? 'bg-gray-700 text-nothing-light hover:bg-gray-600 disabled:hover:bg-gray-700' : 'bg-gray-200 text-day-text hover:bg-gray-300 disabled:hover:bg-gray-200'}`}
     >
-      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
         <polyline points="9 14 4 9 9 4"></polyline>
         <path d="M20 20v-7a4 4 0 0 0-4-4H4"></path>
       </svg>
@@ -173,7 +174,7 @@ export const UndoRedoControls: React.FC<{ onUndo: () => void; onRedo: () => void
       className={`flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed rounded-md ${theme === 'dark' ? 'bg-gray-700 text-nothing-light hover:bg-gray-600 disabled:hover:bg-gray-700' : 'bg-gray-200 text-day-text hover:bg-gray-300 disabled:hover:bg-gray-200'}`}
     >
       <span>Redo</span>
-      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
         <polyline points="15 14 20 9 15 4"></polyline>
         <path d="M4 20v-7a4 4 0 0 1 4-4h12"></path>
       </svg>
@@ -266,4 +267,184 @@ export const OutputModeSelector: React.FC<{
             ))}
         </div>
     );
+};
+
+export const ToastNotification: React.FC<{
+  show: boolean;
+  onClose: () => void;
+  theme: Theme;
+  isMobile: boolean;
+  imageRendered: boolean;
+  className?: string;
+}> = ({ show, onClose, theme, isMobile, imageRendered, className = '' }) => {
+  const SHARE_LINK = "https://nothing.community/d/38047-introducing-matrices-a-handy-utility-to-create-matrix-styled-imagery";
+
+  const mobileBottomOffset = imageRendered ? 'bottom-20' : 'bottom-4';
+
+  const containerClasses = isMobile
+    ? `fixed inset-x-4 ${mobileBottomOffset}`
+    : 'absolute bottom-8 right-8 w-full max-w-sm';
+
+  const [swipeOffset, setSwipeOffset] = useState(0);
+  const [isSwiping, setIsSwiping] = useState(false);
+  const touchStartRef = useRef(0);
+
+  const closeCallback = useCallback(() => {
+    onClose();
+  }, [onClose]);
+
+  // --- Unified Timer Logic ---
+  // For mobile timer
+  const mobileTimerRef = useRef<number | null>(null);
+  // For desktop timers and state
+  const desktopMainTimerRef = useRef<number | null>(null);
+  const desktopGraceTimerRef = useRef<number | null>(null);
+  const isHoveringRef = useRef(false);
+  const mainTimerHasFiredRef = useRef(false);
+  
+  const startMobileTimer = useCallback(() => {
+    if (mobileTimerRef.current) clearTimeout(mobileTimerRef.current);
+    mobileTimerRef.current = window.setTimeout(closeCallback, 7000);
+  }, [closeCallback]);
+
+  const clearMobileTimer = useCallback(() => {
+    if (mobileTimerRef.current) {
+      clearTimeout(mobileTimerRef.current);
+      mobileTimerRef.current = null;
+    }
+  }, []);
+  
+  useEffect(() => {
+    if (show) {
+      if (isMobile) {
+        startMobileTimer();
+      } else {
+        // Desktop logic
+        mainTimerHasFiredRef.current = false;
+        if (desktopMainTimerRef.current) clearTimeout(desktopMainTimerRef.current);
+        if (desktopGraceTimerRef.current) clearTimeout(desktopGraceTimerRef.current);
+
+        desktopMainTimerRef.current = window.setTimeout(() => {
+            mainTimerHasFiredRef.current = true;
+            if (!isHoveringRef.current) {
+                closeCallback();
+            }
+        }, 7000);
+      }
+    } else {
+      // Cleanup for both when hidden externally
+      clearMobileTimer();
+      if (desktopMainTimerRef.current) clearTimeout(desktopMainTimerRef.current);
+      if (desktopGraceTimerRef.current) clearTimeout(desktopGraceTimerRef.current);
+    }
+
+    return () => {
+      // Cleanup on unmount
+      clearMobileTimer();
+      if (desktopMainTimerRef.current) clearTimeout(desktopMainTimerRef.current);
+      if (desktopGraceTimerRef.current) clearTimeout(desktopGraceTimerRef.current);
+    };
+  }, [show, isMobile, startMobileTimer, clearMobileTimer, closeCallback]);
+
+  const handleMouseEnter = () => {
+    isHoveringRef.current = true;
+    if (desktopGraceTimerRef.current) {
+      clearTimeout(desktopGraceTimerRef.current);
+      desktopGraceTimerRef.current = null;
+    }
+  };
+  
+  const handleMouseLeave = () => {
+    isHoveringRef.current = false;
+    if (mainTimerHasFiredRef.current) {
+      desktopGraceTimerRef.current = window.setTimeout(() => {
+        closeCallback();
+      }, 1000);
+    }
+  };
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (!isMobile) return;
+    clearMobileTimer();
+    touchStartRef.current = e.touches[0].clientX;
+    setIsSwiping(true);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!isMobile || !isSwiping) return;
+    const deltaX = e.touches[0].clientX - touchStartRef.current;
+    if (deltaX > 0) { // Only allow swiping to the right
+      setSwipeOffset(deltaX);
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (!isMobile) return;
+    setIsSwiping(false);
+    if (swipeOffset > 100) { // Dismiss threshold
+      onClose();
+    } else {
+      setSwipeOffset(0);
+      startMobileTimer();
+    }
+  };
+  
+  useEffect(() => {
+    if (!show) {
+      // Allow exit animation to complete before resetting swipe position
+      setTimeout(() => {
+        setSwipeOffset(0);
+      }, 500);
+    }
+  }, [show]);
+
+  return (
+    <div
+      aria-live="polite"
+      className={`z-50 transition-all duration-500 ease-in-out ${containerClasses} ${
+        show ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10 pointer-events-none'
+      } ${className}`}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+      onMouseEnter={!isMobile ? handleMouseEnter : undefined}
+      onMouseLeave={!isMobile ? handleMouseLeave : undefined}
+      style={{
+        transform: `translateX(${swipeOffset}px)`,
+        transition: isSwiping ? 'none' : 'transform 0.3s ease-out',
+      }}
+    >
+      <div
+        className={`relative w-full rounded-lg shadow-2xl p-4 ${
+          theme === 'dark' ? 'bg-nothing-gray-dark text-nothing-light' : 'bg-white text-day-text border border-gray-200'
+        }`}
+      >
+        <div className="flex items-center space-x-4 md:flex-col md:items-stretch md:space-y-3 md:space-x-0">
+          <div className="flex-grow">
+            <p className="font-semibold">Loved it? Help spread the word!</p>
+            <p className={`text-sm ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'}`}>
+              Share it on the Nothing Community thread!
+            </p>
+          </div>
+
+          <div className="flex-shrink-0">
+            <a
+              href={SHARE_LINK}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => {
+                trackEvent('share_community_toast_click');
+                onClose();
+              }}
+              className={`block w-full text-center px-4 py-2 text-sm font-bold rounded-md transition-colors ${
+                theme === 'dark' ? 'bg-nothing-light text-nothing-dark hover:bg-opacity-90' : 'bg-day-text text-day-bg hover:bg-opacity-90'
+              }`}
+            >
+              Share Now
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 };

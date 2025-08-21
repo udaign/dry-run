@@ -4,6 +4,7 @@ import { useHistory } from './hooks';
 import { getTimestamp } from './utils';
 import { PhotoWidgetState, PhotoWidgetColorMatrix, Theme, PhotoWidgetOutputMode } from './types';
 import { Dropzone, EnhancedSlider, UndoRedoControls, OutputModeSelector } from './components';
+import { trackEvent } from './analytics';
 
 const PHOTO_WIDGET_BASE_SIZE = 1176;
 const PADDING = 50;
@@ -93,7 +94,7 @@ const drawPhotoWidgetMatrix = (ctx: CanvasRenderingContext2D, options: {
     }
 };
 
-export const usePhotoWidgetPanel = ({ theme, isMobile, footerLinks }: { theme: Theme, isMobile: boolean, footerLinks: React.ReactNode }) => {
+export const usePhotoWidgetPanel = ({ theme, isMobile, footerLinks, triggerShareToast }: { theme: Theme, isMobile: boolean, footerLinks: React.ReactNode, triggerShareToast: () => void }) => {
   const { state: photoWidgetState, setState: setPhotoWidgetState, undo: undoPhotoWidget, redo: redoPhotoWidget, reset: resetPhotoWidget, canUndo: canUndoPhotoWidget, canRedo: canRedoPhotoWidget } = useHistory(PHOTO_WIDGET_INITIAL_STATE);
   const [livePhotoWidgetState, setLivePhotoWidgetState] = useState(photoWidgetState);
   const [outputMode, setOutputMode] = useState<PhotoWidgetOutputMode>('transparent');
@@ -123,6 +124,7 @@ export const usePhotoWidgetPanel = ({ theme, isMobile, footerLinks }: { theme: T
 
   const handleFileSelect = (file: File) => {
     setIsLoading(true);
+    trackEvent('upload_image', { feature: 'photo_widget' });
     const reader = new FileReader();
     reader.onload = (e) => {
         setImageSrc(e.target?.result as string);
@@ -198,6 +200,14 @@ export const usePhotoWidgetPanel = ({ theme, isMobile, footerLinks }: { theme: T
   const handleDownload = () => {
     if (isDownloading || !colorMatrix) return;
     setIsDownloading(true);
+    trackEvent('download', {
+      feature: 'photo_widget',
+      setting_output_mode: outputMode,
+      setting_resolution: livePhotoWidgetState.resolution,
+      setting_pixel_gap: livePhotoWidgetState.pixelGap,
+      setting_is_circular: livePhotoWidgetState.isCircular,
+      setting_is_anti_aliased: livePhotoWidgetState.isAntiAliased,
+    });
 
     setTimeout(() => {
         try {
@@ -222,6 +232,7 @@ export const usePhotoWidgetPanel = ({ theme, isMobile, footerLinks }: { theme: T
                         link.click();
                         document.body.removeChild(link);
                         URL.revokeObjectURL(url);
+                        triggerShareToast();
                     }
                 } finally {
                     setIsDownloading(false);
@@ -235,15 +246,21 @@ export const usePhotoWidgetPanel = ({ theme, isMobile, footerLinks }: { theme: T
   };
   
   const handleReset = () => {
+    trackEvent('photo_widget_reset_defaults');
     resetPhotoWidget();
     setOutputMode('transparent');
+  };
+  
+  const handleOutputModeSelect = (mode: PhotoWidgetOutputMode) => {
+    trackEvent('photo_widget_output_mode_change', { mode: mode });
+    setOutputMode(mode);
   };
 
   const controlsPanel = imageSrc ? (
     <div className="max-w-md mx-auto w-full flex flex-col space-y-4 px-6 sm:px-6 md:px-8 pt-6 md:pt-3 pb-8 sm:pb-6 md:pb-8">
       <div className={`rounded-lg transition-all duration-300 ${theme === 'dark' ? 'bg-nothing-darker' : 'bg-white border border-gray-300'}`}>
         <button
-          onClick={() => setIsPrefsOpen(!isPrefsOpen)}
+          onClick={() => { setIsPrefsOpen(!isPrefsOpen); trackEvent('photo_widget_toggle_prefs', { open: !isPrefsOpen }); }}
           className="w-full flex justify-between items-center p-4"
           aria-expanded={isPrefsOpen}
           aria-controls="widget-prefs-content"
@@ -260,34 +277,32 @@ export const usePhotoWidgetPanel = ({ theme, isMobile, footerLinks }: { theme: T
           <div className="px-4 pb-4 pt-0 space-y-3">
             <OutputModeSelector
               selected={outputMode}
-              onSelect={setOutputMode}
+              onSelect={handleOutputModeSelect}
               theme={theme}
             />
           </div>
         </div>
       </div>
 
-      <UndoRedoControls onUndo={undoPhotoWidget} onRedo={redoPhotoWidget} canUndo={canUndoPhotoWidget} canRedo={canRedoPhotoWidget} theme={theme} />
+      <UndoRedoControls onUndo={() => { undoPhotoWidget(); trackEvent('photo_widget_undo'); }} onRedo={() => { redoPhotoWidget(); trackEvent('photo_widget_redo'); }} canUndo={canUndoPhotoWidget} canRedo={canRedoPhotoWidget} theme={theme} />
         
       <div className={`p-4 rounded-lg space-y-4 ${theme === 'dark' ? 'bg-nothing-darker' : 'bg-white border border-gray-300'}`}>
-        <EnhancedSlider theme={theme} isMobile={isMobile} label="Resolution" value={resolution} onChange={v => setLivePhotoWidgetState(s => ({...s, resolution: v}))} onChangeCommitted={v => setPhotoWidgetState(s => ({...s, resolution: v}))} onReset={() => setPhotoWidgetState(s => ({...s, resolution: DEFAULT_SLIDER_VALUE}))} disabled={isLoading} />
-        <EnhancedSlider theme={theme} isMobile={isMobile} label="Pixel Gap" value={pixelGap} onChange={v => setLivePhotoWidgetState(s => ({...s, pixelGap: v}))} onChangeCommitted={v => setPhotoWidgetState(s => ({...s, pixelGap: v}))} onReset={() => setPhotoWidgetState(s => ({...s, pixelGap: 0}))} disabled={isLoading} />
+        <EnhancedSlider theme={theme} isMobile={isMobile} label="Resolution" value={resolution} onChange={v => setLivePhotoWidgetState(s => ({...s, resolution: v}))} onChangeCommitted={v => { setPhotoWidgetState(s => ({...s, resolution: v})); trackEvent('photo_widget_slider_change', { slider_name: 'resolution', value: v }); }} onReset={() => setPhotoWidgetState(s => ({...s, resolution: DEFAULT_SLIDER_VALUE}))} disabled={isLoading} />
+        <EnhancedSlider theme={theme} isMobile={isMobile} label="Pixel Gap" value={pixelGap} onChange={v => setLivePhotoWidgetState(s => ({...s, pixelGap: v}))} onChangeCommitted={v => { setPhotoWidgetState(s => ({...s, pixelGap: v})); trackEvent('photo_widget_slider_change', { slider_name: 'pixel_gap', value: v }); }} onReset={() => setPhotoWidgetState(s => ({...s, pixelGap: 0}))} disabled={isLoading} />
       </div>
         
       <div className={`p-4 rounded-lg space-y-4 ${theme === 'dark' ? 'bg-nothing-darker' : 'bg-white border border-gray-300'}`}>
         <div className={`flex items-center justify-between ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'}`}>
           <label htmlFor="pw-circular-toggle" className="text-sm">Circular Pixels</label>
-          <button id="pw-circular-toggle" role="switch" aria-checked={isCircular} onClick={() => setPhotoWidgetState(s => ({...s, isCircular: !s.isCircular}))} disabled={isLoading} className={`relative inline-flex items-center h-6 w-11 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 rounded-full ${theme === 'dark' ? 'focus:ring-offset-nothing-dark' : 'focus:ring-offset-day-bg'} ${isCircular ? 'bg-nothing-red' : (theme === 'dark' ? 'bg-nothing-gray-dark' : 'bg-day-gray-light')}`}>
+          <button id="pw-circular-toggle" role="switch" aria-checked={isCircular} onClick={() => { setPhotoWidgetState(s => ({...s, isCircular: !s.isCircular})); trackEvent('photo_widget_toggle_change', { setting: 'circular_pixels', enabled: !photoWidgetState.isCircular }); }} disabled={isLoading} className={`relative inline-flex items-center h-6 w-11 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 rounded-full ${theme === 'dark' ? 'focus:ring-offset-nothing-dark' : 'focus:ring-offset-day-bg'} ${isCircular ? 'bg-nothing-red' : (theme === 'dark' ? 'bg-nothing-gray-dark' : 'bg-day-gray-light')}`}>
             <span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform duration-300 ${isCircular ? 'translate-x-6' : 'translate-x-1'}`} />
           </button>
         </div>
         <div className={`flex items-center justify-between ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'}`}>
           <label htmlFor="pw-aa-toggle" className="text-sm">Anti-aliasing</label>
           <button id="pw-aa-toggle" role="switch" aria-checked={isAntiAliased} onClick={() => {
-              setPhotoWidgetState(s => ({
-                  ...s,
-                  isAntiAliased: !s.isAntiAliased,
-              }));
+              setPhotoWidgetState(s => ({...s, isAntiAliased: !s.isAntiAliased }));
+              trackEvent('photo_widget_toggle_change', { setting: 'anti_aliasing', enabled: !photoWidgetState.isAntiAliased });
           }} disabled={isLoading} className={`relative inline-flex items-center h-6 w-11 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 rounded-full ${theme === 'dark' ? 'focus:ring-offset-nothing-dark' : 'focus:ring-offset-day-bg'} disabled:opacity-50 ${isAntiAliased ? 'bg-nothing-red' : (theme === 'dark' ? 'bg-nothing-gray-dark' : 'bg-day-gray-light')}`}>
             <span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform duration-300 ${isAntiAliased ? 'translate-x-6' : 'translate-x-1'}`} />
           </button>

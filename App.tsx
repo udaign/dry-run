@@ -4,8 +4,11 @@ import { usePfpPanel } from './Pfp';
 import { useWallpaperPanel } from './Wallpaper';
 import { usePhotoWidgetPanel } from './PhotoWidget';
 import { Theme, Tab } from './types';
+import { trackEvent } from './analytics';
+import { ToastNotification } from './components';
 
 const TABS: Tab[] = ['pfp', 'wallpaper', 'photoWidget'];
+const SHARE_LINK = "https://nothing.community/d/38047-introducing-matrices-a-handy-utility-to-create-matrix-styled-imagery";
 
 const App: React.FC = () => {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
@@ -13,6 +16,8 @@ const App: React.FC = () => {
     () => window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
   );
   const [activeTab, setActiveTab] = useState<Tab>('pfp');
+  const [showShareToast, setShowShareToast] = useState(false);
+  const [hasShownShareToastInSession, setHasShownShareToastInSession] = useState(false);
   const activeTabIndex = TABS.indexOf(activeTab);
 
   const pfpFileInputRef = useRef<HTMLInputElement>(null);
@@ -21,14 +26,22 @@ const App: React.FC = () => {
 
   const linkClasses = theme === 'dark' ? 'font-medium text-nothing-light hover:text-white underline' : 'font-medium text-day-text hover:text-black underline';
   
+  const triggerShareToast = useCallback(() => {
+    if (hasShownShareToastInSession) {
+        return;
+    }
+    setShowShareToast(true);
+    setHasShownShareToastInSession(true);
+  }, [hasShownShareToastInSession]);
+
   const footerLinks = (
     <div className={`text-sm ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'} opacity-80`}>
-        <p>Made with 🤍❤️🖤 for <a href="https://nothing.community/" target="_blank" rel="noopener noreferrer" className={linkClasses}>Nothing Community</a> by <a href="https://nothing.community/u/Udaign" target="_blank" rel="noopener noreferrer" className={linkClasses}>Uday</a>.</p>
-        <p>For feedback and feature requests, join the <a href="https://nothing.community/d/38047-introducing-matrices-a-handy-utility-to-create-matrix-styled-imagery" target="_blank" rel="noopener noreferrer" className={linkClasses}>discussion</a>. For contact, <a href="mailto:udaybhaskar2283@gmail.com" className={linkClasses}>email me</a>.</p>
+        <p>Made with 🤍❤️🖤 for <a href="https://nothing.community/" target="_blank" rel="noopener noreferrer" className={linkClasses}>Nothing Community</a> by <a href="https://nothing.community/u/Udaign" target="_blank" rel="noopener noreferrer" className={linkClasses} onClick={() => trackEvent('community_profile_visit')}>Uday</a>.</p>
+        <p>For feedback and feature requests, join the <a href="https://nothing.community/d/38047-introducing-matrices-a-handy-utility-to-create-matrix-styled-imagery" target="_blank" rel="noopener noreferrer" className={linkClasses} onClick={() => trackEvent('discussion_visit')}>discussion</a>. For contact, <a href="mailto:udaybhaskar2283@gmail.com" className={linkClasses} onClick={() => trackEvent('email_click')}>email me</a>.</p>
     </div>
   );
   
-  const commonProps = { theme, isMobile, footerLinks };
+  const commonProps = { theme, isMobile, footerLinks, triggerShareToast };
   const pfpPanel = usePfpPanel(commonProps);
   const wallpaperPanel = useWallpaperPanel(commonProps);
   const photoWidgetPanel = usePhotoWidgetPanel(commonProps);
@@ -72,8 +85,19 @@ const App: React.FC = () => {
     document.body.className = theme === 'light' ? 'bg-day-bg' : 'bg-nothing-dark';
   }, [theme]);
   
+  const handleThemeToggle = () => {
+    const newTheme = theme === 'dark' ? 'light' : 'dark';
+    trackEvent('theme_change', { theme: newTheme });
+    setTheme(newTheme);
+  };
+  
+  const handleTabChange = (tab: Tab) => {
+    trackEvent('select_tab', { tab_name: tab });
+    setActiveTab(tab);
+  };
+
   const tabDescriptions = {
-    pfp: "Create glyph mirror styled profile pictures.",
+    pfp: <>Create glyph mirror styled profile pictures. <strong className={`font-bold ${theme === 'dark' ? 'text-nothing-light' : 'text-black'}`}>Drag to crop</strong> into desired area.</>,
     wallpaper: <>Create matrix styled wallpapers. <strong className={`font-bold ${theme === 'dark' ? 'text-nothing-light' : 'text-black'}`}>Drag to crop</strong> into desired area.</>,
     photoWidget: "Create matrix style photo widgets.",
   };
@@ -93,21 +117,27 @@ const App: React.FC = () => {
 
       <div className={`min-h-screen md:h-screen w-full flex flex-col font-sans ${theme === 'dark' ? 'text-nothing-light bg-nothing-dark' : 'text-day-text bg-day-bg'} select-none`}>
         <header className={`flex-shrink-0 sticky top-0 z-30 flex justify-between items-center p-4 border-b ${theme === 'dark' ? 'bg-nothing-dark border-nothing-gray-dark' : 'bg-day-bg border-gray-300'}`}>
-          <h1 className="text-2xl sm:text-3xl font-bold page-title">MATRICES v3 FOR NOTHING COMMUNITY</h1>
-          <button onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')} className={`p-2 transition-colors duration-300 rounded-md ${theme === 'dark' ? 'text-nothing-light bg-nothing-gray-dark hover:bg-nothing-gray-light hover:text-nothing-dark' : 'text-day-text bg-day-gray-light hover:bg-day-gray-dark hover:text-day-bg'}`} aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}>
-            {theme === 'dark' ? (
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="feather feather-sun h-6 w-6"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
-            ) : (
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="feather feather-moon h-6 w-6"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
-            )}
-          </button>
+          <h1 className="text-2xl sm:text-3xl font-bold page-title">MATRICES v3.1 FOR NOTHING COMMUNITY</h1>
+          <div className="flex items-center space-x-2">
+            <a href={SHARE_LINK} target="_blank" rel="noopener noreferrer" onClick={() => trackEvent('share_community_header_click')} className={`flex items-center p-2 md:px-3 transition-colors duration-300 rounded-md text-sm font-semibold ${theme === 'dark' ? 'text-nothing-light bg-nothing-gray-dark hover:bg-nothing-gray-light hover:text-nothing-dark' : 'text-day-text bg-day-gray-light hover:bg-day-gray-dark hover:text-day-bg'}`} aria-label="Share to Nothing Community">
+              <span className="hidden md:inline">Share to Community</span>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-6 w-6 md:ml-2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+            </a>
+            <button onClick={handleThemeToggle} className={`p-2 transition-colors duration-300 rounded-md ${theme === 'dark' ? 'text-nothing-light bg-nothing-gray-dark hover:bg-nothing-gray-light hover:text-nothing-dark' : 'text-day-text bg-day-gray-light hover:bg-day-gray-dark hover:text-day-bg'}`} aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}>
+              {theme === 'dark' ? (
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="feather feather-sun h-6 w-6"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+              ) : (
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="feather feather-moon h-6 w-6"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+              )}
+            </button>
+          </div>
         </header>
 
         <div className="block md:hidden pt-4 sm:pt-6">
           <div className="flex flex-col space-y-4">
             <div className={`relative flex border-b ${theme === 'dark' ? 'border-nothing-gray-dark' : 'border-gray-300'}`}>
               {TABS.map((tab, i) => (
-                <button key={tab} onClick={() => setActiveTab(tab)} className={`w-1/3 py-3 text-base transition-colors duration-300 focus:outline-none ${activeTab === tab ? (theme === 'dark' ? 'text-nothing-light font-bold' : 'text-day-text font-bold') : (theme === 'dark' ? 'text-nothing-gray-light hover:text-nothing-light font-semibold' : 'text-day-gray-dark hover:text-day-text font-semibold')}`} aria-pressed={activeTab === tab}>
+                <button key={tab} onClick={() => handleTabChange(tab)} className={`w-1/3 py-3 text-base transition-colors duration-300 focus:outline-none ${activeTab === tab ? (theme === 'dark' ? 'text-nothing-light font-bold' : 'text-day-text font-bold') : (theme === 'dark' ? 'text-nothing-gray-light hover:text-nothing-light font-semibold' : 'text-day-gray-dark hover:text-day-text font-semibold')}`} aria-pressed={activeTab === tab}>
                   {tab === 'pfp' ? 'Glyph Mirror' : tab === 'wallpaper' ? 'Wallpaper' : 'Photo Widget'}
                 </button>
               ))}
@@ -135,7 +165,7 @@ const App: React.FC = () => {
               <div className="flex flex-col space-y-4">
                 <div className="relative flex border-b dark:border-nothing-gray-dark border-gray-300">
                   {TABS.map((tab, i) => (
-                    <button key={tab} onClick={() => setActiveTab(tab)} className={`w-1/3 py-3 text-lg transition-colors duration-300 focus:outline-none ${activeTab === tab ? (theme === 'dark' ? 'text-nothing-light font-extrabold' : 'text-day-text font-extrabold') : (theme === 'dark' ? 'text-nothing-gray-light hover:text-nothing-light font-semibold' : 'text-day-gray-dark hover:text-day-text font-semibold')}`} aria-pressed={activeTab === tab}>
+                    <button key={tab} onClick={() => handleTabChange(tab)} className={`w-1/3 py-3 text-lg transition-colors duration-300 focus:outline-none ${activeTab === tab ? (theme === 'dark' ? 'text-nothing-light font-extrabold' : 'text-day-text font-extrabold') : (theme === 'dark' ? 'text-nothing-gray-light hover:text-nothing-light font-semibold' : 'text-day-gray-dark hover:text-day-text font-semibold')}`} aria-pressed={activeTab === tab}>
                       {tab === 'pfp' ? 'Glyph Mirror' : tab === 'wallpaper' ? 'Wallpaper' : 'Photo Widget'}
                     </button>
                   ))}
@@ -153,6 +183,15 @@ const App: React.FC = () => {
                 ))}
               </div>
               <div className="block md:hidden">{activePanel.controlsPanel}</div>
+              {!isMobile && (
+                <ToastNotification
+                  show={showShareToast}
+                  onClose={() => setShowShareToast(false)}
+                  theme={theme}
+                  isMobile={isMobile}
+                  imageRendered={!!imageSrc}
+                />
+              )}
             </div>
           </div>
         </main>
@@ -188,6 +227,16 @@ const App: React.FC = () => {
               </div>
             )}
         </div>
+        
+        {isMobile && (
+          <ToastNotification
+            show={showShareToast}
+            onClose={() => setShowShareToast(false)}
+            theme={theme}
+            isMobile={isMobile}
+            imageRendered={!!imageSrc}
+          />
+        )}
       </div>
     </>
   );
