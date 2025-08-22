@@ -117,7 +117,7 @@ const App: React.FC = () => {
 
       <div className={`min-h-screen md:h-screen w-full flex flex-col font-sans ${theme === 'dark' ? 'text-nothing-light bg-nothing-dark' : 'text-day-text bg-day-bg'} select-none`}>
         <header className={`flex-shrink-0 sticky top-0 z-30 flex justify-between items-center p-4 border-b ${theme === 'dark' ? 'bg-nothing-dark border-nothing-gray-dark' : 'bg-day-bg border-gray-300'}`}>
-          <h1 className="text-2xl sm:text-3xl font-bold page-title">MATRICES v3.1 FOR NOTHING COMMUNITY</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold page-title">MATRICES FOR NOTHING COMMUNITY</h1>
           <div className="flex items-center space-x-2">
             <a href={SHARE_LINK} target="_blank" rel="noopener noreferrer" onClick={() => trackEvent('share_community_header_click')} className={`flex items-center p-2 md:px-3 transition-colors duration-300 rounded-md text-sm font-semibold ${theme === 'dark' ? 'text-nothing-light bg-nothing-gray-dark hover:bg-nothing-gray-light hover:text-nothing-dark' : 'text-day-text bg-day-gray-light hover:bg-day-gray-dark hover:text-day-bg'}`} aria-label="Share to Nothing Community">
               <span className="hidden md:inline">Share to Community</span>

@@ -52,6 +52,7 @@ export const useWallpaperPanel = ({ theme, isMobile, footerLinks, triggerShareTo
   const [image, setImage] = useState<HTMLImageElement | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [uploadTimestamp, setUploadTimestamp] = useState<number | null>(null);
   const [isFullScreenPreview, setIsFullScreenPreview] = useState(false);
   const [showFsToast, setShowFsToast] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -195,6 +196,7 @@ export const useWallpaperPanel = ({ theme, isMobile, footerLinks, triggerShareTo
     const reader = new FileReader();
     reader.onload = (e) => {
       setImageSrc(e.target?.result as string);
+      setUploadTimestamp(Date.now());
       resetWallpaperHistory();
       setIsLoading(false);
     };
@@ -207,6 +209,7 @@ export const useWallpaperPanel = ({ theme, isMobile, footerLinks, triggerShareTo
     const reader = new FileReader();
     reader.onload = (e) => {
       setImageSrc(e.target?.result as string);
+      setUploadTimestamp(Date.now());
       resetWallpaperHistory();
       setIsLoading(false);
     };
@@ -230,7 +233,8 @@ export const useWallpaperPanel = ({ theme, isMobile, footerLinks, triggerShareTo
   const handleDownload = () => {
     if (isDownloading) return;
     setIsDownloading(true);
-    trackEvent('download', {
+
+    const eventParams: Record<string, string | number | boolean | undefined> = {
       feature: 'wallpaper',
       wallpaper_type: wallpaperType,
       setting_resolution: liveWallpaperState.resolution,
@@ -239,7 +243,15 @@ export const useWallpaperPanel = ({ theme, isMobile, footerLinks, triggerShareTo
       setting_crop_offset_x: liveWallpaperState.cropOffsetX,
       setting_crop_offset_y: liveWallpaperState.cropOffsetY,
       setting_is_monochrome: liveWallpaperState.isMonochrome,
-    });
+    };
+
+    if (uploadTimestamp) {
+      const durationInSeconds = Math.round((Date.now() - uploadTimestamp) / 1000);
+      eventParams.duration_seconds = durationInSeconds;
+    }
+
+    trackEvent('download', eventParams);
+
     try {
         const canvas = canvasRef.current;
         if (!canvas) {

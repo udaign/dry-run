@@ -112,6 +112,7 @@ export const usePfpPanel = ({ theme, isMobile, footerLinks, triggerShareToast }:
   const [image, setImage] = useState<HTMLImageElement | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [uploadTimestamp, setUploadTimestamp] = useState<number | null>(null);
   
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const previewCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -281,6 +282,7 @@ export const usePfpPanel = ({ theme, isMobile, footerLinks, triggerShareToast }:
     const reader = new FileReader();
     reader.onload = (e) => {
       setImageSrc(e.target?.result as string);
+      setUploadTimestamp(Date.now());
       resetPfp();
     };
     reader.readAsDataURL(file);
@@ -289,7 +291,8 @@ export const usePfpPanel = ({ theme, isMobile, footerLinks, triggerShareToast }:
   const handleDownload = () => {
     if (isDownloading) return;
     setIsDownloading(true);
-    trackEvent('download', {
+
+    const eventParams: Record<string, string | number | boolean | undefined> = {
       feature: 'pfp',
       setting_resolution: livePfpState.resolution,
       setting_exposure: livePfpState.exposure,
@@ -300,7 +303,15 @@ export const usePfpPanel = ({ theme, isMobile, footerLinks, triggerShareToast }:
       setting_is_anti_aliased: livePfpState.isAntiAliased,
       setting_is_glow_enabled: livePfpState.isGlowEnabled,
       setting_glow_intensity: livePfpState.glowIntensity,
-    });
+    };
+
+    if (uploadTimestamp) {
+      const durationInSeconds = Math.round((Date.now() - uploadTimestamp) / 1000);
+      eventParams.duration_seconds = durationInSeconds;
+    }
+    
+    trackEvent('download', eventParams);
+
     setTimeout(() => {
         try {
             const canvas = document.createElement('canvas');

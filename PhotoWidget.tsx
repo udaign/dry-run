@@ -102,6 +102,7 @@ export const usePhotoWidgetPanel = ({ theme, isMobile, footerLinks, triggerShare
   const [image, setImage] = useState<HTMLImageElement | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [uploadTimestamp, setUploadTimestamp] = useState<number | null>(null);
   const [colorMatrix, setColorMatrix] = useState<PhotoWidgetColorMatrix | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isPrefsOpen, setIsPrefsOpen] = useState(false);
@@ -128,6 +129,7 @@ export const usePhotoWidgetPanel = ({ theme, isMobile, footerLinks, triggerShare
     const reader = new FileReader();
     reader.onload = (e) => {
         setImageSrc(e.target?.result as string);
+        setUploadTimestamp(Date.now());
         resetPhotoWidget();
         setOutputMode('transparent');
         setIsLoading(false);
@@ -200,14 +202,22 @@ export const usePhotoWidgetPanel = ({ theme, isMobile, footerLinks, triggerShare
   const handleDownload = () => {
     if (isDownloading || !colorMatrix) return;
     setIsDownloading(true);
-    trackEvent('download', {
+
+    const eventParams: Record<string, string | number | boolean | undefined> = {
       feature: 'photo_widget',
       setting_output_mode: outputMode,
       setting_resolution: livePhotoWidgetState.resolution,
       setting_pixel_gap: livePhotoWidgetState.pixelGap,
       setting_is_circular: livePhotoWidgetState.isCircular,
       setting_is_anti_aliased: livePhotoWidgetState.isAntiAliased,
-    });
+    };
+
+    if (uploadTimestamp) {
+        const durationInSeconds = Math.round((Date.now() - uploadTimestamp) / 1000);
+        eventParams.duration_seconds = durationInSeconds;
+    }
+
+    trackEvent('download', eventParams);
 
     setTimeout(() => {
         try {
