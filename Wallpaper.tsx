@@ -40,15 +40,11 @@ export const useWallpaperPanel = ({
   isMobile,
   footerLinks,
   triggerShareToast,
-  hasShownShareToastInSession,
-  setHasShownShareToastInSession,
 }: {
   theme: Theme;
   isMobile: boolean;
   footerLinks: React.ReactNode;
-  triggerShareToast: () => void;
-  hasShownShareToastInSession: boolean;
-  setHasShownShareToastInSession: React.Dispatch<React.SetStateAction<boolean>>;
+  triggerShareToast: (showSpecificToast?: () => void) => void;
 }) => {
   const { 
     state: wallpaperSettings, 
@@ -283,10 +279,7 @@ export const useWallpaperPanel = ({
                     document.body.removeChild(link);
                     URL.revokeObjectURL(url);
                     if (isFullScreenPreview) {
-                      if (!hasShownShareToastInSession) {
-                        setShowFsToast(true);
-                        setHasShownShareToastInSession(true);
-                      }
+                      triggerShareToast(() => setShowFsToast(true));
                     } else {
                       triggerShareToast();
                     }

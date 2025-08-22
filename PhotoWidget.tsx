@@ -94,7 +94,7 @@ const drawPhotoWidgetMatrix = (ctx: CanvasRenderingContext2D, options: {
     }
 };
 
-export const usePhotoWidgetPanel = ({ theme, isMobile, footerLinks, triggerShareToast }: { theme: Theme, isMobile: boolean, footerLinks: React.ReactNode, triggerShareToast: () => void }) => {
+export const usePhotoWidgetPanel = ({ theme, isMobile, footerLinks, triggerShareToast }: { theme: Theme, isMobile: boolean, footerLinks: React.ReactNode, triggerShareToast: (showSpecificToast?: () => void) => void }) => {
   const { state: photoWidgetState, setState: setPhotoWidgetState, undo: undoPhotoWidget, redo: redoPhotoWidget, reset: resetPhotoWidget, canUndo: canUndoPhotoWidget, canRedo: canRedoPhotoWidget } = useHistory(PHOTO_WIDGET_INITIAL_STATE);
   const [livePhotoWidgetState, setLivePhotoWidgetState] = useState(photoWidgetState);
   const [outputMode, setOutputMode] = useState<PhotoWidgetOutputMode>('transparent');

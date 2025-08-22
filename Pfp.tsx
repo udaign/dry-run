@@ -105,7 +105,7 @@ const drawPfpMatrix = (ctx: CanvasRenderingContext2D, options: {
     });
 };
 
-export const usePfpPanel = ({ theme, isMobile, footerLinks, triggerShareToast }: { theme: Theme, isMobile: boolean, footerLinks: React.ReactNode, triggerShareToast: () => void }) => {
+export const usePfpPanel = ({ theme, isMobile, footerLinks, triggerShareToast }: { theme: Theme, isMobile: boolean, footerLinks: React.ReactNode, triggerShareToast: (showSpecificToast?: () => void) => void }) => {
   const { state: pfpState, setState: setPfpState, undo: undoPfp, redo: redoPfp, reset: resetPfp, canUndo: canUndoPfp, canRedo: canRedoPfp } = useHistory(PFP_INITIAL_STATE);
   const [livePfpState, setLivePfpState] = useState(pfpState);
   const [imageSrc, setImageSrc] = useState<string | null>(null);

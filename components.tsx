@@ -374,9 +374,9 @@ export const ToastNotification: React.FC<{
       >
         <div className="flex items-center space-x-4 md:flex-col md:items-stretch md:space-y-3 md:space-x-0">
           <div className="flex-grow">
-            <p className="font-semibold">Loved it? Help spread the word!</p>
+            <p className="font-semibold">You seem to love it?</p>
             <p className={`text-sm ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'}`}>
-              Share it on the Nothing Community thread!
+              Help spread the word. Share it on the community thread!
             </p>
           </div>
 

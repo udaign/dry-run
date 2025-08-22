@@ -16,6 +16,7 @@ const App: React.FC = () => {
     () => window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
   );
   const [activeTab, setActiveTab] = useState<Tab>('pfp');
+  const [downloadCount, setDownloadCount] = useState(0);
   const [showShareToast, setShowShareToast] = useState(false);
   const [hasShownShareToastInSession, setHasShownShareToastInSession] = useState(false);
   const activeTabIndex = TABS.indexOf(activeTab);
@@ -26,13 +27,21 @@ const App: React.FC = () => {
 
   const linkClasses = theme === 'dark' ? 'font-medium text-nothing-light hover:text-white underline' : 'font-medium text-day-text hover:text-black underline';
   
-  const triggerShareToast = useCallback(() => {
+  const triggerShareToast = useCallback((showSpecificToast?: () => void) => {
     if (hasShownShareToastInSession) {
         return;
     }
-    setShowShareToast(true);
-    setHasShownShareToastInSession(true);
-  }, [hasShownShareToastInSession]);
+    const newCount = downloadCount + 1;
+    setDownloadCount(newCount);
+    if (newCount === 2) {
+      if (showSpecificToast) {
+        showSpecificToast();
+      } else {
+        setShowShareToast(true);
+      }
+      setHasShownShareToastInSession(true);
+    }
+  }, [downloadCount, hasShownShareToastInSession]);
 
   const footerLinks = (
     <div className={`text-sm ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'} opacity-80`}>
@@ -43,11 +52,7 @@ const App: React.FC = () => {
   
   const commonProps = { theme, isMobile, footerLinks, triggerShareToast };
   const pfpPanel = usePfpPanel(commonProps);
-  const wallpaperPanel = useWallpaperPanel({
-    ...commonProps,
-    hasShownShareToastInSession,
-    setHasShownShareToastInSession,
-  });
+  const wallpaperPanel = useWallpaperPanel(commonProps);
   const photoWidgetPanel = usePhotoWidgetPanel(commonProps);
   
   const panels = {
