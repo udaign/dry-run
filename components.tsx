@@ -293,79 +293,34 @@ export const ToastNotification: React.FC<{
     onClose();
   }, [onClose]);
 
-  // --- Unified Timer Logic ---
-  // For mobile timer
-  const mobileTimerRef = useRef<number | null>(null);
-  // For desktop timers and state
-  const desktopMainTimerRef = useRef<number | null>(null);
-  const desktopGraceTimerRef = useRef<number | null>(null);
-  const isHoveringRef = useRef(false);
-  const mainTimerHasFiredRef = useRef(false);
-  
-  const startMobileTimer = useCallback(() => {
-    if (mobileTimerRef.current) clearTimeout(mobileTimerRef.current);
-    mobileTimerRef.current = window.setTimeout(closeCallback, 7000);
+  const timerRef = useRef<number | null>(null);
+
+  const startTimer = useCallback(() => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = window.setTimeout(closeCallback, 7000);
   }, [closeCallback]);
 
-  const clearMobileTimer = useCallback(() => {
-    if (mobileTimerRef.current) {
-      clearTimeout(mobileTimerRef.current);
-      mobileTimerRef.current = null;
+  const clearTimer = useCallback(() => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
     }
   }, []);
-  
+
   useEffect(() => {
     if (show) {
-      if (isMobile) {
-        startMobileTimer();
-      } else {
-        // Desktop logic
-        mainTimerHasFiredRef.current = false;
-        if (desktopMainTimerRef.current) clearTimeout(desktopMainTimerRef.current);
-        if (desktopGraceTimerRef.current) clearTimeout(desktopGraceTimerRef.current);
-
-        desktopMainTimerRef.current = window.setTimeout(() => {
-            mainTimerHasFiredRef.current = true;
-            if (!isHoveringRef.current) {
-                closeCallback();
-            }
-        }, 7000);
-      }
+      startTimer();
     } else {
-      // Cleanup for both when hidden externally
-      clearMobileTimer();
-      if (desktopMainTimerRef.current) clearTimeout(desktopMainTimerRef.current);
-      if (desktopGraceTimerRef.current) clearTimeout(desktopGraceTimerRef.current);
+      clearTimer();
     }
-
     return () => {
-      // Cleanup on unmount
-      clearMobileTimer();
-      if (desktopMainTimerRef.current) clearTimeout(desktopMainTimerRef.current);
-      if (desktopGraceTimerRef.current) clearTimeout(desktopGraceTimerRef.current);
+      clearTimer();
     };
-  }, [show, isMobile, startMobileTimer, clearMobileTimer, closeCallback]);
-
-  const handleMouseEnter = () => {
-    isHoveringRef.current = true;
-    if (desktopGraceTimerRef.current) {
-      clearTimeout(desktopGraceTimerRef.current);
-      desktopGraceTimerRef.current = null;
-    }
-  };
-  
-  const handleMouseLeave = () => {
-    isHoveringRef.current = false;
-    if (mainTimerHasFiredRef.current) {
-      desktopGraceTimerRef.current = window.setTimeout(() => {
-        closeCallback();
-      }, 1000);
-    }
-  };
+  }, [show, startTimer, clearTimer]);
 
   const handleTouchStart = (e: React.TouchEvent) => {
     if (!isMobile) return;
-    clearMobileTimer();
+    clearTimer();
     touchStartRef.current = e.touches[0].clientX;
     setIsSwiping(true);
   };
@@ -385,7 +340,7 @@ export const ToastNotification: React.FC<{
       onClose();
     } else {
       setSwipeOffset(0);
-      startMobileTimer();
+      startTimer();
     }
   };
   
@@ -407,8 +362,6 @@ export const ToastNotification: React.FC<{
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
-      onMouseEnter={!isMobile ? handleMouseEnter : undefined}
-      onMouseLeave={!isMobile ? handleMouseLeave : undefined}
       style={{
         transform: `translateX(${swipeOffset}px)`,
         transition: isSwiping ? 'none' : 'transform 0.3s ease-out',

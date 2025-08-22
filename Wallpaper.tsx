@@ -35,7 +35,21 @@ const DUAL_WALLPAPER_INITIAL_STATE: WallpaperSettingsContainer = {
 };
 
 
-export const useWallpaperPanel = ({ theme, isMobile, footerLinks, triggerShareToast }: { theme: Theme, isMobile: boolean, footerLinks: React.ReactNode, triggerShareToast: () => void }) => {
+export const useWallpaperPanel = ({
+  theme,
+  isMobile,
+  footerLinks,
+  triggerShareToast,
+  hasShownShareToastInSession,
+  setHasShownShareToastInSession,
+}: {
+  theme: Theme;
+  isMobile: boolean;
+  footerLinks: React.ReactNode;
+  triggerShareToast: () => void;
+  hasShownShareToastInSession: boolean;
+  setHasShownShareToastInSession: React.Dispatch<React.SetStateAction<boolean>>;
+}) => {
   const { 
     state: wallpaperSettings, 
     setState: setWallpaperSettings, 
@@ -253,7 +267,7 @@ export const useWallpaperPanel = ({ theme, isMobile, footerLinks, triggerShareTo
     trackEvent('download', eventParams);
 
     try {
-        const canvas = canvasRef.current;
+        const canvas = isFullScreenPreview ? fullScreenCanvasRef.current : canvasRef.current;
         if (!canvas) {
             throw new Error('Wallpaper canvas not found for download.');
         }
@@ -269,7 +283,10 @@ export const useWallpaperPanel = ({ theme, isMobile, footerLinks, triggerShareTo
                     document.body.removeChild(link);
                     URL.revokeObjectURL(url);
                     if (isFullScreenPreview) {
-                      setShowFsToast(true);
+                      if (!hasShownShareToastInSession) {
+                        setShowFsToast(true);
+                        setHasShownShareToastInSession(true);
+                      }
                     } else {
                       triggerShareToast();
                     }

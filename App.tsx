@@ -43,7 +43,11 @@ const App: React.FC = () => {
   
   const commonProps = { theme, isMobile, footerLinks, triggerShareToast };
   const pfpPanel = usePfpPanel(commonProps);
-  const wallpaperPanel = useWallpaperPanel(commonProps);
+  const wallpaperPanel = useWallpaperPanel({
+    ...commonProps,
+    hasShownShareToastInSession,
+    setHasShownShareToastInSession,
+  });
   const photoWidgetPanel = usePhotoWidgetPanel(commonProps);
   
   const panels = {
