@@ -459,24 +459,16 @@ export const usePfpPanel = ({ theme, isMobile, footerLinks, triggerShareToast }:
   }, [setPfpState]);
 
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (resetTooltipRef.current && !resetTooltipRef.current.contains(event.target as Node)) {
-        setShowResetTooltip(false);
-      }
+    // This handler will only be called for clicks outside the component,
+    // because pointer events originating inside the component are stopped from propagating.
+    const handleClickOutside = () => {
+      setShowResetTooltip(false);
     };
 
     if (showResetTooltip) {
-      // Defer adding the event listener to avoid it firing on the same click that shows the tooltip.
-      // This timeout pushes the listener attachment to the next tick in the event loop,
-      // ensuring the initial click event has fully propagated before the listener is active.
-      // This robustly fixes the race condition on desktop/tablet devices.
-      const timerId = setTimeout(() => {
-        document.addEventListener('mousedown', handleClickOutside);
-      }, 0);
-
+      document.addEventListener('pointerdown', handleClickOutside);
       return () => {
-        clearTimeout(timerId);
-        document.removeEventListener('mousedown', handleClickOutside);
+        document.removeEventListener('pointerdown', handleClickOutside);
       };
     }
   }, [showResetTooltip]);
@@ -511,7 +503,7 @@ export const usePfpPanel = ({ theme, isMobile, footerLinks, triggerShareToast }:
     <div className="max-w-md mx-auto w-full flex flex-col space-y-4 px-6 sm:px-6 md:px-8 pt-6 md:pt-3 pb-8 sm:pb-6 md:pb-8">
         <div className="flex justify-between items-center">
             <UndoRedoControls onUndo={() => { undoPfp(); trackEvent('pfp_undo'); }} onRedo={() => { redoPfp(); trackEvent('pfp_redo'); }} canUndo={canUndoPfp} canRedo={canRedoPfp} theme={theme} />
-            <div className="relative" ref={resetTooltipRef}>
+            <div className="relative" ref={resetTooltipRef} onPointerDown={e => e.stopPropagation()}>
                 <button
                     onClick={handleResetMarkerClick}
                     className={`p-2 rounded-full transition-colors ${theme === 'dark' ? 'text-nothing-gray-light hover:bg-nothing-gray-dark' : 'text-day-gray-dark hover:bg-day-gray-light'}`}
@@ -521,7 +513,8 @@ export const usePfpPanel = ({ theme, isMobile, footerLinks, triggerShareToast }:
                 </button>
                 {showResetTooltip && (
                     <div className={`absolute ${tooltipPositionClasses} w-64 p-3 rounded-lg shadow-2xl text-xs z-[1000] ${theme === 'dark' ? 'bg-nothing-darker text-nothing-light' : 'bg-day-text text-day-bg'}`}>
-                        Fields with ◉ marker are recommended to be left at default value to give authentic results. Click again to reset these fields. Click elsewhere to dismiss.
+                        <p>Recommended defaults (◉) for authentic results.</p>
+                        <p className="mt-2">Click again to revert these fields, click elsewhere to dismiss. Feel free to still customize as you like.</p>
                     </div>
                 )}
             </div>

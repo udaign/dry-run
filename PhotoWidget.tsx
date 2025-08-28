@@ -108,7 +108,6 @@ export const usePhotoWidgetPanel = ({ theme, isMobile, footerLinks, triggerShare
   const [uploadTimestamp, setUploadTimestamp] = useState<number | null>(null);
   const [colorMatrix, setColorMatrix] = useState<PhotoWidgetColorMatrix | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [isPrefsOpen, setIsPrefsOpen] = useState(false);
   
   const { resolution, pixelGap, isCircular, isAntiAliased } = livePhotoWidgetState;
   
@@ -293,30 +292,13 @@ export const usePhotoWidgetPanel = ({ theme, isMobile, footerLinks, triggerShare
 
   const controlsPanel = imageSrc ? (
     <div className="max-w-md mx-auto w-full flex flex-col space-y-4 px-6 sm:px-6 md:px-8 pt-6 md:pt-3 pb-8 sm:pb-6 md:pb-8">
-      <div className={`rounded-lg transition-all duration-300 ${theme === 'dark' ? 'bg-nothing-darker' : 'bg-white border border-gray-300'}`}>
-        <button
-          onClick={() => { setIsPrefsOpen(!isPrefsOpen); trackEvent('photo_widget_toggle_prefs', { open: !isPrefsOpen }); }}
-          className="w-full flex justify-between items-center p-4"
-          aria-expanded={isPrefsOpen}
-          aria-controls="widget-prefs-content"
-        >
-          <span className={`font-semibold ${theme === 'dark' ? 'text-nothing-light' : 'text-day-text'}`}>Widget Preferences</span>
-          <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 transition-transform duration-300 ${isPrefsOpen ? 'rotate-180' : ''} ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'}`} viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-          </svg>
-        </button>
-        <div
-          id="widget-prefs-content"
-          className={`overflow-hidden transition-all duration-300 ease-in-out ${isPrefsOpen ? 'max-h-96' : 'max-h-0'}`}
-        >
-          <div className="px-4 pb-4 pt-0 space-y-3">
-            <OutputModeSelector
-              selected={outputMode}
-              onSelect={handleOutputModeSelect}
-              theme={theme}
-            />
-          </div>
-        </div>
+      <div className={`p-4 rounded-lg space-y-2 ${theme === 'dark' ? 'bg-nothing-darker' : 'bg-white border border-gray-300'}`}>
+        <label className={`text-sm ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'}`}>Widget Preferences</label>
+        <OutputModeSelector
+            selected={outputMode}
+            onSelect={handleOutputModeSelect}
+            theme={theme}
+        />
       </div>
 
       <UndoRedoControls onUndo={() => { undoPhotoWidget(); trackEvent('photo_widget_undo'); }} onRedo={() => { redoPhotoWidget(); trackEvent('photo_widget_redo'); }} canUndo={canUndoPhotoWidget} canRedo={canRedoPhotoWidget} theme={theme} />

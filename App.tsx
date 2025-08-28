@@ -129,11 +129,11 @@ const App: React.FC = () => {
   };
     
   const previewContainerPadding = useMemo(() => {
-    if (activeTab === 'wallpaper' && panels.wallpaper.wallpaperType === 'phone') {
+    if (activeTab === 'wallpaper' && panels.wallpaper.imageSrc && panels.wallpaper.wallpaperType === 'phone') {
         return isMobile ? 'py-8 px-6' : 'p-6';
     }
     return 'p-4 sm:p-6';
-  }, [activeTab, panels.wallpaper.wallpaperType, isMobile]);
+  }, [activeTab, panels.wallpaper.wallpaperType, panels.wallpaper.imageSrc, isMobile]);
 
   return (
     <>

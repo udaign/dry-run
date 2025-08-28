@@ -181,6 +181,31 @@ export const UndoRedoControls: React.FC<{ onUndo: () => void; onRedo: () => void
   </div>
 );
 
+export const BgColorToggleSwitch: React.FC<{
+    value: 'black' | 'white';
+    onSelect: (value: 'black' | 'white') => void;
+    theme: Theme;
+}> = ({ value, onSelect, theme }) => {
+    const isWhite = value === 'white';
+    const toggle = () => onSelect(isWhite ? 'black' : 'white');
+
+    return (
+        <div className="flex items-center justify-between w-full">
+            <span className={`text-sm font-normal transition-colors ${!isWhite ? (theme === 'dark' ? 'text-nothing-light' : 'text-day-text') : (theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark')}`}>Black BG</span>
+            <button 
+                role="switch" 
+                aria-checked={isWhite} 
+                onClick={toggle} 
+                className={`relative inline-flex items-center h-6 w-11 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 rounded-full ${theme === 'dark' ? 'focus:ring-offset-nothing-dark' : 'focus:ring-offset-day-bg'} ${theme === 'dark' ? 'bg-nothing-gray-dark' : 'bg-day-gray-light'}`}
+                aria-label={`Switch background color, current is ${value}`}
+            >
+                <span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform duration-300 ${isWhite ? 'translate-x-6' : 'translate-x-1'}`} />
+            </button>
+            <span className={`text-sm font-normal transition-colors ${isWhite ? (theme === 'dark' ? 'text-nothing-light' : 'text-day-text') : (theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark')}`}>White BG</span>
+        </div>
+    );
+};
+
 export const ColorSelector: React.FC<{
     options: { [key: string]: { color: string; name: string } };
     selected: string;

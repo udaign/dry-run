@@ -4,7 +4,7 @@ import { createPortal, flushSync } from 'react-dom';
 import { useHistory } from './hooks';
 import { getTimestamp } from './utils';
 import { WallpaperState, WallpaperBgKey, WALLPAPER_BG_OPTIONS, Theme } from './types';
-import { Dropzone, EnhancedSlider, UndoRedoControls, ColorSelector, WallpaperTypeSelector, ToastNotification } from './components';
+import { Dropzone, EnhancedSlider, UndoRedoControls, WallpaperTypeSelector, ToastNotification, BgColorToggleSwitch } from './components';
 import { trackEvent } from './analytics';
 
 const DEFAULT_SLIDER_VALUE = 50;
@@ -69,7 +69,6 @@ export const useWallpaperPanel = ({
   const fullScreenCanvasRef = useRef<HTMLCanvasElement>(null);
   const fullScreenContainerRef = useRef<HTMLDivElement>(null);
   const fullScreenFileInputRef = useRef<HTMLInputElement>(null);
-  const [isPrefsOpen, setIsPrefsOpen] = useState(false);
   const [isFullScreenControlsOpen, setIsFullScreenControlsOpen] = useState(false);
 
   useEffect(() => { setLiveWallpaperSettings(wallpaperSettings); }, [wallpaperSettings]);
@@ -393,9 +392,9 @@ export const useWallpaperPanel = ({
     setWallpaperType(type);
   };
   
-  const handleBackgroundColorSelect = (key: string) => {
+  const handleBackgroundColorSelect = (key: WallpaperBgKey) => {
     trackEvent('wallpaper_bg_change', { color: key, wallpaper_type: wallpaperType });
-    setWallpaperSettings(s => ({ ...s, [wallpaperType]: { ...s[wallpaperType], background: key as WallpaperBgKey } }));
+    setWallpaperSettings(s => ({ ...s, [wallpaperType]: { ...s[wallpaperType], background: key } }));
   };
   
   const handleMonochromeToggle = () => {
@@ -405,27 +404,9 @@ export const useWallpaperPanel = ({
 
   const controlsPanel = imageSrc ? (
      <div className="max-w-md mx-auto w-full flex flex-col space-y-4 px-6 sm:px-6 md:px-8 pt-6 md:pt-3 pb-8 sm:pb-6 md:pb-8">
-      <div className={`rounded-lg transition-all duration-300 ${theme === 'dark' ? 'bg-nothing-darker' : 'bg-white border border-gray-300'}`}>
-        <button
-          onClick={() => setIsPrefsOpen(!isPrefsOpen)}
-          className="w-full flex justify-between items-center p-4"
-          aria-expanded={isPrefsOpen}
-          aria-controls="wallpaper-prefs-content"
-        >
-          <span className={`font-semibold ${theme === 'dark' ? 'text-nothing-light' : 'text-day-text'}`}>Wallpaper Preferences</span>
-          <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 transition-transform duration-300 ${isPrefsOpen ? 'rotate-180' : ''} ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'}`} viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-          </svg>
-        </button>
-        <div
-          id="wallpaper-prefs-content"
-          className={`overflow-hidden transition-all duration-300 ease-in-out ${isPrefsOpen ? 'max-h-96' : 'max-h-0'}`}
-        >
-          <div className="px-4 pb-4 pt-0 space-y-2">
-            <WallpaperTypeSelector selected={wallpaperType} onSelect={handleWallpaperTypeSelect} theme={theme} />
-            <ColorSelector options={WALLPAPER_BG_OPTIONS} selected={liveWallpaperState.background} onSelect={handleBackgroundColorSelect} theme={theme} />
-          </div>
-        </div>
+      <div className={`p-4 rounded-lg space-y-2 ${theme === 'dark' ? 'bg-nothing-darker' : 'bg-white border border-gray-300'}`}>
+        <label className={`text-sm ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'}`}>Wallpaper for</label>
+        <WallpaperTypeSelector selected={wallpaperType} onSelect={handleWallpaperTypeSelect} theme={theme} />
       </div>
       <UndoRedoControls onUndo={() => { undoWallpaper(); trackEvent('wallpaper_undo'); }} onRedo={() => { redoWallpaper(); trackEvent('wallpaper_redo'); }} canUndo={canUndoWallpaper} canRedo={canRedoWallpaper} theme={theme} />
       
@@ -452,13 +433,18 @@ export const useWallpaperPanel = ({
         />
       </div>
 
-      <div className={`p-4 rounded-lg ${theme === 'dark' ? 'bg-nothing-darker' : 'bg-white border border-gray-300'}`}>
+      <div className={`p-4 rounded-lg space-y-4 ${theme === 'dark' ? 'bg-nothing-darker' : 'bg-white border border-gray-300'}`}>
         <div className={`flex items-center justify-between ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'}`}>
           <label htmlFor="monochrome-toggle" className="text-sm">Monochrome</label>
           <button id="monochrome-toggle" role="switch" aria-checked={isMonochrome} onClick={handleMonochromeToggle} disabled={isLoading} className={`relative inline-flex items-center h-6 w-11 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 rounded-full ${theme === 'dark' ? 'focus:ring-offset-nothing-dark' : 'focus:ring-offset-day-bg'} ${isMonochrome ? 'bg-nothing-red' : (theme === 'dark' ? 'bg-nothing-gray-dark' : 'bg-day-gray-light')}`}>
             <span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform duration-300 ${isMonochrome ? 'translate-x-6' : 'translate-x-1'}`} />
           </button>
         </div>
+        <BgColorToggleSwitch
+            value={liveWallpaperState.background}
+            onSelect={handleBackgroundColorSelect}
+            theme={theme}
+        />
       </div>
       
       <div className="pt-2 flex space-x-2">
@@ -550,9 +536,8 @@ export const useWallpaperPanel = ({
                           </div>
 
                           <div className="overflow-y-auto space-y-4 pr-2 -mr-2">
-                            <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-black/40' : 'bg-white/60'} space-y-3`}>
+                            <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-black/40' : 'bg-white/60'}`}>
                                 <WallpaperTypeSelector selected={wallpaperType} onSelect={handleWallpaperTypeSelect} theme={theme} />
-                                <ColorSelector options={WALLPAPER_BG_OPTIONS} selected={liveWallpaperState.background} onSelect={handleBackgroundColorSelect} theme={theme} />
                             </div>
                             <UndoRedoControls onUndo={() => { undoWallpaper(); trackEvent('wallpaper_undo'); }} onRedo={() => { redoWallpaper(); trackEvent('wallpaper_redo'); }} canUndo={canUndoWallpaper} canRedo={canRedoWallpaper} theme={theme} />
                             <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-black/40' : 'bg-white/60'} space-y-4`}>
@@ -577,13 +562,18 @@ export const useWallpaperPanel = ({
                                     disabled={isLoading} 
                                 />
                             </div>
-                            <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-black/40' : 'bg-white/60'}`}>
+                            <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-black/40' : 'bg-white/60'} space-y-4`}>
                               <div className={`flex items-center justify-between ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'}`}>
                                   <label htmlFor="monochrome-toggle-fs" className="text-sm">Monochrome</label>
                                   <button id="monochrome-toggle-fs" role="switch" aria-checked={isMonochrome} onClick={handleMonochromeToggle} disabled={isLoading} className={`relative inline-flex items-center h-6 w-11 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 rounded-full ${theme === 'dark' ? 'focus:ring-offset-nothing-dark' : 'focus:ring-offset-day-bg'} ${isMonochrome ? 'bg-nothing-red' : (theme === 'dark' ? 'bg-nothing-gray-dark' : 'bg-day-gray-light')}`}>
                                       <span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform duration-300 ${isMonochrome ? 'translate-x-6' : 'translate-x-1'}`} />
                                   </button>
                               </div>
+                              <BgColorToggleSwitch
+                                  value={liveWallpaperState.background}
+                                  onSelect={handleBackgroundColorSelect}
+                                  theme={theme}
+                              />
                             </div>
                             <div>
                               <button onClick={handleResetCurrentWallpaper} disabled={isLoading} className={`w-full font-semibold py-2 px-4 transition-all duration-300 disabled:opacity-50 rounded-md ${theme === 'dark' ? 'border border-gray-600 text-gray-300 hover:bg-gray-700' : 'border border-gray-300 text-day-gray-dark hover:bg-gray-200'}`} aria-label="Reset wallpaper controls to their default values"> Reset Controls </button>
@@ -621,7 +611,7 @@ export const useWallpaperPanel = ({
 
                 <button
                     onClick={exitFullScreen}
-                    className="fixed bottom-3 right-3 z-50 p-2 rounded-full transition-colors duration-300 text-nothing-light bg-black/50 hover:bg-black/80"
+                    className={`fixed bottom-8 right-8 z-50 p-2 rounded-md transition-colors duration-300 ${theme === 'dark' ? 'text-nothing-light bg-nothing-gray-dark hover:bg-nothing-gray-light hover:text-nothing-dark' : 'text-day-text bg-day-gray-light hover:bg-day-gray-dark hover:text-day-bg'}`}
                     aria-label="Exit full-screen preview"
                 >
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
