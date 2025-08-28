@@ -107,6 +107,7 @@ export const Dropzone: React.FC<{ onFileSelect: (file: File) => void; isLoading:
 
 export const EnhancedSlider: React.FC<{
   label: string;
+  labelPrefix?: React.ReactNode;
   value: number;
   onChange: (value: number) => void;
   onChangeCommitted: (value: number) => void;
@@ -114,28 +115,21 @@ export const EnhancedSlider: React.FC<{
   disabled?: boolean;
   theme: Theme;
   isMobile: boolean;
-}> = ({ label, value, onChange, onChangeCommitted, onReset, disabled, theme, isMobile }) => {
+}> = ({ label, labelPrefix, value, onChange, onChangeCommitted, onReset, disabled, theme, isMobile }) => {
     const handleCommit = (val: number) => {
         const clampedValue = Math.max(0, Math.min(100, val));
         onChange(clampedValue);
         onChangeCommitted(clampedValue);
     };
-
-    const handleNumberInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const numValue = parseInt(e.target.value, 10);
-        onChange(isNaN(numValue) ? 0 : numValue);
-    };
-
-    const handleNumberInputBlur = () => {
-        handleCommit(value);
-    };
     
+    const inputId = `slider-${label.replace(/\s+/g, '-')}`;
+
     return (
         <div className={`${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'} space-y-2`}>
-            <label htmlFor={label} className="text-sm">{label}</label>
+            <label htmlFor={inputId} className="text-sm">{labelPrefix}{label}</label>
             <div className="flex items-center space-x-3">
                 <input
-                    id={label}
+                    id={inputId}
                     type="range"
                     min="0"
                     max="100"
@@ -146,22 +140,9 @@ export const EnhancedSlider: React.FC<{
                     disabled={disabled}
                     className={`w-full h-2 appearance-none cursor-pointer disabled:opacity-50 rounded-lg ${theme === 'dark' ? 'bg-nothing-gray-dark accent-white' : 'bg-day-gray-light accent-black'} ${isMobile ? 'touch-none' : ''}`}
                 />
-                <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    value={value.toString()}
-                    onChange={handleNumberInputChange}
-                    onBlur={handleNumberInputBlur}
-                    onFocus={(e) => e.target.select()}
-                    onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                            (e.target as HTMLInputElement).blur();
-                        }
-                    }}
-                    disabled={disabled}
-                    className={`w-16 text-center p-1 font-sans text-sm rounded-md focus:outline-none focus:ring-2 ${theme === 'dark' ? 'bg-nothing-gray-dark text-nothing-light focus:ring-white' : 'bg-day-gray-light text-day-text focus:ring-black'}`}
-                />
+                <div className="w-16 text-center font-sans text-sm font-semibold tabular-nums">
+                    {value}
+                </div>
                 <button onClick={onReset} disabled={disabled} className={`${theme === 'dark' ? 'text-nothing-gray-light hover:text-white disabled:hover:text-nothing-gray-light' : 'text-day-gray-dark hover:text-black disabled:hover:text-day-gray-dark'} transition-colors disabled:opacity-50`} aria-label={`Reset ${label}`}>
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
                       <polyline points="23 4 23 10 17 10"></polyline>

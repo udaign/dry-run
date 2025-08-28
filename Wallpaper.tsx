@@ -138,6 +138,12 @@ export const useWallpaperPanel = ({
     });
   }, [wallpaperType, setWallpaperSettings]);
 
+  const handleClearImage = useCallback(() => {
+    trackEvent('clear_image', { feature: 'wallpaper' });
+    setImageSrc(null);
+    resetWallpaperHistory();
+  }, [resetWallpaperHistory]);
+
   const [currentWallpaperWidth, currentWallpaperHeight] = useMemo(() => wallpaperType === 'desktop' ? [WALLPAPER_DESKTOP_WIDTH, WALLPAPER_DESKTOP_HEIGHT] : [WALLPAPER_PHONE_WIDTH, WALLPAPER_PHONE_HEIGHT], [wallpaperType]);
 
   const wallpaperGridWidth = useMemo(() => Math.floor(10 + ((wallpaperType === 'desktop' ? resolution * 4 : resolution) / 100) * WALLPAPER_RESOLUTION_MULTIPLIER), [resolution, wallpaperType]);
@@ -455,8 +461,9 @@ export const useWallpaperPanel = ({
         </div>
       </div>
       
-      <div className="pt-2">
-        <button onClick={handleResetCurrentWallpaper} disabled={isLoading} className={`w-full border font-semibold py-2 px-4 transition-all duration-300 disabled:opacity-50 rounded-md ${theme === 'dark' ? 'border-gray-700 text-nothing-gray-light hover:bg-gray-800' : 'border-gray-300 text-day-gray-dark hover:bg-gray-200'}`} aria-label="Reset wallpaper controls to their default values"> Reset Controls </button>
+      <div className="pt-2 flex space-x-2">
+        <button onClick={handleClearImage} disabled={isLoading} className={`w-1/2 border font-semibold py-2 px-4 transition-all duration-300 disabled:opacity-50 rounded-md ${theme === 'dark' ? 'border-gray-700 text-nothing-gray-light hover:bg-gray-800' : 'border-gray-300 text-day-gray-dark hover:bg-gray-200'}`} aria-label="Clear the current image">Clear Image</button>
+        <button onClick={handleResetCurrentWallpaper} disabled={isLoading} className={`w-1/2 border font-semibold py-2 px-4 transition-all duration-300 disabled:opacity-50 rounded-md ${theme === 'dark' ? 'border-gray-700 text-nothing-gray-light hover:bg-gray-800' : 'border-gray-300 text-day-gray-dark hover:bg-gray-200'}`} aria-label="Reset wallpaper controls to their default values">Reset Controls</button>
       </div>
       <div className="block md:hidden pt-8"><footer className="text-center tracking-wide">{footerLinks}</footer></div>
     </div>

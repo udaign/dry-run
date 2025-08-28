@@ -117,6 +117,8 @@ export const usePfpPanel = ({ theme, isMobile, footerLinks, triggerShareToast }:
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const previewCanvasRef = useRef<HTMLCanvasElement>(null);
   const [rawPixelGrid, setRawPixelGrid] = useState<(RawPixel | null)[][]>([]);
+  const [showResetTooltip, setShowResetTooltip] = useState(false);
+  const resetTooltipRef = useRef<HTMLDivElement>(null);
 
   const { resolution, exposure, contrast, pixelGap, isCircular, isTransparent, isAntiAliased, isGlowEnabled, glowIntensity, cropOffsetX, cropOffsetY } = livePfpState;
 
@@ -430,6 +432,55 @@ export const usePfpPanel = ({ theme, isMobile, footerLinks, triggerShareToast }:
     }));
   }, [setPfpState]);
 
+  const handleClearImage = useCallback(() => {
+    trackEvent('clear_image', { feature: 'pfp' });
+    setImageSrc(null);
+    resetPfp();
+  }, [resetPfp]);
+  
+  const handleResetMarkerClick = useCallback(() => {
+    setShowResetTooltip(isShowing => {
+        if (isShowing) {
+            // Second click: tooltip is visible, so reset fields and hide tooltip.
+            trackEvent('pfp_reset_recommended_defaults');
+            setPfpState(s => ({
+                ...s,
+                resolution: PFP_INITIAL_STATE.resolution,
+                pixelGap: PFP_INITIAL_STATE.pixelGap,
+                isCircular: PFP_INITIAL_STATE.isCircular,
+                isAntiAliased: PFP_INITIAL_STATE.isAntiAliased,
+            }));
+            return false;
+        } else {
+            // First click: tooltip is not visible, so show it.
+            return true;
+        }
+    });
+  }, [setPfpState]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (resetTooltipRef.current && !resetTooltipRef.current.contains(event.target as Node)) {
+        setShowResetTooltip(false);
+      }
+    };
+
+    if (showResetTooltip) {
+      // Defer adding the event listener to avoid it firing on the same click that shows the tooltip.
+      // This timeout pushes the listener attachment to the next tick in the event loop,
+      // ensuring the initial click event has fully propagated before the listener is active.
+      // This robustly fixes the race condition on desktop/tablet devices.
+      const timerId = setTimeout(() => {
+        document.addEventListener('mousedown', handleClickOutside);
+      }, 0);
+
+      return () => {
+        clearTimeout(timerId);
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [showResetTooltip]);
+
   useEffect(() => {
       const onMove = (e: MouseEvent | TouchEvent) => handlePfpDragMove(e);
       const onEnd = () => handlePfpDragEnd();
@@ -451,16 +502,46 @@ export const usePfpPanel = ({ theme, isMobile, footerLinks, triggerShareToast }:
     const total = matrixMask.flat().reduce((sum, v) => sum + v, 0);
     return isAntiAliased ? total.toFixed(2) : total;
   }, [matrixMask, isAntiAliased]);
+  
+  const tooltipPositionClasses = isMobile 
+    ? 'bottom-full right-0 mb-2' 
+    : 'top-full left-0 mt-2';
 
   const controlsPanel = imageSrc ? (
     <div className="max-w-md mx-auto w-full flex flex-col space-y-4 px-6 sm:px-6 md:px-8 pt-6 md:pt-3 pb-8 sm:pb-6 md:pb-8">
-        <UndoRedoControls onUndo={() => { undoPfp(); trackEvent('pfp_undo'); }} onRedo={() => { redoPfp(); trackEvent('pfp_redo'); }} canUndo={canUndoPfp} canRedo={canRedoPfp} theme={theme} />
+        <div className="flex justify-between items-center">
+            <UndoRedoControls onUndo={() => { undoPfp(); trackEvent('pfp_undo'); }} onRedo={() => { redoPfp(); trackEvent('pfp_redo'); }} canUndo={canUndoPfp} canRedo={canRedoPfp} theme={theme} />
+            <div className="relative" ref={resetTooltipRef}>
+                <button
+                    onClick={handleResetMarkerClick}
+                    className={`p-2 rounded-full transition-colors ${theme === 'dark' ? 'text-nothing-gray-light hover:bg-nothing-gray-dark' : 'text-day-gray-dark hover:bg-day-gray-light'}`}
+                    aria-label="Show info and reset recommended fields"
+                >
+                    <span className="text-2xl">◉</span>
+                </button>
+                {showResetTooltip && (
+                    <div className={`absolute ${tooltipPositionClasses} w-64 p-3 rounded-lg shadow-2xl text-xs z-[1000] ${theme === 'dark' ? 'bg-nothing-darker text-nothing-light' : 'bg-day-text text-day-bg'}`}>
+                        Fields with ◉ marker are recommended to be left at default value to give authentic results. Click again to reset these fields. Click elsewhere to dismiss.
+                    </div>
+                )}
+            </div>
+        </div>
         
         <div className={`p-4 rounded-lg space-y-4 ${theme === 'dark' ? 'bg-nothing-darker' : 'bg-white border border-gray-300'}`}>
           <EnhancedSlider theme={theme} isMobile={isMobile} label="Exposure" value={exposure} onChange={v => setLivePfpState(s => ({...s, exposure: v}))} onChangeCommitted={v => { setPfpState(s => ({...s, exposure: v})); trackEvent('pfp_slider_change', { slider_name: 'exposure', value: v }); }} onReset={() => setPfpState(s => ({...s, exposure: DEFAULT_SLIDER_VALUE}))} disabled={!imageSrc || isLoading} />
           <EnhancedSlider theme={theme} isMobile={isMobile} label="Contrast" value={contrast} onChange={v => setLivePfpState(s => ({...s, contrast: v}))} onChangeCommitted={v => { setPfpState(s => ({...s, contrast: v})); trackEvent('pfp_slider_change', { slider_name: 'contrast', value: v }); }} onReset={() => setPfpState(s => ({...s, contrast: DEFAULT_SLIDER_VALUE}))} disabled={!imageSrc || isLoading} />
-          <EnhancedSlider theme={theme} isMobile={isMobile} label="Resolution" value={resolution} onChange={v => setLivePfpState(s => ({...s, resolution: v}))} onChangeCommitted={v => { setPfpState(s => ({...s, resolution: v})); trackEvent('pfp_slider_change', { slider_name: 'resolution', value: v }); }} onReset={() => setPfpState(s => ({...s, resolution: DEFAULT_SLIDER_VALUE}))} disabled={isLoading} />
-          <EnhancedSlider theme={theme} isMobile={isMobile} label="Pixel Gap" value={pixelGap} onChange={v => setLivePfpState(s => ({...s, pixelGap: v}))} onChangeCommitted={v => { setPfpState(s => ({...s, pixelGap: v})); trackEvent('pfp_slider_change', { slider_name: 'pixel_gap', value: v }); }} onReset={() => setPfpState(s => ({...s, pixelGap: DEFAULT_SLIDER_VALUE}))} disabled={isLoading} />
+          <EnhancedSlider 
+            theme={theme} 
+            isMobile={isMobile} 
+            label="Resolution" 
+            labelPrefix={<><span className="mr-1">◉</span> </>} 
+            value={resolution} 
+            onChange={v => setLivePfpState(s => ({...s, resolution: v}))} 
+            onChangeCommitted={v => { setPfpState(s => ({...s, resolution: v})); trackEvent('pfp_slider_change', { slider_name: 'resolution', value: v }); }} 
+            onReset={() => setPfpState(s => ({...s, resolution: DEFAULT_SLIDER_VALUE}))} 
+            disabled={isLoading} 
+          />
+          <EnhancedSlider theme={theme} isMobile={isMobile} label="Pixel Gap" labelPrefix={<><span className="mr-1">◉</span> </>} value={pixelGap} onChange={v => setLivePfpState(s => ({...s, pixelGap: v}))} onChangeCommitted={v => { setPfpState(s => ({...s, pixelGap: v})); trackEvent('pfp_slider_change', { slider_name: 'pixel_gap', value: v }); }} onReset={() => setPfpState(s => ({...s, pixelGap: DEFAULT_SLIDER_VALUE}))} disabled={isLoading} />
         </div>
 
         <div className={`p-4 rounded-lg ${theme === 'dark' ? 'bg-nothing-darker' : 'bg-white border border-gray-300'}`}>
@@ -486,14 +567,14 @@ export const usePfpPanel = ({ theme, isMobile, footerLinks, triggerShareToast }:
         
         <div className={`p-4 rounded-lg space-y-4 ${theme === 'dark' ? 'bg-nothing-darker' : 'bg-white border border-gray-300'}`}>
             <div className={`flex items-center justify-between ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'}`}>
-                <label htmlFor="circular-toggle" className="text-sm">Circular Pixels</label>
+                <label htmlFor="circular-toggle" className="text-sm"><span className="mr-1">◉</span>Circular Pixels</label>
                 <button id="circular-toggle" role="switch" aria-checked={isCircular} onClick={() => { setPfpState(s => ({...s, isCircular: !s.isCircular})); trackEvent('pfp_toggle_change', { setting: 'circular_pixels', enabled: !pfpState.isCircular }); }} disabled={isLoading} className={`relative inline-flex items-center h-6 w-11 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 rounded-full ${theme === 'dark' ? 'focus:ring-offset-nothing-dark' : 'focus:ring-offset-day-bg'} ${isCircular ? 'bg-nothing-red' : (theme === 'dark' ? 'bg-nothing-gray-dark' : 'bg-day-gray-light')}`} >
                     <span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform duration-300 ${isCircular ? 'translate-x-6' : 'translate-x-1'}`} />
                 </button>
             </div>
 
             <div className={`flex items-center justify-between ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'}`}>
-                <label htmlFor="aa-toggle" className="text-sm">Anti-aliasing</label>
+                <label htmlFor="aa-toggle" className="text-sm"><span className="mr-1">◉</span>Anti-aliasing</label>
                 <button id="aa-toggle" role="switch" aria-checked={isAntiAliased} onClick={() => {
                     setPfpState(s => ({ ...s, isAntiAliased: !s.isAntiAliased, }));
                     trackEvent('pfp_toggle_change', { setting: 'anti_aliasing', enabled: !pfpState.isAntiAliased });
@@ -510,8 +591,9 @@ export const usePfpPanel = ({ theme, isMobile, footerLinks, triggerShareToast }:
             </div>
         </div>
 
-        <div className="pt-2">
-            <button onClick={handleResetPfp} disabled={isLoading} className={`w-full border font-semibold py-2 px-4 transition-all duration-300 disabled:opacity-50 rounded-md ${theme === 'dark' ? 'border-gray-700 text-nothing-gray-light hover:bg-gray-800' : 'border-gray-300 text-day-gray-dark hover:bg-gray-200'}`} aria-label="Reset all controls to their default values"> Reset Controls </button>
+        <div className="pt-2 flex space-x-2">
+            <button onClick={handleClearImage} disabled={isLoading} className={`w-1/2 border font-semibold py-2 px-4 transition-all duration-300 disabled:opacity-50 rounded-md ${theme === 'dark' ? 'border-gray-700 text-nothing-gray-light hover:bg-gray-800' : 'border-gray-300 text-day-gray-dark hover:bg-gray-200'}`} aria-label="Clear the current image">Clear Image</button>
+            <button onClick={handleResetPfp} disabled={isLoading} className={`w-1/2 border font-semibold py-2 px-4 transition-all duration-300 disabled:opacity-50 rounded-md ${theme === 'dark' ? 'border-gray-700 text-nothing-gray-light hover:bg-gray-800' : 'border-gray-300 text-day-gray-dark hover:bg-gray-200'}`} aria-label="Reset all controls to their default values">Reset Controls</button>
         </div>
         <div className="block md:hidden pt-8">
             <footer className="text-center tracking-wide">{footerLinks}</footer>
