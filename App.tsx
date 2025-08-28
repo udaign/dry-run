@@ -7,7 +7,12 @@ import { Theme, Tab } from './types';
 import { trackEvent } from './analytics';
 import { ToastNotification } from './components';
 
-const TABS: Tab[] = ['pfp', 'wallpaper', 'photoWidget'];
+const TABS: Tab[] = ['wallpaper', 'pfp', 'photoWidget'];
+const TAB_LABELS: Record<Tab, string> = {
+  wallpaper: 'Matrix Wallpaper',
+  pfp: 'Glyph Mirror',
+  photoWidget: 'Photo Widget',
+};
 const SHARE_LINK = "https://nothing.community/d/38047-introducing-matrices-a-handy-utility-to-create-matrix-styled-imagery";
 
 const App: React.FC = () => {
@@ -15,7 +20,7 @@ const App: React.FC = () => {
   const [theme, setTheme] = useState<Theme>(
     () => window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
   );
-  const [activeTab, setActiveTab] = useState<Tab>('pfp');
+  const [activeTab, setActiveTab] = useState<Tab>('wallpaper');
   const [downloadCount, setDownloadCount] = useState(0);
   const [showShareToast, setShowShareToast] = useState(false);
   const [hasShownShareToastInSession, setHasShownShareToastInSession] = useState(false);
@@ -44,9 +49,21 @@ const App: React.FC = () => {
   }, [downloadCount, hasShownShareToastInSession]);
 
   const footerLinks = (
-    <div className={`text-sm ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'} opacity-80`}>
-        <p>Made with 🤍❤️🖤 for <a href="https://nothing.community/" target="_blank" rel="noopener noreferrer" className={linkClasses}>Nothing Community</a> by <a href="https://nothing.community/u/Udaign" target="_blank" rel="noopener noreferrer" className={linkClasses} onClick={() => trackEvent('community_profile_visit')}>Uday</a>.</p>
-        <p>For feedback and feature requests, join the <a href="https://nothing.community/d/38047-introducing-matrices-a-handy-utility-to-create-matrix-styled-imagery" target="_blank" rel="noopener noreferrer" className={linkClasses} onClick={() => trackEvent('discussion_visit')}>discussion</a>. For contact, <a href="mailto:udaybhaskar2283@gmail.com" className={linkClasses} onClick={() => trackEvent('email_click')}>email me</a>.</p>
+    <div className={`text-sm ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'} opacity-80 space-y-1`}>
+      <p>Made with 🤍❤️🖤 for Nothing Community.</p>
+      <p>
+        <a href="https://nothing.community/d/38047-introducing-matrices-a-handy-utility-to-create-matrix-styled-imagery" target="_blank" rel="noopener noreferrer" className={linkClasses} onClick={() => trackEvent('discussion_visit')}>
+          Feedback & feature requests
+        </a>
+        <span className="mx-2">|</span>
+        <a href="mailto:udaybhaskar2283@gmail.com" className={linkClasses} onClick={() => trackEvent('email_click')}>
+          Email
+        </a>
+        <span className="mx-2">|</span>
+        <a href="https://nothing.community/u/Udaign" target="_blank" rel="noopener noreferrer" className={linkClasses} onClick={() => trackEvent('community_profile_visit')}>
+          © Uday
+        </a>
+      </p>
     </div>
   );
   
@@ -108,7 +125,7 @@ const App: React.FC = () => {
   const tabDescriptions = {
     pfp: <>Create glyph mirror styled profile pictures. <strong className={`font-bold ${theme === 'dark' ? 'text-nothing-light' : 'text-black'}`}>Drag to crop</strong> into desired area.</>,
     wallpaper: <>Create matrix styled wallpapers. <strong className={`font-bold ${theme === 'dark' ? 'text-nothing-light' : 'text-black'}`}>Drag to crop</strong> into desired area.</>,
-    photoWidget: "Create matrix style photo widgets.",
+    photoWidget: "Create matrix styled photo widgets.",
   };
     
   const previewContainerPadding = useMemo(() => {
@@ -124,9 +141,9 @@ const App: React.FC = () => {
       <input type="file" ref={wallpaperFileInputRef} onChange={(e) => e.target.files?.[0] && handleWallpaperFileSelect(e.target.files[0])} className="hidden" accept="image/*" />
       <input type="file" ref={photoWidgetFileInputRef} onChange={(e) => e.target.files?.[0] && handlePhotoWidgetFileSelect(e.target.files[0])} className="hidden" accept="image/png" />
 
-      <div className={`min-h-screen md:h-screen w-full flex flex-col font-sans ${theme === 'dark' ? 'text-nothing-light bg-nothing-dark' : 'text-day-text bg-day-bg'} select-none`}>
+      <div className={`min-h-[100dvh] md:h-screen w-full flex flex-col font-sans ${theme === 'dark' ? 'text-nothing-light bg-nothing-dark' : 'text-day-text bg-day-bg'} select-none`}>
         <header className={`flex-shrink-0 sticky top-0 z-30 flex justify-between items-center p-4 border-b ${theme === 'dark' ? 'bg-nothing-dark border-nothing-gray-dark' : 'bg-day-bg border-gray-300'}`}>
-          <h1 className="text-2xl sm:text-3xl font-bold page-title">MATRICES FOR NOTHING COMMUNITY</h1>
+          <h1 className="text-2xl sm:text-3xl font-normal page-title">MATRICES FOR NOTHING COMMUNITY</h1>
           <div className="flex items-center space-x-2">
             <a href={SHARE_LINK} target="_blank" rel="noopener noreferrer" onClick={() => trackEvent('share_community_header_click')} className={`flex items-center p-2 md:px-3 transition-colors duration-300 rounded-md text-sm font-semibold ${theme === 'dark' ? 'text-nothing-light bg-nothing-gray-dark hover:bg-nothing-gray-light hover:text-nothing-dark' : 'text-day-text bg-day-gray-light hover:bg-day-gray-dark hover:text-day-bg'}`} aria-label="Share to Nothing Community">
               <span className="hidden md:inline">Share to Community</span>
@@ -147,7 +164,7 @@ const App: React.FC = () => {
             <div className={`relative flex border-b ${theme === 'dark' ? 'border-nothing-gray-dark' : 'border-gray-300'}`}>
               {TABS.map((tab, i) => (
                 <button key={tab} onClick={() => handleTabChange(tab)} className={`w-1/3 py-3 text-base transition-colors duration-300 focus:outline-none ${activeTab === tab ? (theme === 'dark' ? 'text-nothing-light font-bold' : 'text-day-text font-bold') : (theme === 'dark' ? 'text-nothing-gray-light hover:text-nothing-light font-semibold' : 'text-day-gray-dark hover:text-day-text font-semibold')}`} aria-pressed={activeTab === tab}>
-                  {tab === 'pfp' ? 'Glyph Mirror' : tab === 'wallpaper' ? 'Wallpaper' : 'Photo Widget'}
+                  {TAB_LABELS[tab]}
                 </button>
               ))}
               <div className={`absolute bottom-[-1px] h-[1.5px] ${theme === 'dark' ? 'bg-white' : 'bg-black'} transition-all duration-300 ease-in-out`} style={{ width: '33.33%', left: `${activeTabIndex * 33.33}%` }} aria-hidden="true" />
@@ -166,7 +183,6 @@ const App: React.FC = () => {
                 </div>
               ))}
             </div>
-            {!imageSrc && <footer className="block md:hidden text-center tracking-wide p-4">{footerLinks}</footer>}
           </div>
 
           <div className="md:w-2/3 w-full flex flex-col">
@@ -175,7 +191,7 @@ const App: React.FC = () => {
                 <div className="relative flex border-b dark:border-nothing-gray-dark border-gray-300">
                   {TABS.map((tab, i) => (
                     <button key={tab} onClick={() => handleTabChange(tab)} className={`w-1/3 py-3 text-lg transition-colors duration-300 focus:outline-none ${activeTab === tab ? (theme === 'dark' ? 'text-nothing-light font-extrabold' : 'text-day-text font-extrabold') : (theme === 'dark' ? 'text-nothing-gray-light hover:text-nothing-light font-semibold' : 'text-day-gray-dark hover:text-day-text font-semibold')}`} aria-pressed={activeTab === tab}>
-                      {tab === 'pfp' ? 'Glyph Mirror' : tab === 'wallpaper' ? 'Wallpaper' : 'Photo Widget'}
+                      {TAB_LABELS[tab]}
                     </button>
                   ))}
                   <div className={`absolute bottom-[-1px] h-1 ${theme === 'dark' ? 'bg-white' : 'bg-black'} transition-all duration-300 ease-in-out`} style={{ width: '33.33%', left: `${activeTabIndex * 33.33}%` }} aria-hidden="true" />
@@ -187,8 +203,8 @@ const App: React.FC = () => {
             
             <div className="flex-grow md:overflow-y-auto md:relative md:overflow-hidden">
               <div className="hidden md:flex md:absolute md:top-0 md:left-0 md:w-full md:h-full transition-transform duration-300 ease-in-out" style={{ transform: `translateX(-${activeTabIndex * 100}%)` }}>
-                {Object.entries(panels).map(([key, panel]) => (
-                  <div key={key} className="w-full flex-shrink-0 h-full overflow-y-auto">{panel.controlsPanel}</div>
+                {TABS.map(tab => (
+                  <div key={tab} className="w-full flex-shrink-0 h-full overflow-y-auto">{panels[tab].controlsPanel}</div>
                 ))}
               </div>
               <div className="block md:hidden">{activePanel.controlsPanel}</div>
@@ -220,8 +236,8 @@ const App: React.FC = () => {
           {footerLinks}
         </footer>
 
-        <div className={`block md:hidden sticky bottom-0 z-20 w-full ${theme === 'dark' ? 'bg-nothing-dark' : 'bg-day-bg'}`}>
-            {imageSrc && (
+        <div className={`block md:hidden ${imageSrc ? 'sticky bottom-0' : ''} z-20 w-full ${theme === 'dark' ? 'bg-nothing-dark' : 'bg-day-bg'}`}>
+            {imageSrc ? (
               <div className={`flex border-t ${theme === 'dark' ? 'border-nothing-gray-dark' : 'border-gray-300'}`}>
                 <div className={`w-1/2 border-r ${theme === 'dark' ? 'border-nothing-gray-dark' : 'border-gray-300'}`}>
                   <button onClick={() => {
@@ -234,6 +250,10 @@ const App: React.FC = () => {
                   {activePanel.downloadButton}
                 </div>
               </div>
+            ) : (
+              <footer className={`text-center tracking-wide p-4 border-t ${theme === 'dark' ? 'border-nothing-gray-dark' : 'border-gray-300'}`}>
+                {footerLinks}
+              </footer>
             )}
         </div>
         

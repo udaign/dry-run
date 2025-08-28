@@ -1,9 +1,9 @@
 
 import React, { useRef, useState, useEffect, useCallback } from 'react';
-import { Theme, PhotoWidgetOutputMode } from './types';
+import { Theme, PhotoWidgetOutputMode, Tab } from './types';
 import { trackEvent } from './analytics';
 
-export const Dropzone: React.FC<{ onFileSelect: (file: File) => void; isLoading: boolean; compact?: boolean; theme: Theme; accept?: string; }> = ({ onFileSelect, isLoading, compact = false, theme, accept = "image/*" }) => {
+export const Dropzone: React.FC<{ onFileSelect: (file: File) => void; isLoading: boolean; compact?: boolean; theme: Theme; accept?: string; context?: Tab; }> = ({ onFileSelect, isLoading, compact = false, theme, accept = "image/*", context }) => {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [isDragging, setIsDragging] = useState(false);
 
@@ -54,6 +54,24 @@ export const Dropzone: React.FC<{ onFileSelect: (file: File) => void; isLoading:
         ? (theme === 'dark' ? 'border-white bg-nothing-gray-dark' : 'border-black bg-day-gray-light')
         : (theme === 'dark' ? 'border-gray-600 bg-transparent hover:border-gray-400' : 'border-gray-400 bg-transparent hover:border-gray-600');
 
+    const dropTexts = {
+        pfp: {
+            bold: "Drag & Drop or Click",
+            normal: "to load a profile picture",
+        },
+        wallpaper: {
+            bold: "Drag & Drop or Click",
+            normal: "to load a wallpaper",
+        },
+        photoWidget: {
+            bold: "Drag & Drop or Click",
+            normal: "to load a PNG image",
+        },
+    };
+
+    const currentTexts = context && dropTexts[context] 
+        ? dropTexts[context] 
+        : { bold: "Drag & Drop Image Here", normal: "or click to browse" };
 
     return (
         <div
@@ -77,9 +95,9 @@ export const Dropzone: React.FC<{ onFileSelect: (file: File) => void; isLoading:
                 ) : (
                     <>
                         <span className="text-6xl" role="img" aria-label="Folder icon">📁</span>
-                        <p className={`text-xl font-semibold ${theme === 'dark' ? 'text-nothing-light' : 'text-day-text'}`}>Drag & Drop Image Here</p>
-                        <p className="text-sm">or click to browse</p>
-                        {accept === "image/png" && <p className="text-xs mt-1">(accepts PNG files only)</p>}
+                        <p className={`text-xl font-semibold ${theme === 'dark' ? 'text-nothing-light' : 'text-day-text'}`}>{currentTexts.bold}</p>
+                        <p className="text-sm">{currentTexts.normal}</p>
+                        <p className="text-xs mt-1">(all image processing happens locally)</p>
                     </>
                 )}
             </div>
@@ -374,9 +392,9 @@ export const ToastNotification: React.FC<{
       >
         <div className="flex items-center space-x-4 md:flex-col md:items-stretch md:space-y-3 md:space-x-0">
           <div className="flex-grow">
-            <p className="font-semibold">You seem to love it?</p>
+            <p className="font-semibold">You seem to love it?!</p>
             <p className={`text-sm ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'}`}>
-              Help spread the word. Share it on the community thread!
+              Help spread the word. Share it to the community thread.
             </p>
           </div>
 

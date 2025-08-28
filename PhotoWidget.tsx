@@ -60,7 +60,7 @@ const drawPhotoWidgetMatrix = (ctx: CanvasRenderingContext2D, options: {
     const offsetY = PADDING + (drawableHeight - renderAreaHeight) / 2;
 
     const cellWidth = renderAreaWidth / gridWidth, cellHeight = renderAreaHeight / gridHeight;
-    const gapRatio = (((0.28 * pixelGap) / 100) * 0.2765);
+    const gapRatio = (((0.28 * (pixelGap * 5)) / 100) * 0.2765);
     const pixelWidth = cellWidth * (1 - gapRatio), pixelHeight = cellHeight * (1 - gapRatio);
     
     for (let y = 0; y < gridHeight; y++) {
@@ -320,7 +320,7 @@ export const usePhotoWidgetPanel = ({ theme, isMobile, footerLinks, triggerShare
       </div>
         
       <div className="pt-2">
-        <button onClick={handleReset} disabled={isLoading} className={`w-full border font-semibold py-2 px-4 transition-all duration-300 disabled:opacity-50 rounded-md ${theme === 'dark' ? 'border-gray-700 text-nothing-gray-light hover:bg-gray-800' : 'border-gray-300 text-day-gray-dark hover:bg-gray-200'}`} aria-label="Restore photo widget settings to their default values"> Restore Defaults </button>
+        <button onClick={handleReset} disabled={isLoading} className={`w-full border font-semibold py-2 px-4 transition-all duration-300 disabled:opacity-50 rounded-md ${theme === 'dark' ? 'border-gray-700 text-nothing-gray-light hover:bg-gray-800' : 'border-gray-300 text-day-gray-dark hover:bg-gray-200'}`} aria-label="Reset photo widget controls to their default values"> Reset Controls </button>
       </div>
       <div className="block md:hidden pt-8">
           <footer className="text-center tracking-wide">{footerLinks}</footer>
@@ -329,7 +329,7 @@ export const usePhotoWidgetPanel = ({ theme, isMobile, footerLinks, triggerShare
   ) : null;
   
   const previewPanel = !imageSrc ? (
-    <Dropzone onFileSelect={handleFileSelect} isLoading={isLoading} theme={theme} accept="image/png" />
+    <Dropzone onFileSelect={handleFileSelect} isLoading={isLoading} theme={theme} accept="image/png" context="photoWidget" />
   ) : (
     <div className="w-full max-w-2xl mx-auto flex items-center justify-center">
         <canvas

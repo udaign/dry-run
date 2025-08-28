@@ -19,8 +19,8 @@ export type PfpState = {
 
 // Wallpaper
 export const WALLPAPER_BG_OPTIONS = {
-    'black': { color: '#000000', name: 'Black' },
-    'white': { color: '#FFFFFF', name: 'White' },
+    'black': { color: '#000000', name: 'Black BG' },
+    'white': { color: '#FFFFFF', name: 'White BG' },
 };
 export type WallpaperBgKey = keyof typeof WALLPAPER_BG_OPTIONS;
 

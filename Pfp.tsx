@@ -421,6 +421,15 @@ export const usePfpPanel = ({ theme, isMobile, footerLinks, triggerShareToast }:
       }
   }, [livePfpState, setPfpState]);
 
+  const handleResetPfp = useCallback(() => {
+    trackEvent('pfp_reset_defaults');
+    setPfpState(currentState => ({
+      ...PFP_INITIAL_STATE,
+      cropOffsetX: currentState.cropOffsetX,
+      cropOffsetY: currentState.cropOffsetY,
+    }));
+  }, [setPfpState]);
+
   useEffect(() => {
       const onMove = (e: MouseEvent | TouchEvent) => handlePfpDragMove(e);
       const onEnd = () => handlePfpDragEnd();
@@ -502,7 +511,7 @@ export const usePfpPanel = ({ theme, isMobile, footerLinks, triggerShareToast }:
         </div>
 
         <div className="pt-2">
-            <button onClick={() => { resetPfp(); trackEvent('pfp_reset_defaults'); }} disabled={isLoading} className={`w-full border font-semibold py-2 px-4 transition-all duration-300 disabled:opacity-50 rounded-md ${theme === 'dark' ? 'border-gray-700 text-nothing-gray-light hover:bg-gray-800' : 'border-gray-300 text-day-gray-dark hover:bg-gray-200'}`} aria-label="Restore all settings to their default values"> Restore Defaults </button>
+            <button onClick={handleResetPfp} disabled={isLoading} className={`w-full border font-semibold py-2 px-4 transition-all duration-300 disabled:opacity-50 rounded-md ${theme === 'dark' ? 'border-gray-700 text-nothing-gray-light hover:bg-gray-800' : 'border-gray-300 text-day-gray-dark hover:bg-gray-200'}`} aria-label="Reset all controls to their default values"> Reset Controls </button>
         </div>
         <div className="block md:hidden pt-8">
             <footer className="text-center tracking-wide">{footerLinks}</footer>
@@ -511,7 +520,7 @@ export const usePfpPanel = ({ theme, isMobile, footerLinks, triggerShareToast }:
   ) : null;
 
   const previewPanel = !imageSrc ? (
-    <Dropzone onFileSelect={handleFileSelect} isLoading={isLoading} theme={theme} />
+    <Dropzone onFileSelect={handleFileSelect} isLoading={isLoading} theme={theme} context="pfp" />
   ) : (
     <div className="w-full max-w-md mx-auto">
       <header className="text-center mb-4">

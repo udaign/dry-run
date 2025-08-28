@@ -456,14 +456,14 @@ export const useWallpaperPanel = ({
       </div>
       
       <div className="pt-2">
-        <button onClick={handleResetCurrentWallpaper} disabled={isLoading} className={`w-full border font-semibold py-2 px-4 transition-all duration-300 disabled:opacity-50 rounded-md ${theme === 'dark' ? 'border-gray-700 text-nothing-gray-light hover:bg-gray-800' : 'border-gray-300 text-day-gray-dark hover:bg-gray-200'}`} aria-label="Restore wallpaper settings to their default values"> Restore Defaults </button>
+        <button onClick={handleResetCurrentWallpaper} disabled={isLoading} className={`w-full border font-semibold py-2 px-4 transition-all duration-300 disabled:opacity-50 rounded-md ${theme === 'dark' ? 'border-gray-700 text-nothing-gray-light hover:bg-gray-800' : 'border-gray-300 text-day-gray-dark hover:bg-gray-200'}`} aria-label="Reset wallpaper controls to their default values"> Reset Controls </button>
       </div>
       <div className="block md:hidden pt-8"><footer className="text-center tracking-wide">{footerLinks}</footer></div>
     </div>
   ) : null;
   
   const previewPanel = !imageSrc ? (
-    <Dropzone onFileSelect={handleFileSelect} isLoading={isLoading} theme={theme}/>
+    <Dropzone onFileSelect={handleFileSelect} isLoading={isLoading} theme={theme} context="wallpaper"/>
   ) : (
     <>
         <input
@@ -579,7 +579,7 @@ export const useWallpaperPanel = ({
                               </div>
                             </div>
                             <div>
-                              <button onClick={handleResetCurrentWallpaper} disabled={isLoading} className={`w-full font-semibold py-2 px-4 transition-all duration-300 disabled:opacity-50 rounded-md ${theme === 'dark' ? 'border border-gray-600 text-gray-300 hover:bg-gray-700' : 'border border-gray-300 text-day-gray-dark hover:bg-gray-200'}`} aria-label="Restore wallpaper settings to their default values"> Restore Defaults </button>
+                              <button onClick={handleResetCurrentWallpaper} disabled={isLoading} className={`w-full font-semibold py-2 px-4 transition-all duration-300 disabled:opacity-50 rounded-md ${theme === 'dark' ? 'border border-gray-600 text-gray-300 hover:bg-gray-700' : 'border border-gray-300 text-day-gray-dark hover:bg-gray-200'}`} aria-label="Reset wallpaper controls to their default values"> Reset Controls </button>
                             </div>
                           </div>
                         </div>
