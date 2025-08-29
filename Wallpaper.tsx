@@ -1,10 +1,9 @@
-
 import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { createPortal, flushSync } from 'react-dom';
-import { useHistory } from './hooks';
+import { useHistory, useImageHandler } from './hooks';
 import { getTimestamp } from './utils';
 import { WallpaperState, WallpaperBgKey, WALLPAPER_BG_OPTIONS, Theme } from './types';
-import { Dropzone, EnhancedSlider, UndoRedoControls, WallpaperTypeSelector, ToastNotification, BgColorToggleSwitch } from './components';
+import { Dropzone, EnhancedSlider, UndoRedoControls, SegmentedControl, ToastNotification, ToggleSwitch } from './components';
 import { trackEvent } from './analytics';
 
 const DEFAULT_SLIDER_VALUE = 50;
@@ -58,11 +57,6 @@ export const useWallpaperPanel = ({
   
   const [liveWallpaperSettings, setLiveWallpaperSettings] = useState(wallpaperSettings);
   const [wallpaperType, setWallpaperType] = useState<'phone' | 'desktop'>(isMobile ? 'phone' : 'desktop');
-  const [imageSrc, setImageSrc] = useState<string | null>(null);
-  const [image, setImage] = useState<HTMLImageElement | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isDownloading, setIsDownloading] = useState(false);
-  const [uploadTimestamp, setUploadTimestamp] = useState<number | null>(null);
   const [isFullScreenPreview, setIsFullScreenPreview] = useState(false);
   const [showFsToast, setShowFsToast] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -70,12 +64,28 @@ export const useWallpaperPanel = ({
   const fullScreenContainerRef = useRef<HTMLDivElement>(null);
   const fullScreenFileInputRef = useRef<HTMLInputElement>(null);
   const [isFullScreenControlsOpen, setIsFullScreenControlsOpen] = useState(false);
+  
+  const {
+    imageSrc,
+    image,
+    isLoading,
+    isDownloading,
+    handleFileSelect,
+    handleDownload: baseHandleDownload,
+    clearImage
+  } = useImageHandler({
+    featureName: 'wallpaper',
+    onFileSelectCallback: resetWallpaperHistory,
+    triggerShareToast: triggerShareToast
+  });
 
   useEffect(() => { setLiveWallpaperSettings(wallpaperSettings); }, [wallpaperSettings]);
 
   const liveWallpaperState = liveWallpaperSettings[wallpaperType];
   const { resolution, pixelGap, background, cropOffsetX, cropOffsetY, isMonochrome } = liveWallpaperState;
   
+  const resolutionLabelPrefix = wallpaperType === 'phone' ? <><span className="mr-1">◉</span> </> : undefined;
+
   useEffect(() => {
     const handleFullScreenChange = () => {
         if (!document.fullscreenElement) {
@@ -113,15 +123,6 @@ export const useWallpaperPanel = ({
       }
   }, []);
 
-  useEffect(() => {
-    if (!imageSrc) { setImage(null); return; }
-    setIsLoading(true);
-    const img = new Image();
-    img.onload = () => { setImage(img); setIsLoading(false); };
-    img.onerror = () => { setImageSrc(null); setImage(null); setIsLoading(false); };
-    img.src = imageSrc;
-  }, [imageSrc]);
-
   const handleResetCurrentWallpaper = useCallback(() => {
     trackEvent('wallpaper_reset_defaults', { wallpaper_type: wallpaperType });
     setWallpaperSettings(currentSettings => {
@@ -137,15 +138,9 @@ export const useWallpaperPanel = ({
     });
   }, [wallpaperType, setWallpaperSettings]);
 
-  const handleClearImage = useCallback(() => {
-    trackEvent('clear_image', { feature: 'wallpaper' });
-    setImageSrc(null);
-    resetWallpaperHistory();
-  }, [resetWallpaperHistory]);
-
   const [currentWallpaperWidth, currentWallpaperHeight] = useMemo(() => wallpaperType === 'desktop' ? [WALLPAPER_DESKTOP_WIDTH, WALLPAPER_DESKTOP_HEIGHT] : [WALLPAPER_PHONE_WIDTH, WALLPAPER_PHONE_HEIGHT], [wallpaperType]);
 
-  const wallpaperGridWidth = useMemo(() => Math.floor(10 + ((wallpaperType === 'desktop' ? resolution * 4 : resolution) / 100) * WALLPAPER_RESOLUTION_MULTIPLIER), [resolution, wallpaperType]);
+  const wallpaperGridWidth = useMemo(() => Math.floor(10 + ((wallpaperType === 'desktop' ? resolution * 4 : resolution * 1.2) / 100) * WALLPAPER_RESOLUTION_MULTIPLIER), [resolution, wallpaperType]);
   const wallpaperGridHeight = useMemo(() => Math.round(wallpaperGridWidth * (currentWallpaperHeight / currentWallpaperWidth)), [wallpaperGridWidth, currentWallpaperWidth, currentWallpaperHeight]);
   const calculatedWallpaperPixelGap = useMemo(() => pixelGap * WALLPAPER_PIXEL_GAP_MULTIPLIER, [pixelGap]);
   const wallpaperCropIsNeeded = useMemo(() => image ? Math.abs((image.width / image.height) - (currentWallpaperWidth / currentWallpaperHeight)) > 0.01 : false, [image, currentWallpaperWidth, currentWallpaperHeight]);
@@ -205,30 +200,10 @@ export const useWallpaperPanel = ({
     }
   }, [image, wallpaperGridWidth, wallpaperGridHeight, calculatedWallpaperPixelGap, background, currentWallpaperWidth, currentWallpaperHeight, cropOffsetX, cropOffsetY, isFullScreenPreview, isMonochrome]);
   
-  const handleFileSelect = (file: File) => {
-    setIsLoading(true);
-    trackEvent('upload_image', { feature: 'wallpaper' });
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      setImageSrc(e.target?.result as string);
-      setUploadTimestamp(Date.now());
-      resetWallpaperHistory();
-      setIsLoading(false);
-    };
-    reader.readAsDataURL(file);
-  };
-  
   const handleFullScreenReplace = (file: File) => {
     trackEvent('wallpaper_fullscreen_replace_image', { wallpaper_type: wallpaperType });
-    setIsLoading(true);
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      setImageSrc(e.target?.result as string);
-      setUploadTimestamp(Date.now());
-      resetWallpaperHistory();
-      setIsLoading(false);
-    };
-    reader.readAsDataURL(file);
+    // FIX: `handleFileSelect` expects a second argument for the upload method.
+    handleFileSelect(file, 'click');
   };
 
   const handleFullScreenReplaceClick = () => {
@@ -246,10 +221,18 @@ export const useWallpaperPanel = ({
   };
   
   const handleDownload = () => {
-    if (isDownloading) return;
-    setIsDownloading(true);
+    const getCanvasBlob = (): Promise<Blob | null> => {
+        return new Promise(resolve => {
+            const canvas = isFullScreenPreview ? fullScreenCanvasRef.current : canvasRef.current;
+            if (canvas) {
+                canvas.toBlob(blob => resolve(blob), 'image/png');
+            } else {
+                resolve(null);
+            }
+        });
+    };
 
-    const eventParams: Record<string, string | number | boolean | undefined> = {
+    const analyticsParams: Record<string, string | number | boolean | undefined> = {
       feature: 'wallpaper',
       wallpaper_type: wallpaperType,
       setting_resolution: liveWallpaperState.resolution,
@@ -260,43 +243,15 @@ export const useWallpaperPanel = ({
       setting_is_monochrome: liveWallpaperState.isMonochrome,
     };
 
-    if (uploadTimestamp) {
-      const durationInSeconds = Math.round((Date.now() - uploadTimestamp) / 1000);
-      eventParams.duration_seconds = durationInSeconds;
-    }
-
-    trackEvent('download', eventParams);
-
-    try {
-        const canvas = isFullScreenPreview ? fullScreenCanvasRef.current : canvasRef.current;
-        if (!canvas) {
-            throw new Error('Wallpaper canvas not found for download.');
+    const onSuccess = () => {
+        if (isFullScreenPreview) {
+            triggerShareToast(() => setShowFsToast(true));
+        } else {
+            triggerShareToast();
         }
-        canvas.toBlob((blob) => {
-            try {
-                if (blob) {
-                    const url = URL.createObjectURL(blob);
-                    const link = document.createElement('a');
-                    link.download = `matrices-wallpaper-${getTimestamp()}.png`;
-                    link.href = url;
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-                    URL.revokeObjectURL(url);
-                    if (isFullScreenPreview) {
-                      triggerShareToast(() => setShowFsToast(true));
-                    } else {
-                      triggerShareToast();
-                    }
-                }
-            } finally {
-                setIsDownloading(false);
-            }
-        }, 'image/png');
-    } catch(e) {
-        console.error("Error preparing wallpaper for download:", e);
-        setIsDownloading(false);
-    }
+    };
+
+    baseHandleDownload(getCanvasBlob, 'matrices-wallpaper', analyticsParams, onSuccess);
   };
 
   const dragState = useRef({ isDragging: false, startX: 0, startY: 0, initialOffsetX: 0.5, initialOffsetY: 0.5, hasMoved: false });
@@ -387,9 +342,9 @@ export const useWallpaperPanel = ({
       }
   }, [handleWallpaperDragMove, handleWallpaperDragEnd]);
 
-  const handleWallpaperTypeSelect = (type: 'phone' | 'desktop') => {
+  const handleWallpaperTypeSelect = (type: string) => {
     trackEvent('wallpaper_type_select', { type });
-    setWallpaperType(type);
+    setWallpaperType(type as 'phone' | 'desktop');
   };
   
   const handleBackgroundColorSelect = (key: WallpaperBgKey) => {
@@ -401,12 +356,17 @@ export const useWallpaperPanel = ({
     trackEvent('wallpaper_toggle_change', { setting: 'monochrome', enabled: !liveWallpaperState.isMonochrome, wallpaper_type: wallpaperType });
     setWallpaperSettings(s => ({...s, [wallpaperType]: { ...s[wallpaperType], isMonochrome: !s[wallpaperType].isMonochrome }}));
   };
+  
+  const wallpaperTypeOptions = [
+      { key: 'phone', label: 'Phone' },
+      { key: 'desktop', label: 'Desktop' }
+  ];
 
   const controlsPanel = imageSrc ? (
      <div className="max-w-md mx-auto w-full flex flex-col space-y-4 px-6 sm:px-6 md:px-8 pt-6 md:pt-3 pb-8 sm:pb-6 md:pb-8">
       <div className={`p-4 rounded-lg space-y-2 ${theme === 'dark' ? 'bg-nothing-darker' : 'bg-white border border-gray-300'}`}>
         <label className={`text-sm ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'}`}>Wallpaper for</label>
-        <WallpaperTypeSelector selected={wallpaperType} onSelect={handleWallpaperTypeSelect} theme={theme} />
+        <SegmentedControl options={wallpaperTypeOptions} selected={wallpaperType} onSelect={handleWallpaperTypeSelect} theme={theme} />
       </div>
       <UndoRedoControls onUndo={() => { undoWallpaper(); trackEvent('wallpaper_undo'); }} onRedo={() => { redoWallpaper(); trackEvent('wallpaper_redo'); }} canUndo={canUndoWallpaper} canRedo={canRedoWallpaper} theme={theme} />
       
@@ -415,6 +375,7 @@ export const useWallpaperPanel = ({
             theme={theme}
             isMobile={isMobile}
             label="Resolution" 
+            labelPrefix={resolutionLabelPrefix}
             value={resolution} 
             onChange={v => setLiveWallpaperSettings(s => ({ ...s, [wallpaperType]: { ...s[wallpaperType], resolution: v } }))} 
             onChangeCommitted={v => { setWallpaperSettings(s => ({ ...s, [wallpaperType]: { ...s[wallpaperType], resolution: v } })); trackEvent('wallpaper_slider_change', { slider_name: 'resolution', value: v, wallpaper_type: wallpaperType }); }}
@@ -440,15 +401,18 @@ export const useWallpaperPanel = ({
             <span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform duration-300 ${isMonochrome ? 'translate-x-6' : 'translate-x-1'}`} />
           </button>
         </div>
-        <BgColorToggleSwitch
-            value={liveWallpaperState.background}
-            onSelect={handleBackgroundColorSelect}
+        <ToggleSwitch
+            id="bg-color-toggle"
+            leftLabel="White BG"
+            rightLabel="Black BG"
+            isChecked={liveWallpaperState.background === 'black'}
+            onToggle={() => handleBackgroundColorSelect(liveWallpaperState.background === 'black' ? 'white' : 'black')}
             theme={theme}
         />
       </div>
       
       <div className="pt-2 flex space-x-2">
-        <button onClick={handleClearImage} disabled={isLoading} className={`w-1/2 border font-semibold py-2 px-4 transition-all duration-300 disabled:opacity-50 rounded-md ${theme === 'dark' ? 'border-gray-700 text-nothing-gray-light hover:bg-gray-800' : 'border-gray-300 text-day-gray-dark hover:bg-gray-200'}`} aria-label="Clear the current image">Clear Image</button>
+        <button onClick={clearImage} disabled={isLoading} className={`w-1/2 border font-semibold py-2 px-4 transition-all duration-300 disabled:opacity-50 rounded-md ${theme === 'dark' ? 'border-gray-700 text-nothing-gray-light hover:bg-gray-800' : 'border-gray-300 text-day-gray-dark hover:bg-gray-200'}`} aria-label="Clear the current image">Clear Image</button>
         <button onClick={handleResetCurrentWallpaper} disabled={isLoading} className={`w-1/2 border font-semibold py-2 px-4 transition-all duration-300 disabled:opacity-50 rounded-md ${theme === 'dark' ? 'border-gray-700 text-nothing-gray-light hover:bg-gray-800' : 'border-gray-300 text-day-gray-dark hover:bg-gray-200'}`} aria-label="Reset wallpaper controls to their default values">Reset Controls</button>
       </div>
       <div className="block md:hidden pt-8"><footer className="text-center tracking-wide">{footerLinks}</footer></div>
@@ -537,7 +501,7 @@ export const useWallpaperPanel = ({
 
                           <div className="overflow-y-auto space-y-4 pr-2 -mr-2">
                             <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-black/40' : 'bg-white/60'}`}>
-                                <WallpaperTypeSelector selected={wallpaperType} onSelect={handleWallpaperTypeSelect} theme={theme} />
+                                <SegmentedControl options={wallpaperTypeOptions} selected={wallpaperType} onSelect={handleWallpaperTypeSelect} theme={theme} />
                             </div>
                             <UndoRedoControls onUndo={() => { undoWallpaper(); trackEvent('wallpaper_undo'); }} onRedo={() => { redoWallpaper(); trackEvent('wallpaper_redo'); }} canUndo={canUndoWallpaper} canRedo={canRedoWallpaper} theme={theme} />
                             <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-black/40' : 'bg-white/60'} space-y-4`}>
@@ -545,6 +509,7 @@ export const useWallpaperPanel = ({
                                     theme={theme}
                                     isMobile={isMobile}
                                     label="Resolution" 
+                                    labelPrefix={resolutionLabelPrefix}
                                     value={resolution} 
                                     onChange={v => setLiveWallpaperSettings(s => ({ ...s, [wallpaperType]: { ...s[wallpaperType], resolution: v } }))} 
                                     onChangeCommitted={v => { setWallpaperSettings(s => ({ ...s, [wallpaperType]: { ...s[wallpaperType], resolution: v } })); trackEvent('wallpaper_slider_change', { slider_name: 'resolution', value: v, wallpaper_type: wallpaperType }); }}
@@ -569,9 +534,12 @@ export const useWallpaperPanel = ({
                                       <span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform duration-300 ${isMonochrome ? 'translate-x-6' : 'translate-x-1'}`} />
                                   </button>
                               </div>
-                              <BgColorToggleSwitch
-                                  value={liveWallpaperState.background}
-                                  onSelect={handleBackgroundColorSelect}
+                              <ToggleSwitch
+                                  id="bg-color-toggle-fs"
+                                  leftLabel="White BG"
+                                  rightLabel="Black BG"
+                                  isChecked={liveWallpaperState.background === 'black'}
+                                  onToggle={() => handleBackgroundColorSelect(liveWallpaperState.background === 'black' ? 'white' : 'black')}
                                   theme={theme}
                               />
                             </div>

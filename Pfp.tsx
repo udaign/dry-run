@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
-import { useHistory } from './hooks';
+import { useHistory, useImageHandler } from './hooks';
 import { getTimestamp } from './utils';
 import { PfpState, RawPixel, Theme } from './types';
 import { Dropzone, EnhancedSlider, UndoRedoControls } from './components';
@@ -108,30 +108,28 @@ const drawPfpMatrix = (ctx: CanvasRenderingContext2D, options: {
 export const usePfpPanel = ({ theme, isMobile, footerLinks, triggerShareToast }: { theme: Theme, isMobile: boolean, footerLinks: React.ReactNode, triggerShareToast: (showSpecificToast?: () => void) => void }) => {
   const { state: pfpState, setState: setPfpState, undo: undoPfp, redo: redoPfp, reset: resetPfp, canUndo: canUndoPfp, canRedo: canRedoPfp } = useHistory(PFP_INITIAL_STATE);
   const [livePfpState, setLivePfpState] = useState(pfpState);
-  const [imageSrc, setImageSrc] = useState<string | null>(null);
-  const [image, setImage] = useState<HTMLImageElement | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isDownloading, setIsDownloading] = useState(false);
-  const [uploadTimestamp, setUploadTimestamp] = useState<number | null>(null);
   
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const previewCanvasRef = useRef<HTMLCanvasElement>(null);
   const [rawPixelGrid, setRawPixelGrid] = useState<(RawPixel | null)[][]>([]);
-  const [showResetTooltip, setShowResetTooltip] = useState(false);
-  const resetTooltipRef = useRef<HTMLDivElement>(null);
 
   const { resolution, exposure, contrast, pixelGap, isCircular, isTransparent, isAntiAliased, isGlowEnabled, glowIntensity, cropOffsetX, cropOffsetY } = livePfpState;
 
+  const { 
+    imageSrc, 
+    image, 
+    isLoading, 
+    isDownloading, 
+    handleFileSelect, 
+    handleDownload: baseHandleDownload,
+    clearImage,
+  } = useImageHandler({ 
+    featureName: 'pfp', 
+    onFileSelectCallback: resetPfp,
+    triggerShareToast: triggerShareToast,
+  });
+
   useEffect(() => { setLivePfpState(pfpState); }, [pfpState]);
-  
-  useEffect(() => {
-    if (!imageSrc) { setImage(null); return; }
-    setIsLoading(true);
-    const img = new Image();
-    img.onload = () => { setImage(img); setIsLoading(false); };
-    img.onerror = () => { setImageSrc(null); setImage(null); setIsLoading(false); };
-    img.src = imageSrc;
-  }, [imageSrc]);
 
   const diameter = useMemo(() => Math.floor((0.32 * resolution + 9) / 2) * 2 + 1, [resolution]);
   const radius = useMemo(() => diameter / 2, [diameter]);
@@ -277,24 +275,40 @@ export const usePfpPanel = ({ theme, isMobile, footerLinks, triggerShareToast }:
     
     previewCtx.restore();
   }, [gridColors, calculatedPixelGap, diameter, isCircular, matrixMask, isTransparent, theme, isGlowEnabled, glowIntensity]);
-
-  const handleFileSelect = (file: File) => {
-    setIsLoading(true);
-    trackEvent('upload_image', { feature: 'pfp' });
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      setImageSrc(e.target?.result as string);
-      setUploadTimestamp(Date.now());
-      resetPfp();
-    };
-    reader.readAsDataURL(file);
-  };
   
   const handleDownload = () => {
-    if (isDownloading) return;
-    setIsDownloading(true);
+    const getCanvasBlob = (): Promise<Blob | null> => {
+        return new Promise(resolve => {
+            try {
+                const canvas = document.createElement('canvas');
+                canvas.width = CANVAS_SIZE;
+                canvas.height = CANVAS_SIZE;
+                const ctx = canvas.getContext('2d');
+                if (!ctx) {
+                    throw new Error('Failed to get canvas context for download.');
+                }
+                drawPfpMatrix(ctx, {
+                  width: CANVAS_SIZE,
+                  height: CANVAS_SIZE,
+                  isTransparent: livePfpState.isTransparent,
+                  gridColors,
+                  matrixMask,
+                  diameter,
+                  calculatedPixelGap,
+                  isCircular: livePfpState.isCircular,
+                  padding: PADDING,
+                  isGlowEnabled: livePfpState.isGlowEnabled,
+                  glowIntensity: livePfpState.glowIntensity,
+                });
+                canvas.toBlob(blob => resolve(blob), 'image/png');
+            } catch (e) {
+                console.error("Error creating PFP blob:", e);
+                resolve(null);
+            }
+        });
+    };
 
-    const eventParams: Record<string, string | number | boolean | undefined> = {
+    const analyticsParams: Record<string, string | number | boolean | undefined> = {
       feature: 'pfp',
       setting_resolution: livePfpState.resolution,
       setting_exposure: livePfpState.exposure,
@@ -306,58 +320,8 @@ export const usePfpPanel = ({ theme, isMobile, footerLinks, triggerShareToast }:
       setting_is_glow_enabled: livePfpState.isGlowEnabled,
       setting_glow_intensity: livePfpState.glowIntensity,
     };
-
-    if (uploadTimestamp) {
-      const durationInSeconds = Math.round((Date.now() - uploadTimestamp) / 1000);
-      eventParams.duration_seconds = durationInSeconds;
-    }
     
-    trackEvent('download', eventParams);
-
-    setTimeout(() => {
-        try {
-            const canvas = document.createElement('canvas');
-            canvas.width = CANVAS_SIZE; canvas.height = CANVAS_SIZE;
-            const ctx = canvas.getContext('2d');
-            if (!ctx) {
-                throw new Error('Failed to get canvas context for download.');
-            }
-            drawPfpMatrix(ctx, {
-              width: CANVAS_SIZE,
-              height: CANVAS_SIZE,
-              isTransparent: livePfpState.isTransparent,
-              gridColors,
-              matrixMask,
-              diameter,
-              calculatedPixelGap,
-              isCircular: livePfpState.isCircular,
-              padding: PADDING,
-              isGlowEnabled: livePfpState.isGlowEnabled,
-              glowIntensity: livePfpState.glowIntensity,
-            });
-            
-            canvas.toBlob((blob) => {
-                try {
-                    if (blob) {
-                        const url = URL.createObjectURL(blob);
-                        const link = document.createElement('a');
-                        link.download = `matrices-glyphmirror-${getTimestamp()}.png`;
-                        link.href = url;
-                        document.body.appendChild(link);
-                        link.click();
-                        document.body.removeChild(link);
-                        URL.revokeObjectURL(url);
-                        triggerShareToast();
-                    }
-                } finally {
-                    setIsDownloading(false);
-                }
-            }, 'image/png');
-        } catch(e) {
-            console.error("Error preparing PFP for download:", e);
-            setIsDownloading(false);
-        }
-    }, 50);
+    baseHandleDownload(getCanvasBlob, 'matrices-glyphmirror', analyticsParams);
   };
 
   const dragState = useRef({ isDragging: false, startX: 0, startY: 0, initialOffsetX: 0.5, initialOffsetY: 0.5, hasMoved: false });
@@ -432,47 +396,6 @@ export const usePfpPanel = ({ theme, isMobile, footerLinks, triggerShareToast }:
     }));
   }, [setPfpState]);
 
-  const handleClearImage = useCallback(() => {
-    trackEvent('clear_image', { feature: 'pfp' });
-    setImageSrc(null);
-    resetPfp();
-  }, [resetPfp]);
-  
-  const handleResetMarkerClick = useCallback(() => {
-    setShowResetTooltip(isShowing => {
-        if (isShowing) {
-            // Second click: tooltip is visible, so reset fields and hide tooltip.
-            trackEvent('pfp_reset_recommended_defaults');
-            setPfpState(s => ({
-                ...s,
-                resolution: PFP_INITIAL_STATE.resolution,
-                pixelGap: PFP_INITIAL_STATE.pixelGap,
-                isCircular: PFP_INITIAL_STATE.isCircular,
-                isAntiAliased: PFP_INITIAL_STATE.isAntiAliased,
-            }));
-            return false;
-        } else {
-            // First click: tooltip is not visible, so show it.
-            return true;
-        }
-    });
-  }, [setPfpState]);
-
-  useEffect(() => {
-    // This handler will only be called for clicks outside the component,
-    // because pointer events originating inside the component are stopped from propagating.
-    const handleClickOutside = () => {
-      setShowResetTooltip(false);
-    };
-
-    if (showResetTooltip) {
-      document.addEventListener('pointerdown', handleClickOutside);
-      return () => {
-        document.removeEventListener('pointerdown', handleClickOutside);
-      };
-    }
-  }, [showResetTooltip]);
-
   useEffect(() => {
       const onMove = (e: MouseEvent | TouchEvent) => handlePfpDragMove(e);
       const onEnd = () => handlePfpDragEnd();
@@ -494,30 +417,11 @@ export const usePfpPanel = ({ theme, isMobile, footerLinks, triggerShareToast }:
     const total = matrixMask.flat().reduce((sum, v) => sum + v, 0);
     return isAntiAliased ? total.toFixed(2) : total;
   }, [matrixMask, isAntiAliased]);
-  
-  const tooltipPositionClasses = isMobile 
-    ? 'bottom-full right-0 mb-2' 
-    : 'top-full left-0 mt-2';
 
   const controlsPanel = imageSrc ? (
     <div className="max-w-md mx-auto w-full flex flex-col space-y-4 px-6 sm:px-6 md:px-8 pt-6 md:pt-3 pb-8 sm:pb-6 md:pb-8">
-        <div className="flex justify-between items-center">
+        <div className="flex justify-center items-center">
             <UndoRedoControls onUndo={() => { undoPfp(); trackEvent('pfp_undo'); }} onRedo={() => { redoPfp(); trackEvent('pfp_redo'); }} canUndo={canUndoPfp} canRedo={canRedoPfp} theme={theme} />
-            <div className="relative" ref={resetTooltipRef} onPointerDown={e => e.stopPropagation()}>
-                <button
-                    onClick={handleResetMarkerClick}
-                    className={`p-2 rounded-full transition-colors ${theme === 'dark' ? 'text-nothing-gray-light hover:bg-nothing-gray-dark' : 'text-day-gray-dark hover:bg-day-gray-light'}`}
-                    aria-label="Show info and reset recommended fields"
-                >
-                    <span className="text-2xl">◉</span>
-                </button>
-                {showResetTooltip && (
-                    <div className={`absolute ${tooltipPositionClasses} w-64 p-3 rounded-lg shadow-2xl text-xs z-[1000] ${theme === 'dark' ? 'bg-nothing-darker text-nothing-light' : 'bg-day-text text-day-bg'}`}>
-                        <p>Recommended defaults (◉) for authentic results.</p>
-                        <p className="mt-2">Click again to revert these fields, click elsewhere to dismiss. Feel free to still customize as you like.</p>
-                    </div>
-                )}
-            </div>
         </div>
         
         <div className={`p-4 rounded-lg space-y-4 ${theme === 'dark' ? 'bg-nothing-darker' : 'bg-white border border-gray-300'}`}>
@@ -585,7 +489,7 @@ export const usePfpPanel = ({ theme, isMobile, footerLinks, triggerShareToast }:
         </div>
 
         <div className="pt-2 flex space-x-2">
-            <button onClick={handleClearImage} disabled={isLoading} className={`w-1/2 border font-semibold py-2 px-4 transition-all duration-300 disabled:opacity-50 rounded-md ${theme === 'dark' ? 'border-gray-700 text-nothing-gray-light hover:bg-gray-800' : 'border-gray-300 text-day-gray-dark hover:bg-gray-200'}`} aria-label="Clear the current image">Clear Image</button>
+            <button onClick={clearImage} disabled={isLoading} className={`w-1/2 border font-semibold py-2 px-4 transition-all duration-300 disabled:opacity-50 rounded-md ${theme === 'dark' ? 'border-gray-700 text-nothing-gray-light hover:bg-gray-800' : 'border-gray-300 text-day-gray-dark hover:bg-gray-200'}`} aria-label="Clear the current image">Clear Image</button>
             <button onClick={handleResetPfp} disabled={isLoading} className={`w-1/2 border font-semibold py-2 px-4 transition-all duration-300 disabled:opacity-50 rounded-md ${theme === 'dark' ? 'border-gray-700 text-nothing-gray-light hover:bg-gray-800' : 'border-gray-300 text-day-gray-dark hover:bg-gray-200'}`} aria-label="Reset all controls to their default values">Reset Controls</button>
         </div>
         <div className="block md:hidden pt-8">

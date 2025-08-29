@@ -3,13 +3,19 @@ import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { Theme, PhotoWidgetOutputMode, Tab } from './types';
 import { trackEvent } from './analytics';
 
-export const Dropzone: React.FC<{ onFileSelect: (file: File) => void; isLoading: boolean; compact?: boolean; theme: Theme; accept?: string; context?: Tab; }> = ({ onFileSelect, isLoading, compact = false, theme, accept = "image/*", context }) => {
+export const Dropzone: React.FC<{ onFileSelect: (file: File, method: 'drag_drop' | 'click') => void; isLoading: boolean; compact?: boolean; theme: Theme; accept?: string; context?: Tab; }> = ({ onFileSelect, isLoading, compact = false, theme, accept = "image/*", context }) => {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [isDragging, setIsDragging] = useState(false);
 
-    const handleFile = (file: File | undefined | null) => {
+    const handleFile = (file: File | undefined | null, method: 'drag_drop' | 'click') => {
         if (file && (accept === "image/*" || accept.includes(file.type))) {
-            onFileSelect(file);
+            onFileSelect(file, method);
+        } else if (file) {
+            trackEvent('upload_error', {
+                feature: context,
+                reason: 'unsupported_file_type',
+                file_type: file.type
+            });
         }
     };
 
@@ -35,7 +41,7 @@ export const Dropzone: React.FC<{ onFileSelect: (file: File) => void; isLoading:
         e.stopPropagation();
         setIsDragging(false);
         const file = e.dataTransfer.files?.[0];
-        handleFile(file);
+        handleFile(file, 'drag_drop');
     };
 
     const handleClick = () => {
@@ -44,7 +50,7 @@ export const Dropzone: React.FC<{ onFileSelect: (file: File) => void; isLoading:
     
     const handleInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
-        handleFile(file);
+        handleFile(file, 'click');
         if (event.target) {
             event.target.value = '';
         }
@@ -143,7 +149,15 @@ export const EnhancedSlider: React.FC<{
                 <div className="w-16 text-center font-sans text-sm font-semibold tabular-nums">
                     {value}
                 </div>
-                <button onClick={onReset} disabled={disabled} className={`${theme === 'dark' ? 'text-nothing-gray-light hover:text-white disabled:hover:text-nothing-gray-light' : 'text-day-gray-dark hover:text-black disabled:hover:text-day-gray-dark'} transition-colors disabled:opacity-50`} aria-label={`Reset ${label}`}>
+                <button
+                  onClick={() => {
+                    trackEvent('reset_single_control', { control_name: label });
+                    onReset();
+                  }}
+                  disabled={disabled}
+                  className={`${theme === 'dark' ? 'text-nothing-gray-light hover:text-white disabled:hover:text-nothing-gray-light' : 'text-day-gray-dark hover:text-black disabled:hover:text-day-gray-dark'} transition-colors disabled:opacity-50`}
+                  aria-label={`Reset ${label}`}
+                >
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
                       <polyline points="23 4 23 10 17 10"></polyline>
                       <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
@@ -181,33 +195,38 @@ export const UndoRedoControls: React.FC<{ onUndo: () => void; onRedo: () => void
   </div>
 );
 
-export const BgColorToggleSwitch: React.FC<{
-    value: 'black' | 'white';
-    onSelect: (value: 'black' | 'white') => void;
+export const ToggleSwitch: React.FC<{
+    leftLabel: string;
+    rightLabel: string;
+    isChecked: boolean; // Corresponds to the right label being active
+    onToggle: () => void;
     theme: Theme;
-}> = ({ value, onSelect, theme }) => {
-    const isWhite = value === 'white';
-    const toggle = () => onSelect(isWhite ? 'black' : 'white');
-
+    id: string;
+}> = ({ leftLabel, rightLabel, isChecked, onToggle, theme, id }) => {
     return (
         <div className="flex items-center justify-between w-full">
-            <span className={`text-sm font-normal transition-colors ${!isWhite ? (theme === 'dark' ? 'text-nothing-light' : 'text-day-text') : (theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark')}`}>Black BG</span>
+            <label htmlFor={id} className={`text-sm font-normal transition-colors cursor-pointer ${!isChecked ? (theme === 'dark' ? 'text-nothing-light' : 'text-day-text') : (theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark')}`}>
+                {leftLabel}
+            </label>
             <button 
+                id={id}
                 role="switch" 
-                aria-checked={isWhite} 
-                onClick={toggle} 
+                aria-checked={isChecked} 
+                onClick={onToggle} 
                 className={`relative inline-flex items-center h-6 w-11 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 rounded-full ${theme === 'dark' ? 'focus:ring-offset-nothing-dark' : 'focus:ring-offset-day-bg'} ${theme === 'dark' ? 'bg-nothing-gray-dark' : 'bg-day-gray-light'}`}
-                aria-label={`Switch background color, current is ${value}`}
+                aria-label={`Switch between ${leftLabel} and ${rightLabel}, current is ${isChecked ? rightLabel : leftLabel}`}
             >
-                <span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform duration-300 ${isWhite ? 'translate-x-6' : 'translate-x-1'}`} />
+                <span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform duration-300 ${isChecked ? 'translate-x-6' : 'translate-x-1'}`} />
             </button>
-            <span className={`text-sm font-normal transition-colors ${isWhite ? (theme === 'dark' ? 'text-nothing-light' : 'text-day-text') : (theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark')}`}>White BG</span>
+            <label htmlFor={id} className={`text-sm font-normal transition-colors cursor-pointer ${isChecked ? (theme === 'dark' ? 'text-nothing-light' : 'text-day-text') : (theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark')}`}>
+                {rightLabel}
+            </label>
         </div>
     );
 };
 
-export const ColorSelector: React.FC<{
-    options: { [key: string]: { color: string; name: string } };
+export const SegmentedControl: React.FC<{
+    options: { key: string; label: React.ReactNode }[];
     selected: string;
     onSelect: (key: string) => void;
     theme: Theme;
@@ -218,75 +237,14 @@ export const ColorSelector: React.FC<{
 
     return (
         <div className={`flex space-x-1 p-1 rounded-lg ${theme === 'dark' ? 'bg-nothing-darker' : 'bg-gray-200'}`}>
-            {Object.entries(options).map(([key, { name, color }]) => (
+            {options.map(option => (
                 <button
-                    key={key}
-                    onClick={() => onSelect(key)}
-                    className={`${baseButtonClasses} ${selected === key ? selectedClasses : unselectedClasses}`}
-                    aria-label={`Select background color ${name}`}
-                    aria-pressed={selected === key}
+                    key={option.key}
+                    onClick={() => onSelect(option.key)}
+                    className={`${baseButtonClasses} ${selected === option.key ? selectedClasses : unselectedClasses}`}
+                    aria-pressed={selected === option.key}
                 >
-                    <span style={{ backgroundColor: color }} className={`w-4 h-4 rounded-full border ${key === 'white' ? 'border-gray-400' : 'border-transparent'}`}></span>
-                    <span className={`text-sm font-medium`}>{name}</span>
-                </button>
-            ))}
-        </div>
-    );
-};
-
-export const WallpaperTypeSelector: React.FC<{
-    selected: 'phone' | 'desktop';
-    onSelect: (type: 'phone' | 'desktop') => void;
-    theme: Theme;
-}> = ({ selected, onSelect, theme }) => {
-    const baseButtonClasses = `w-1/2 py-2 text-sm font-semibold transition-colors duration-200 focus:outline-none rounded-md`;
-    const selectedClasses = theme === 'dark' ? 'bg-nothing-light text-nothing-dark font-bold' : 'bg-day-text text-day-bg font-bold';
-    const unselectedClasses = theme === 'dark' ? 'bg-nothing-gray-dark hover:bg-gray-700 text-nothing-light' : 'bg-day-gray-light hover:bg-gray-300 text-day-text';
-
-    return (
-        <div className={`flex space-x-2 p-1 rounded-lg ${theme === 'dark' ? 'bg-nothing-darker' : 'bg-gray-200'}`}>
-            <button
-                onClick={() => onSelect('phone')}
-                className={`${baseButtonClasses} ${selected === 'phone' ? selectedClasses : unselectedClasses}`}
-                aria-pressed={selected === 'phone'}
-            >
-                Phone
-            </button>
-            <button
-                onClick={() => onSelect('desktop')}
-                className={`${baseButtonClasses} ${selected === 'desktop' ? selectedClasses : unselectedClasses}`}
-                aria-pressed={selected === 'desktop'}
-            >
-                Desktop
-            </button>
-        </div>
-    );
-};
-
-export const OutputModeSelector: React.FC<{
-    selected: PhotoWidgetOutputMode;
-    onSelect: (mode: PhotoWidgetOutputMode) => void;
-    theme: Theme;
-}> = ({ selected, onSelect, theme }) => {
-    const baseButtonClasses = `w-1/3 py-2 text-sm font-semibold transition-colors duration-200 focus:outline-none rounded-md`;
-    const selectedClasses = theme === 'dark' ? 'bg-nothing-light text-nothing-dark font-bold' : 'bg-day-text text-day-bg font-bold';
-    const unselectedClasses = theme === 'dark' ? 'bg-nothing-gray-dark hover:bg-gray-700 text-nothing-light' : 'bg-day-gray-light hover:bg-gray-300 text-day-text';
-    const modes: { key: PhotoWidgetOutputMode, name: string }[] = [
-        { key: 'transparent', name: 'Transparent' },
-        { key: 'dark', name: 'Dark' },
-        { key: 'light', name: 'Light' },
-    ];
-
-    return (
-        <div className={`flex space-x-1 p-1 rounded-lg ${theme === 'dark' ? 'bg-nothing-darker' : 'bg-gray-200'}`}>
-            {modes.map(mode => (
-                <button
-                    key={mode.key}
-                    onClick={() => onSelect(mode.key)}
-                    className={`${baseButtonClasses} ${selected === mode.key ? selectedClasses : unselectedClasses}`}
-                    aria-pressed={selected === mode.key}
-                >
-                    {mode.name}
+                    {option.label}
                 </button>
             ))}
         </div>
@@ -313,16 +271,15 @@ export const ToastNotification: React.FC<{
   const [isSwiping, setIsSwiping] = useState(false);
   const touchStartRef = useRef(0);
 
-  const closeCallback = useCallback(() => {
-    onClose();
-  }, [onClose]);
-
   const timerRef = useRef<number | null>(null);
 
   const startTimer = useCallback(() => {
     if (timerRef.current) clearTimeout(timerRef.current);
-    timerRef.current = window.setTimeout(closeCallback, 7000);
-  }, [closeCallback]);
+    timerRef.current = window.setTimeout(() => {
+      trackEvent('toast_dismiss', { method: 'timeout' });
+      onClose();
+    }, 7000);
+  }, [onClose]);
 
   const clearTimer = useCallback(() => {
     if (timerRef.current) {
@@ -361,6 +318,7 @@ export const ToastNotification: React.FC<{
     if (!isMobile) return;
     setIsSwiping(false);
     if (swipeOffset > 100) { // Dismiss threshold
+      trackEvent('toast_dismiss', { method: 'swipe' });
       onClose();
     } else {
       setSwipeOffset(0);

@@ -50,7 +50,7 @@ const App: React.FC = () => {
 
   const footerLinks = (
     <div className={`text-sm ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'} opacity-80 space-y-1`}>
-      <p>Made with 🤍❤️🖤 for Nothing Community.</p>
+      <p>◉ = Recommended defaults. Made with 🤍❤️🖤 for Nothing Community.</p>
       <p>
         <a href="https://nothing.community/d/38047-introducing-matrices-a-handy-utility-to-create-matrix-styled-imagery" target="_blank" rel="noopener noreferrer" className={linkClasses} onClick={() => trackEvent('discussion_visit')}>
           Feedback & feature requests
@@ -82,15 +82,15 @@ const App: React.FC = () => {
   const imageSrc = activePanel.imageSrc;
 
   const handlePfpFileSelect = (file: File) => {
-      pfpPanel.handleFileSelect(file);
+      pfpPanel.handleFileSelect(file, 'click');
       if (pfpFileInputRef.current) pfpFileInputRef.current.value = '';
   };
   const handleWallpaperFileSelect = (file: File) => {
-      wallpaperPanel.handleFileSelect(file);
+      wallpaperPanel.handleFileSelect(file, 'click');
       if (wallpaperFileInputRef.current) wallpaperFileInputRef.current.value = '';
   };
   const handlePhotoWidgetFileSelect = (file: File) => {
-      photoWidgetPanel.handleFileSelect(file);
+      photoWidgetPanel.handleFileSelect(file, 'click');
       if (photoWidgetFileInputRef.current) photoWidgetFileInputRef.current.value = '';
   };
 
@@ -101,6 +101,9 @@ const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    const initialTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    trackEvent('initial_theme_detected', { theme: initialTheme });
+
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
     const handleChange = (e: MediaQueryListEvent) => setTheme(e.matches ? 'dark' : 'light');
     mediaQuery.addEventListener('change', handleChange);

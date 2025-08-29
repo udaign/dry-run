@@ -1,5 +1,7 @@
 
 import { useState, useCallback } from 'react';
+import { trackEvent } from './analytics';
+import { getTimestamp } from './utils';
 
 export const useHistory = <T,>(initialState: T) => {
     const [history, setHistory] = useState<T[]>([initialState]);
@@ -48,5 +50,107 @@ export const useHistory = <T,>(initialState: T) => {
         reset,
         canUndo: index > 0,
         canRedo: index < history.length - 1,
+    };
+};
+
+interface UseImageHandlerProps {
+  featureName: string;
+  onFileSelectCallback: () => void;
+  triggerShareToast: (showSpecificToast?: () => void) => void;
+}
+
+export const useImageHandler = ({ featureName, onFileSelectCallback, triggerShareToast }: UseImageHandlerProps) => {
+    const [imageSrc, setImageSrc] = useState<string | null>(null);
+    const [image, setImage] = useState<HTMLImageElement | null>(null);
+    const [isLoading, setIsLoading] = useState(false);
+    const [isDownloading, setIsDownloading] = useState(false);
+    const [uploadTimestamp, setUploadTimestamp] = useState<number | null>(null);
+
+    const handleFileSelect = useCallback((file: File, method: 'drag_drop' | 'click') => {
+        setIsLoading(true);
+        trackEvent('upload_image', { feature: featureName, method });
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const resultSrc = e.target?.result as string;
+            setImageSrc(resultSrc);
+            setUploadTimestamp(Date.now());
+            
+            const img = new Image();
+            img.onload = () => {
+                setImage(img);
+                setIsLoading(false);
+                onFileSelectCallback();
+            };
+            img.onerror = () => {
+                trackEvent('upload_error', { feature: featureName, reason: 'image_load_fail' });
+                setImageSrc(null);
+                setImage(null);
+                setIsLoading(false);
+            };
+            img.src = resultSrc;
+        };
+        reader.readAsDataURL(file);
+    }, [featureName, onFileSelectCallback]);
+
+    const handleDownload = useCallback(async (
+        getCanvasBlob: () => Promise<Blob | null>,
+        filename: string,
+        analyticsParams: Record<string, any>,
+        onSuccess?: () => void,
+    ) => {
+        if (isDownloading) return;
+        setIsDownloading(true);
+
+        const eventParams = { ...analyticsParams };
+        if (uploadTimestamp) {
+            const durationInSeconds = Math.round((Date.now() - uploadTimestamp) / 1000);
+            eventParams.duration_seconds = durationInSeconds;
+        }
+        trackEvent('download', eventParams);
+
+        setTimeout(async () => {
+            try {
+                const blob = await getCanvasBlob();
+                if (blob) {
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.download = `${filename}-${getTimestamp()}.png`;
+                    link.href = url;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    URL.revokeObjectURL(url);
+                    if (onSuccess) {
+                        onSuccess();
+                    } else {
+                        triggerShareToast();
+                    }
+                }
+            } catch (e) {
+                const errorMessage = e instanceof Error ? e.message : String(e);
+                console.error(`Error preparing ${featureName} for download:`, e);
+                trackEvent('download_error', { feature: featureName, error: errorMessage });
+            } finally {
+                setIsDownloading(false);
+            }
+        }, 50);
+    }, [isDownloading, uploadTimestamp, featureName, triggerShareToast]);
+
+    const clearImage = useCallback(() => {
+        trackEvent('clear_image', { feature: featureName });
+        setImageSrc(null);
+        setImage(null);
+        setUploadTimestamp(null);
+        onFileSelectCallback();
+    }, [featureName, onFileSelectCallback]);
+
+    return {
+        imageSrc,
+        image,
+        isLoading,
+        isDownloading,
+        handleFileSelect,
+        handleDownload,
+        clearImage,
     };
 };

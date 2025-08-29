@@ -43,4 +43,8 @@ export type PhotoWidgetState = {
     isAntiAliased: boolean;
 };
 
+export type PhotoWidgetSettingsContainer = {
+    [key in PhotoWidgetOutputMode]: PhotoWidgetState;
+};
+
 export type PhotoWidgetColorMatrix = ({ r: number; g: number; b: number; a: number; } | null)[][];

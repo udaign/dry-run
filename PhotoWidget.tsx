@@ -1,20 +1,34 @@
 
 import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
-import { useHistory } from './hooks';
+import { useHistory, useImageHandler } from './hooks';
 import { getTimestamp } from './utils';
-import { PhotoWidgetState, PhotoWidgetColorMatrix, Theme, PhotoWidgetOutputMode } from './types';
-import { Dropzone, EnhancedSlider, UndoRedoControls, OutputModeSelector } from './components';
+import { PhotoWidgetSettingsContainer, PhotoWidgetColorMatrix, Theme, PhotoWidgetOutputMode } from './types';
+import { Dropzone, EnhancedSlider, UndoRedoControls, SegmentedControl, ToggleSwitch } from './components';
 import { trackEvent } from './analytics';
 
 const PHOTO_WIDGET_BASE_SIZE = 1176;
 const PADDING = 50;
 const DEFAULT_SLIDER_VALUE = 50;
 
-const PHOTO_WIDGET_INITIAL_STATE: PhotoWidgetState = {
-    resolution: DEFAULT_SLIDER_VALUE,
-    pixelGap: 0,
-    isCircular: false,
-    isAntiAliased: false,
+const PHOTO_WIDGET_MODES_INITIAL_STATE: PhotoWidgetSettingsContainer = {
+    transparent: {
+        resolution: DEFAULT_SLIDER_VALUE,
+        pixelGap: 0,
+        isCircular: false,
+        isAntiAliased: false,
+    },
+    dark: {
+        resolution: DEFAULT_SLIDER_VALUE,
+        pixelGap: 0,
+        isCircular: true,
+        isAntiAliased: false,
+    },
+    light: {
+        resolution: DEFAULT_SLIDER_VALUE,
+        pixelGap: 0,
+        isCircular: true,
+        isAntiAliased: false,
+    },
 };
 
 const drawPhotoWidgetMatrix = (ctx: CanvasRenderingContext2D, options: {
@@ -96,48 +110,40 @@ const drawPhotoWidgetMatrix = (ctx: CanvasRenderingContext2D, options: {
 };
 
 export const usePhotoWidgetPanel = ({ theme, isMobile, footerLinks, triggerShareToast }: { theme: Theme, isMobile: boolean, footerLinks: React.ReactNode, triggerShareToast: (showSpecificToast?: () => void) => void }) => {
-  const { state: photoWidgetState, setState: setPhotoWidgetState, undo: undoPhotoWidget, redo: redoPhotoWidget, reset: resetPhotoWidget, canUndo: canUndoPhotoWidget, canRedo: canRedoPhotoWidget } = useHistory(PHOTO_WIDGET_INITIAL_STATE);
-  const [livePhotoWidgetState, setLivePhotoWidgetState] = useState(photoWidgetState);
+  const { state: photoWidgetSettings, setState: setPhotoWidgetSettings, undo: undoPhotoWidget, redo: redoPhotoWidget, reset: resetPhotoWidget, canUndo: canUndoPhotoWidget, canRedo: canRedoPhotoWidget } = useHistory(PHOTO_WIDGET_MODES_INITIAL_STATE);
+  const [livePhotoWidgetSettings, setLivePhotoWidgetSettings] = useState(photoWidgetSettings);
   const [outputMode, setOutputMode] = useState<PhotoWidgetOutputMode>('transparent');
-  const [storedPixelGap, setStoredPixelGap] = useState<number>(0);
-  const [storedIsCircular, setStoredIsCircular] = useState<boolean>(false);
-  const [imageSrc, setImageSrc] = useState<string | null>(null);
-  const [image, setImage] = useState<HTMLImageElement | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isDownloading, setIsDownloading] = useState(false);
-  const [uploadTimestamp, setUploadTimestamp] = useState<number | null>(null);
+  const [activeFillTheme, setActiveFillTheme] = useState<'dark' | 'light'>('dark');
   const [colorMatrix, setColorMatrix] = useState<PhotoWidgetColorMatrix | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  
+
+  const livePhotoWidgetState = livePhotoWidgetSettings[outputMode];
   const { resolution, pixelGap, isCircular, isAntiAliased } = livePhotoWidgetState;
   
+  const onFileSelectCallback = useCallback(() => {
+    resetPhotoWidget();
+    setOutputMode('transparent');
+    setActiveFillTheme('dark');
+  }, [resetPhotoWidget]);
+
+  const {
+    imageSrc,
+    image,
+    isLoading,
+    isDownloading,
+    handleFileSelect,
+    handleDownload: baseHandleDownload,
+    clearImage: baseClearImage
+  } = useImageHandler({
+    featureName: 'photo_widget',
+    onFileSelectCallback,
+    triggerShareToast,
+  });
+
   const canvasWidth = useMemo(() => PHOTO_WIDGET_BASE_SIZE, []);
   const canvasHeight = useMemo(() => PHOTO_WIDGET_BASE_SIZE, []);
 
-  useEffect(() => { setLivePhotoWidgetState(photoWidgetState); }, [photoWidgetState]);
-
-  useEffect(() => {
-    if (!imageSrc) { setImage(null); return; }
-    setIsLoading(true);
-    const img = new Image();
-    img.onload = () => { setImage(img); setIsLoading(false); };
-    img.onerror = () => { setImageSrc(null); setImage(null); setIsLoading(false); };
-    img.src = imageSrc;
-  }, [imageSrc]);
-
-  const handleFileSelect = (file: File) => {
-    setIsLoading(true);
-    trackEvent('upload_image', { feature: 'photo_widget' });
-    const reader = new FileReader();
-    reader.onload = (e) => {
-        setImageSrc(e.target?.result as string);
-        setUploadTimestamp(Date.now());
-        resetPhotoWidget();
-        setOutputMode('transparent');
-        setIsLoading(false);
-    };
-    reader.readAsDataURL(file);
-  };
+  useEffect(() => { setLivePhotoWidgetSettings(photoWidgetSettings); }, [photoWidgetSettings]);
   
   useEffect(() => {
     if (!image) { setColorMatrix(null); return; }
@@ -202,10 +208,29 @@ export const usePhotoWidgetPanel = ({ theme, isMobile, footerLinks, triggerShare
   }, [colorMatrix, pixelGap, isCircular, isAntiAliased, outputMode, canvasWidth, canvasHeight]);
 
   const handleDownload = () => {
-    if (isDownloading || !colorMatrix) return;
-    setIsDownloading(true);
+    if (!colorMatrix) return;
 
-    const eventParams: Record<string, string | number | boolean | undefined> = {
+    const getCanvasBlob = (): Promise<Blob | null> => {
+        return new Promise(resolve => {
+            try {
+                const downloadWidth = PHOTO_WIDGET_BASE_SIZE;
+                const downloadHeight = PHOTO_WIDGET_BASE_SIZE;
+                const canvas = document.createElement('canvas');
+                canvas.width = downloadWidth;
+                canvas.height = downloadHeight;
+                const ctx = canvas.getContext('2d');
+                if (!ctx) throw new Error('Failed to get canvas context for download.');
+                
+                drawPhotoWidgetMatrix(ctx, { ...photoWidgetSettings[outputMode], outputMode, width: downloadWidth, height: downloadHeight, matrix: colorMatrix });
+                canvas.toBlob(blob => resolve(blob), 'image/png');
+            } catch (e) {
+                console.error("Error creating Photo Widget blob:", e);
+                resolve(null);
+            }
+        });
+    };
+    
+    const analyticsParams: Record<string, string | number | boolean | undefined> = {
       feature: 'photo_widget',
       setting_output_mode: outputMode,
       setting_resolution: livePhotoWidgetState.resolution,
@@ -214,124 +239,112 @@ export const usePhotoWidgetPanel = ({ theme, isMobile, footerLinks, triggerShare
       setting_is_anti_aliased: livePhotoWidgetState.isAntiAliased,
     };
 
-    if (uploadTimestamp) {
-        const durationInSeconds = Math.round((Date.now() - uploadTimestamp) / 1000);
-        eventParams.duration_seconds = durationInSeconds;
-    }
-
-    trackEvent('download', eventParams);
-
-    setTimeout(() => {
-        try {
-            const downloadWidth = PHOTO_WIDGET_BASE_SIZE;
-            const downloadHeight = PHOTO_WIDGET_BASE_SIZE;
-            const canvas = document.createElement('canvas');
-            canvas.width = downloadWidth;
-            canvas.height = downloadHeight;
-            const ctx = canvas.getContext('2d');
-            if (!ctx) {
-                throw new Error('Failed to get canvas context for download.');
-            }
-            drawPhotoWidgetMatrix(ctx, { ...photoWidgetState, outputMode, width: downloadWidth, height: downloadHeight, matrix: colorMatrix });
-            canvas.toBlob((blob) => {
-                try {
-                    if (blob) {
-                        const url = URL.createObjectURL(blob);
-                        const link = document.createElement('a');
-                        link.download = `matrices-photowidget-${getTimestamp()}.png`;
-                        link.href = url;
-                        document.body.appendChild(link);
-                        link.click();
-                        document.body.removeChild(link);
-                        URL.revokeObjectURL(url);
-                        triggerShareToast();
-                    }
-                } finally {
-                    setIsDownloading(false);
-                }
-            }, 'image/png');
-        } catch (e) {
-            console.error("Error preparing photo widget for download:", e);
-            setIsDownloading(false);
-        }
-    }, 50);
+    baseHandleDownload(getCanvasBlob, 'matrices-photowidget', analyticsParams);
   };
 
-  const handleClearImage = useCallback(() => {
-    trackEvent('clear_image', { feature: 'photo_widget' });
-    setImageSrc(null);
-    resetPhotoWidget();
-    setOutputMode('transparent');
-  }, [resetPhotoWidget]);
+  const handleReset = useCallback(() => {
+    trackEvent('photo_widget_reset_defaults', { output_mode: outputMode });
+    setPhotoWidgetSettings(currentSettings => ({
+      ...currentSettings,
+      [outputMode]: PHOTO_WIDGET_MODES_INITIAL_STATE[outputMode],
+    }));
+  }, [outputMode, setPhotoWidgetSettings]);
   
-  const handleReset = () => {
-    trackEvent('photo_widget_reset_defaults');
-    resetPhotoWidget();
-    setOutputMode('transparent');
+  const handleOutputModeSelect = (mode: string) => {
+    const newMode = mode === 'transparent' ? 'transparent' : activeFillTheme;
+    trackEvent('photo_widget_output_mode_change', { mode: newMode });
+    setOutputMode(newMode);
+  };
+
+  const handleFillThemeChange = (theme: 'dark' | 'light') => {
+    trackEvent('photo_widget_fill_theme_change', { theme });
+    setOutputMode(theme);
+    setActiveFillTheme(theme);
   };
   
-  const handleOutputModeSelect = (mode: PhotoWidgetOutputMode) => {
-    trackEvent('photo_widget_output_mode_change', { mode: mode });
-
-    // Switching FROM dark/light TO transparent
-    if (outputMode !== 'transparent' && mode === 'transparent') {
-        // Store the current pixel gap and isCircular state
-        setStoredPixelGap(livePhotoWidgetState.pixelGap);
-        setStoredIsCircular(photoWidgetState.isCircular);
-        // Set pixel gap to 0 and force square pixels
-        setPhotoWidgetState(s => ({ ...s, pixelGap: 0, isCircular: false }));
-    }
-    // Switching FROM transparent TO dark/light
-    else if (outputMode === 'transparent' && mode !== 'transparent') {
-        // Restore pixel gap and isCircular state
-        setPhotoWidgetState(s => ({ ...s, pixelGap: storedPixelGap, isCircular: storedIsCircular }));
-    }
-
-    setOutputMode(mode);
-  };
+  const outputModeOptions = [
+      { key: 'transparent', label: 'Transparent' },
+      { key: 'fill', label: 'Fill' },
+  ];
 
   const controlsPanel = imageSrc ? (
     <div className="max-w-md mx-auto w-full flex flex-col space-y-4 px-6 sm:px-6 md:px-8 pt-6 md:pt-3 pb-8 sm:pb-6 md:pb-8">
       <div className={`p-4 rounded-lg space-y-2 ${theme === 'dark' ? 'bg-nothing-darker' : 'bg-white border border-gray-300'}`}>
         <label className={`text-sm ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'}`}>Widget Preferences</label>
-        <OutputModeSelector
-            selected={outputMode}
+        <SegmentedControl
+            options={outputModeOptions}
+            selected={outputMode === 'transparent' ? 'transparent' : 'fill'}
             onSelect={handleOutputModeSelect}
             theme={theme}
         />
       </div>
 
-      <UndoRedoControls onUndo={() => { undoPhotoWidget(); trackEvent('photo_widget_undo'); }} onRedo={() => { redoPhotoWidget(); trackEvent('photo_widget_redo'); }} canUndo={canUndoPhotoWidget} canRedo={canRedoPhotoWidget} theme={theme} />
+      <div className="flex justify-center items-center">
+        <UndoRedoControls onUndo={() => { undoPhotoWidget(); trackEvent('photo_widget_undo'); }} onRedo={() => { redoPhotoWidget(); trackEvent('photo_widget_redo'); }} canUndo={canUndoPhotoWidget} canRedo={canRedoPhotoWidget} theme={theme} />
+      </div>
         
       <div className={`p-4 rounded-lg ${theme === 'dark' ? 'bg-nothing-darker' : 'bg-white border border-gray-300'}`}>
-        <EnhancedSlider theme={theme} isMobile={isMobile} label="Resolution" value={resolution} onChange={v => setLivePhotoWidgetState(s => ({...s, resolution: v}))} onChangeCommitted={v => { setPhotoWidgetState(s => ({...s, resolution: v})); trackEvent('photo_widget_slider_change', { slider_name: 'resolution', value: v }); }} onReset={() => setPhotoWidgetState(s => ({...s, resolution: DEFAULT_SLIDER_VALUE}))} disabled={isLoading} />
+        <EnhancedSlider 
+            theme={theme} 
+            isMobile={isMobile} 
+            label="Resolution" 
+            value={resolution} 
+            onChange={v => setLivePhotoWidgetSettings(s => ({...s, [outputMode]: { ...s[outputMode], resolution: v }}))} 
+            onChangeCommitted={v => { setPhotoWidgetSettings(s => ({...s, [outputMode]: { ...s[outputMode], resolution: v }})); trackEvent('photo_widget_slider_change', { slider_name: 'resolution', value: v, output_mode: outputMode }); }} 
+            onReset={() => setPhotoWidgetSettings(s => ({...s, [outputMode]: { ...s[outputMode], resolution: DEFAULT_SLIDER_VALUE }}))} 
+            disabled={isLoading} 
+        />
         <div className={`transition-all duration-300 ease-in-out overflow-hidden ${outputMode !== 'transparent' ? 'max-h-48 opacity-100 mt-4' : 'max-h-0 opacity-0'}`}>
-          <EnhancedSlider theme={theme} isMobile={isMobile} label="Pixel Gap" value={pixelGap} onChange={v => setLivePhotoWidgetState(s => ({...s, pixelGap: v}))} onChangeCommitted={v => { setPhotoWidgetState(s => ({...s, pixelGap: v})); trackEvent('photo_widget_slider_change', { slider_name: 'pixel_gap', value: v }); }} onReset={() => setPhotoWidgetState(s => ({...s, pixelGap: 0}))} disabled={isLoading} />
+          <EnhancedSlider 
+            theme={theme} 
+            isMobile={isMobile} 
+            label="Pixel Gap" 
+            value={pixelGap} 
+            onChange={v => setLivePhotoWidgetSettings(s => ({...s, [outputMode]: { ...s[outputMode], pixelGap: v }}))} 
+            onChangeCommitted={v => { setPhotoWidgetSettings(s => ({...s, [outputMode]: { ...s[outputMode], pixelGap: v }})); trackEvent('photo_widget_slider_change', { slider_name: 'pixel_gap', value: v, output_mode: outputMode }); }} 
+            onReset={() => setPhotoWidgetSettings(s => ({...s, [outputMode]: { ...s[outputMode], pixelGap: 0 }}))} 
+            disabled={isLoading} />
         </div>
       </div>
         
       <div className={`p-4 rounded-lg space-y-4 ${theme === 'dark' ? 'bg-nothing-darker' : 'bg-white border border-gray-300'}`}>
-        {outputMode !== 'transparent' && (
-          <div className={`flex items-center justify-between ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'}`}>
-            <label htmlFor="pw-circular-toggle" className="text-sm">Circular Pixels</label>
-            <button id="pw-circular-toggle" role="switch" aria-checked={isCircular} onClick={() => { setPhotoWidgetState(s => ({...s, isCircular: !s.isCircular})); trackEvent('photo_widget_toggle_change', { setting: 'circular_pixels', enabled: !photoWidgetState.isCircular }); }} disabled={isLoading} className={`relative inline-flex items-center h-6 w-11 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 rounded-full ${theme === 'dark' ? 'focus:ring-offset-nothing-dark' : 'focus:ring-offset-day-bg'} ${isCircular ? 'bg-nothing-red' : (theme === 'dark' ? 'bg-nothing-gray-dark' : 'bg-day-gray-light')}`}>
-              <span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform duration-300 ${isCircular ? 'translate-x-6' : 'translate-x-1'}`} />
-            </button>
-          </div>
-        )}
+        <div className={`flex items-center justify-between ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'}`}>
+          <label htmlFor="pw-circular-toggle" className="text-sm">
+            {outputMode === 'transparent' && <span className="mr-1">◉</span>}
+            Circular Pixels
+          </label>
+          <button id="pw-circular-toggle" role="switch" aria-checked={isCircular} onClick={() => { 
+              const newIsCircular = !livePhotoWidgetState.isCircular;
+              setPhotoWidgetSettings(s => ({...s, [outputMode]: {...s[outputMode], isCircular: newIsCircular }})); 
+              trackEvent('photo_widget_toggle_change', { setting: 'circular_pixels', enabled: newIsCircular, output_mode: outputMode }); 
+            }} disabled={isLoading} className={`relative inline-flex items-center h-6 w-11 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 rounded-full ${theme === 'dark' ? 'focus:ring-offset-nothing-dark' : 'focus:ring-offset-day-bg'} ${isCircular ? 'bg-nothing-red' : (theme === 'dark' ? 'bg-nothing-gray-dark' : 'bg-day-gray-light')}`}>
+            <span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform duration-300 ${isCircular ? 'translate-x-6' : 'translate-x-1'}`} />
+          </button>
+        </div>
         <div className={`flex items-center justify-between ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'}`}>
           <label htmlFor="pw-aa-toggle" className="text-sm">Anti-aliasing</label>
           <button id="pw-aa-toggle" role="switch" aria-checked={isAntiAliased} onClick={() => {
-              setPhotoWidgetState(s => ({...s, isAntiAliased: !s.isAntiAliased }));
-              trackEvent('photo_widget_toggle_change', { setting: 'anti_aliasing', enabled: !photoWidgetState.isAntiAliased });
+              const newIsAntiAliased = !livePhotoWidgetState.isAntiAliased;
+              setPhotoWidgetSettings(s => ({...s, [outputMode]: { ...s[outputMode], isAntiAliased: newIsAntiAliased }}));
+              trackEvent('photo_widget_toggle_change', { setting: 'anti_aliasing', enabled: newIsAntiAliased, output_mode: outputMode });
           }} disabled={isLoading} className={`relative inline-flex items-center h-6 w-11 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 rounded-full ${theme === 'dark' ? 'focus:ring-offset-nothing-dark' : 'focus:ring-offset-day-bg'} disabled:opacity-50 ${isAntiAliased ? 'bg-nothing-red' : (theme === 'dark' ? 'bg-nothing-gray-dark' : 'bg-day-gray-light')}`}>
             <span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform duration-300 ${isAntiAliased ? 'translate-x-6' : 'translate-x-1'}`} />
           </button>
         </div>
+        <div className={`transition-all duration-300 ease-in-out overflow-hidden focus-within:overflow-visible ${outputMode !== 'transparent' ? 'max-h-48 opacity-100' : 'max-h-0 opacity-0 !mt-0'}`}>
+            <ToggleSwitch
+                id="fill-theme-toggle"
+                leftLabel="Light Fill"
+                rightLabel="Dark Fill"
+                isChecked={activeFillTheme === 'dark'}
+                onToggle={() => handleFillThemeChange(activeFillTheme === 'dark' ? 'light' : 'dark')}
+                theme={theme}
+            />
+        </div>
       </div>
         
       <div className="pt-2 flex space-x-2">
-        <button onClick={handleClearImage} disabled={isLoading} className={`w-1/2 border font-semibold py-2 px-4 transition-all duration-300 disabled:opacity-50 rounded-md ${theme === 'dark' ? 'border-gray-700 text-nothing-gray-light hover:bg-gray-800' : 'border-gray-300 text-day-gray-dark hover:bg-gray-200'}`} aria-label="Clear the current image">Clear Image</button>
+        <button onClick={baseClearImage} disabled={isLoading} className={`w-1/2 border font-semibold py-2 px-4 transition-all duration-300 disabled:opacity-50 rounded-md ${theme === 'dark' ? 'border-gray-700 text-nothing-gray-light hover:bg-gray-800' : 'border-gray-300 text-day-gray-dark hover:bg-gray-200'}`} aria-label="Clear the current image">Clear Image</button>
         <button onClick={handleReset} disabled={isLoading} className={`w-1/2 border font-semibold py-2 px-4 transition-all duration-300 disabled:opacity-50 rounded-md ${theme === 'dark' ? 'border-gray-700 text-nothing-gray-light hover:bg-gray-800' : 'border-gray-300 text-day-gray-dark hover:bg-gray-200'}`} aria-label="Reset photo widget controls to their default values">Reset Controls</button>
       </div>
       <div className="block md:hidden pt-8">
