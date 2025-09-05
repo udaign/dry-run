@@ -464,14 +464,14 @@ export const usePfpPanel = ({ theme, isMobile, footerLinks, triggerShareToast }:
         
         <div className={`p-4 rounded-lg space-y-4 ${theme === 'dark' ? 'bg-nothing-darker' : 'bg-white border border-gray-300'}`}>
             <div className={`flex items-center justify-between ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'}`}>
-                <label htmlFor="circular-toggle" className="text-sm"><span className="mr-1">◉</span>Circular Pixels</label>
+                <label htmlFor="circular-toggle" className="text-sm">Circular Pixels</label>
                 <button id="circular-toggle" role="switch" aria-checked={isCircular} onClick={() => { setPfpState(s => ({...s, isCircular: !s.isCircular})); trackEvent('pfp_toggle_change', { setting: 'circular_pixels', enabled: !pfpState.isCircular }); }} disabled={isLoading} className={`relative inline-flex items-center h-6 w-11 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 rounded-full ${theme === 'dark' ? 'focus:ring-offset-nothing-dark' : 'focus:ring-offset-day-bg'} ${isCircular ? 'bg-nothing-red' : (theme === 'dark' ? 'bg-nothing-gray-dark' : 'bg-day-gray-light')}`} >
                     <span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform duration-300 ${isCircular ? 'translate-x-6' : 'translate-x-1'}`} />
                 </button>
             </div>
 
             <div className={`flex items-center justify-between ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'}`}>
-                <label htmlFor="aa-toggle" className="text-sm"><span className="mr-1">◉</span>Anti-aliasing</label>
+                <label htmlFor="aa-toggle" className="text-sm">Anti-aliasing</label>
                 <button id="aa-toggle" role="switch" aria-checked={isAntiAliased} onClick={() => {
                     setPfpState(s => ({ ...s, isAntiAliased: !s.isAntiAliased, }));
                     trackEvent('pfp_toggle_change', { setting: 'anti_aliasing', enabled: !pfpState.isAntiAliased });

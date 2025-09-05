@@ -310,7 +310,6 @@ export const usePhotoWidgetPanel = ({ theme, isMobile, footerLinks, triggerShare
       <div className={`p-4 rounded-lg space-y-4 ${theme === 'dark' ? 'bg-nothing-darker' : 'bg-white border border-gray-300'}`}>
         <div className={`flex items-center justify-between ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'}`}>
           <label htmlFor="pw-circular-toggle" className="text-sm">
-            {outputMode === 'transparent' && <span className="mr-1">◉</span>}
             Circular Pixels
           </label>
           <button id="pw-circular-toggle" role="switch" aria-checked={isCircular} onClick={() => { 

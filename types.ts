@@ -1,6 +1,6 @@
 export type RawPixel = number | { r: number; g: number; b: number };
 export type Theme = 'light' | 'dark';
-export type Tab = 'pfp' | 'wallpaper' | 'photoWidget';
+export type Tab = 'pfp' | 'wallpaper' | 'photoWidget' | 'valueAliasing';
 
 // PFP
 export type PfpState = {
@@ -48,3 +48,23 @@ export type PhotoWidgetSettingsContainer = {
 };
 
 export type PhotoWidgetColorMatrix = ({ r: number; g: number; b: number; a: number; } | null)[][];
+
+// Value Aliasing (copy of Wallpaper)
+export type ValueAliasingState = {
+    resolution: number;
+    pixelGap: number;
+    background: WallpaperBgKey;
+    cropOffsetX: number;
+    cropOffsetY: number;
+    isMonochrome: boolean;
+    exposure: number;
+    contrast: number;
+    isPureValue: boolean;
+    isTransparent: boolean;
+    lowerLimit: number;
+};
+
+export type ValueAliasingSettingsContainer = {
+    phone: ValueAliasingState;
+    desktop: ValueAliasingState;
+};

@@ -3,15 +3,17 @@ import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import { usePfpPanel } from './Pfp';
 import { useWallpaperPanel } from './Wallpaper';
 import { usePhotoWidgetPanel } from './PhotoWidget';
+import { useValueAliasingPanel } from './ValueAliasing';
 import { Theme, Tab } from './types';
 import { trackEvent } from './analytics';
 import { ToastNotification } from './components';
 
-const TABS: Tab[] = ['wallpaper', 'pfp', 'photoWidget'];
+const TABS: Tab[] = ['wallpaper', 'pfp', 'photoWidget', 'valueAliasing'];
 const TAB_LABELS: Record<Tab, string> = {
   wallpaper: 'Matrix Wallpaper',
   pfp: 'Glyph Mirror',
   photoWidget: 'Photo Widget',
+  valueAliasing: 'Value Aliasing',
 };
 const SHARE_LINK = "https://nothing.community/d/38047-introducing-matrices-a-handy-utility-to-create-matrix-styled-imagery";
 
@@ -24,11 +26,15 @@ const App: React.FC = () => {
   const [downloadCount, setDownloadCount] = useState(0);
   const [showShareToast, setShowShareToast] = useState(false);
   const [hasShownShareToastInSession, setHasShownShareToastInSession] = useState(false);
+  const [userInput, setUserInput] = useState('');
+  const [easterEggPrimed, setEasterEggPrimed] = useState(false);
+  const [isEasterEggHintVisible, setIsEasterEggHintVisible] = useState(false);
   const activeTabIndex = TABS.indexOf(activeTab);
 
   const pfpFileInputRef = useRef<HTMLInputElement>(null);
   const wallpaperFileInputRef = useRef<HTMLInputElement>(null);
   const photoWidgetFileInputRef = useRef<HTMLInputElement>(null);
+  const valueAliasingFileInputRef = useRef<HTMLInputElement>(null);
 
   const linkClasses = theme === 'dark' ? 'font-medium text-nothing-light hover:text-white underline' : 'font-medium text-day-text hover:text-black underline';
   
@@ -50,10 +56,13 @@ const App: React.FC = () => {
 
   const footerLinks = (
     <div className={`text-sm ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'} opacity-80 space-y-1`}>
-      <p>◉ = Recommended defaults. Made with 🤍❤️🖤 for Nothing Community.</p>
+      <p>
+        {activeTab === 'pfp' && '◉ = Recommended defaults. '}
+        Made with 🤍❤️🖤 for Nothing Community.
+      </p>
       <p>
         <a href="https://nothing.community/d/38047-introducing-matrices-a-handy-utility-to-create-matrix-styled-imagery" target="_blank" rel="noopener noreferrer" className={linkClasses} onClick={() => trackEvent('discussion_visit')}>
-          Feedback & feature requests
+          {isEasterEggHintVisible ? 'Feeling Nothing' : 'Feedback & feature requests'}
         </a>
         <span className="mx-2">|</span>
         <a href="mailto:udaybhaskar2283@gmail.com" className={linkClasses} onClick={() => trackEvent('email_click')}>
@@ -71,15 +80,73 @@ const App: React.FC = () => {
   const pfpPanel = usePfpPanel(commonProps);
   const wallpaperPanel = useWallpaperPanel(commonProps);
   const photoWidgetPanel = usePhotoWidgetPanel(commonProps);
+  const valueAliasingPanel = useValueAliasingPanel({ ...commonProps, easterEggPrimed, setEasterEggPrimed });
   
   const panels = {
     pfp: pfpPanel,
     wallpaper: wallpaperPanel,
     photoWidget: photoWidgetPanel,
+    valueAliasing: valueAliasingPanel,
   };
 
   const activePanel = panels[activeTab];
   const imageSrc = activePanel.imageSrc;
+
+  useEffect(() => {
+    const shouldShowHint =
+      !easterEggPrimed &&
+      !valueAliasingPanel.isEasterEggActive &&
+      activeTab === 'valueAliasing' &&
+      !!valueAliasingPanel.imageSrc;
+
+    if (shouldShowHint !== isEasterEggHintVisible) {
+      setIsEasterEggHintVisible(shouldShowHint);
+    }
+  }, [
+    easterEggPrimed,
+    valueAliasingPanel.isEasterEggActive,
+    activeTab,
+    valueAliasingPanel.imageSrc,
+    isEasterEggHintVisible,
+  ]);
+
+  useEffect(() => {
+    // Stop listening for the easter egg if it's already primed or fully active.
+    if (easterEggPrimed || valueAliasingPanel.isEasterEggActive) return;
+  
+    const targetSequence = 'feelingnothing';
+    const handler = (e: KeyboardEvent) => {
+      // The easter egg can only be unlocked when the code word is typed while an image is present in the value aliasing tab.
+      if (activeTab !== 'valueAliasing' || !valueAliasingPanel.imageSrc) {
+        // If user navigates away or there's no image, reset sequence.
+        if (userInput) setUserInput('');
+        return;
+      }
+
+      // Ignore control keys, function keys, etc.
+      if (e.key.length > 1 || e.metaKey || e.ctrlKey || e.altKey) {
+        if (userInput) setUserInput('');
+        return;
+      }
+  
+      const newSequence = (userInput + e.key.toLowerCase());
+  
+      if (targetSequence.startsWith(newSequence)) {
+        setUserInput(newSequence);
+        if (newSequence === targetSequence) {
+          setEasterEggPrimed(true);
+          setUserInput(''); // Reset after success
+        }
+      } else {
+        // If the sequence is broken, start over with the current key if it's the first in the sequence
+        const currentKey = e.key.toLowerCase();
+        setUserInput(targetSequence.startsWith(currentKey) ? currentKey : '');
+      }
+    };
+  
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [userInput, easterEggPrimed, activeTab, valueAliasingPanel.isEasterEggActive, valueAliasingPanel.imageSrc]);
 
   const handlePfpFileSelect = (file: File) => {
       pfpPanel.handleFileSelect(file, 'click');
@@ -93,12 +160,45 @@ const App: React.FC = () => {
       photoWidgetPanel.handleFileSelect(file, 'click');
       if (photoWidgetFileInputRef.current) photoWidgetFileInputRef.current.value = '';
   };
+  const handleValueAliasingFileSelect = (file: File) => {
+      valueAliasingPanel.handleFileSelect(file, 'click');
+      if (valueAliasingFileInputRef.current) valueAliasingFileInputRef.current.value = '';
+  };
+
+  const mobileTabRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const [mobileIndicatorStyle, setMobileIndicatorStyle] = useState({});
 
   useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    const calculateIndicator = () => {
+        const activeTabEl = mobileTabRefs.current[activeTabIndex];
+        if (activeTabEl) {
+            setMobileIndicatorStyle({
+                width: activeTabEl.offsetWidth,
+                left: activeTabEl.offsetLeft,
+            });
+        }
+    };
+    const handleResize = () => {
+        const mobile = window.innerWidth < 768;
+        setIsMobile(mobile);
+        if (mobile) {
+            calculateIndicator();
+        }
+    };
     window.addEventListener('resize', handleResize);
+    handleResize();
     return () => window.removeEventListener('resize', handleResize);
-  }, []);
+  }, [activeTabIndex]);
+
+  useEffect(() => {
+      if (isMobile) {
+          const activeTabEl = mobileTabRefs.current[activeTabIndex];
+          const timer = setTimeout(() => {
+              activeTabEl?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+          }, 300);
+          return () => clearTimeout(timer);
+      }
+  }, [activeTabIndex, isMobile]);
 
   useEffect(() => {
     const initialTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
@@ -129,28 +229,45 @@ const App: React.FC = () => {
     pfp: <>Create glyph mirror styled profile pictures. <strong className={`font-bold ${theme === 'dark' ? 'text-nothing-light' : 'text-black'}`}>Drag to crop</strong> into desired area.</>,
     wallpaper: <>Create matrix styled wallpapers. <strong className={`font-bold ${theme === 'dark' ? 'text-nothing-light' : 'text-black'}`}>Drag to crop</strong> into desired area.</>,
     photoWidget: "Create matrix styled photo widgets.",
+    valueAliasing: <>Create value-aliased imagery. <strong className={`font-bold ${theme === 'dark' ? 'text-nothing-light' : 'text-black'}`}>Drag to crop</strong> into desired area.</>,
   };
     
   const previewContainerPadding = useMemo(() => {
-    if (activeTab === 'wallpaper' && panels.wallpaper.imageSrc && panels.wallpaper.wallpaperType === 'phone') {
+    if ((activeTab === 'wallpaper' && panels.wallpaper.imageSrc && panels.wallpaper.wallpaperType === 'phone') || (activeTab === 'valueAliasing' && panels.valueAliasing.imageSrc && panels.valueAliasing.valueAliasingType === 'phone')) {
         return isMobile ? 'py-8 px-6' : 'p-6';
     }
     return 'p-4 sm:p-6';
-  }, [activeTab, panels.wallpaper.wallpaperType, panels.wallpaper.imageSrc, isMobile]);
+  }, [activeTab, panels.wallpaper, panels.valueAliasing, isMobile]);
+  
+  const shareButtonClasses = `flex items-center p-2 md:px-3 transition-colors duration-300 rounded-md text-sm font-semibold ${theme === 'dark' ? 'text-nothing-light bg-nothing-gray-dark hover:bg-nothing-gray-light hover:text-nothing-dark' : 'text-day-text bg-day-gray-light hover:bg-day-gray-dark hover:text-day-bg'} ${easterEggPrimed && valueAliasingPanel.imageSrc ? 'easter-egg-glow' : ''}`;
 
   return (
     <>
       <input type="file" ref={pfpFileInputRef} onChange={(e) => e.target.files?.[0] && handlePfpFileSelect(e.target.files[0])} className="hidden" accept="image/*" />
       <input type="file" ref={wallpaperFileInputRef} onChange={(e) => e.target.files?.[0] && handleWallpaperFileSelect(e.target.files[0])} className="hidden" accept="image/*" />
       <input type="file" ref={photoWidgetFileInputRef} onChange={(e) => e.target.files?.[0] && handlePhotoWidgetFileSelect(e.target.files[0])} className="hidden" accept="image/png" />
+      <input type="file" ref={valueAliasingFileInputRef} onChange={(e) => e.target.files?.[0] && handleValueAliasingFileSelect(e.target.files[0])} className="hidden" accept="image/*" />
 
       <div className={`min-h-[100dvh] md:h-screen w-full flex flex-col font-sans ${theme === 'dark' ? 'text-nothing-light bg-nothing-dark' : 'text-day-text bg-day-bg'} select-none`}>
         <header className={`flex-shrink-0 sticky top-0 z-30 flex justify-between items-center p-4 border-b ${theme === 'dark' ? 'bg-nothing-dark border-nothing-gray-dark' : 'bg-day-bg border-gray-300'}`}>
           <h1 className="text-2xl sm:text-3xl font-normal page-title">MATRICES FOR NOTHING COMMUNITY</h1>
           <div className="flex items-center space-x-2">
-            <a href={SHARE_LINK} target="_blank" rel="noopener noreferrer" onClick={() => trackEvent('share_community_header_click')} className={`flex items-center p-2 md:px-3 transition-colors duration-300 rounded-md text-sm font-semibold ${theme === 'dark' ? 'text-nothing-light bg-nothing-gray-dark hover:bg-nothing-gray-light hover:text-nothing-dark' : 'text-day-text bg-day-gray-light hover:bg-day-gray-dark hover:text-day-bg'}`} aria-label="Share to Nothing Community">
-              <span className="hidden md:inline">Share to Community</span>
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-6 w-6 md:ml-2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+            <a href={easterEggPrimed && valueAliasingPanel.imageSrc ? '#' : SHARE_LINK} target="_blank" rel="noopener noreferrer" onClick={(e) => {
+                if (easterEggPrimed && valueAliasingPanel.imageSrc) {
+                  e.preventDefault();
+                  setActiveTab('valueAliasing');
+                  valueAliasingPanel.activateEasterEgg();
+                  setEasterEggPrimed(false);
+                } else {
+                  trackEvent('share_community_header_click');
+                }
+              }} className={shareButtonClasses} aria-label="Share to Nothing Community">
+              {easterEggPrimed && valueAliasingPanel.imageSrc ? 'Click to Unlock' : (
+                  <>
+                      <span className="hidden md:inline">Share to Community</span>
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-6 w-6 md:ml-2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+                  </>
+              )}
             </a>
             <button onClick={handleThemeToggle} className={`p-2 transition-colors duration-300 rounded-md ${theme === 'dark' ? 'text-nothing-light bg-nothing-gray-dark hover:bg-nothing-gray-light hover:text-nothing-dark' : 'text-day-text bg-day-gray-light hover:bg-day-gray-dark hover:text-day-bg'}`} aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}>
               {theme === 'dark' ? (
@@ -164,13 +281,19 @@ const App: React.FC = () => {
 
         <div className="block md:hidden pt-4 sm:pt-6">
           <div className="flex flex-col space-y-4">
-            <div className={`relative flex border-b ${theme === 'dark' ? 'border-nothing-gray-dark' : 'border-gray-300'}`}>
+            <div className={`relative flex overflow-x-auto border-b ${theme === 'dark' ? 'border-nothing-gray-dark' : 'border-gray-300'}`}>
               {TABS.map((tab, i) => (
-                <button key={tab} onClick={() => handleTabChange(tab)} className={`w-1/3 py-3 text-base transition-colors duration-300 focus:outline-none ${activeTab === tab ? (theme === 'dark' ? 'text-nothing-light font-bold' : 'text-day-text font-bold') : (theme === 'dark' ? 'text-nothing-gray-light hover:text-nothing-light font-semibold' : 'text-day-gray-dark hover:text-day-text font-semibold')}`} aria-pressed={activeTab === tab}>
+                <button 
+                  key={tab} 
+                  // FIX: The ref callback should not return a value. Using a block body to ensure a void return.
+                  ref={el => { mobileTabRefs.current[i] = el; }}
+                  onClick={() => handleTabChange(tab)} 
+                  className={`flex-shrink-0 whitespace-nowrap px-6 py-3 text-base transition-colors duration-300 focus:outline-none ${activeTab === tab ? (theme === 'dark' ? 'text-nothing-light font-bold' : 'text-day-text font-bold') : (theme === 'dark' ? 'text-nothing-gray-light hover:text-nothing-light font-semibold' : 'text-day-gray-dark hover:text-day-text font-semibold')}`} 
+                  aria-pressed={activeTab === tab}>
                   {TAB_LABELS[tab]}
                 </button>
               ))}
-              <div className={`absolute bottom-[-1px] h-[1.5px] ${theme === 'dark' ? 'bg-white' : 'bg-black'} transition-all duration-300 ease-in-out`} style={{ width: '33.33%', left: `${activeTabIndex * 33.33}%` }} aria-hidden="true" />
+              <div className={`absolute bottom-[-1px] h-[1.5px] ${theme === 'dark' ? 'bg-white' : 'bg-black'} transition-all duration-300 ease-in-out`} style={mobileIndicatorStyle} aria-hidden="true" />
             </div>
             <p className={`text-center w-full text-sm leading-normal transition-opacity duration-300 px-4 sm:px-6 ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'}`}>{tabDescriptions[activeTab]}</p>
             <hr className={`mt-4 ${theme === 'dark' ? 'border-nothing-gray-dark' : 'border-gray-300'}`} />
@@ -193,11 +316,11 @@ const App: React.FC = () => {
               <div className="flex flex-col space-y-4">
                 <div className="relative flex border-b dark:border-nothing-gray-dark border-gray-300">
                   {TABS.map((tab, i) => (
-                    <button key={tab} onClick={() => handleTabChange(tab)} className={`w-1/3 py-3 text-lg transition-colors duration-300 focus:outline-none ${activeTab === tab ? (theme === 'dark' ? 'text-nothing-light font-extrabold' : 'text-day-text font-extrabold') : (theme === 'dark' ? 'text-nothing-gray-light hover:text-nothing-light font-semibold' : 'text-day-gray-dark hover:text-day-text font-semibold')}`} aria-pressed={activeTab === tab}>
+                    <button key={tab} onClick={() => handleTabChange(tab)} className={`w-1/4 py-3 text-lg transition-colors duration-300 focus:outline-none ${activeTab === tab ? (theme === 'dark' ? 'text-nothing-light font-extrabold' : 'text-day-text font-extrabold') : (theme === 'dark' ? 'text-nothing-gray-light hover:text-nothing-light font-semibold' : 'text-day-gray-dark hover:text-day-text font-semibold')}`} aria-pressed={activeTab === tab}>
                       {TAB_LABELS[tab]}
                     </button>
                   ))}
-                  <div className={`absolute bottom-[-1px] h-1 ${theme === 'dark' ? 'bg-white' : 'bg-black'} transition-all duration-300 ease-in-out`} style={{ width: '33.33%', left: `${activeTabIndex * 33.33}%` }} aria-hidden="true" />
+                  <div className={`absolute bottom-[-1px] h-1 ${theme === 'dark' ? 'bg-white' : 'bg-black'} transition-all duration-300 ease-in-out`} style={{ width: '25%', left: `${activeTabIndex * 25}%` }} aria-hidden="true" />
                 </div>
                 <p className={`text-center w-full text-sm leading-normal transition-opacity duration-300 ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'}`}>{tabDescriptions[activeTab]}</p>
                 <hr className={`mt-2 ${theme === 'dark' ? 'border-nothing-gray-dark' : 'border-gray-300'}`} />
@@ -247,6 +370,7 @@ const App: React.FC = () => {
                     if (activeTab === 'pfp') pfpFileInputRef.current?.click();
                     if (activeTab === 'wallpaper') wallpaperFileInputRef.current?.click();
                     if (activeTab === 'photoWidget') photoWidgetFileInputRef.current?.click();
+                    if (activeTab === 'valueAliasing') valueAliasingFileInputRef.current?.click();
                   }} disabled={activePanel.isLoading} className={`w-full h-full p-4 text-center text-lg font-bold transition-all duration-300 disabled:opacity-50 ${theme === 'dark' ? 'bg-nothing-dark text-nothing-light hover:bg-nothing-gray-dark' : 'bg-day-bg text-day-text hover:bg-day-gray-light'}`}>Replace Image</button>
                 </div>
                 <div className="w-1/2">

@@ -42,12 +42,18 @@ export const useHistory = <T,>(initialState: T) => {
         setIndex(newHistory.length - 1);
     }, [initialState, history, index]);
 
+    const resetHistory = useCallback((newState: T) => {
+        setHistory([newState]);
+        setIndex(0);
+    }, []);
+
     return {
         state: history[index],
         setState,
         undo,
         redo,
         reset,
+        resetHistory,
         canUndo: index > 0,
         canRedo: index < history.length - 1,
     };

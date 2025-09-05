@@ -84,8 +84,6 @@ export const useWallpaperPanel = ({
   const liveWallpaperState = liveWallpaperSettings[wallpaperType];
   const { resolution, pixelGap, background, cropOffsetX, cropOffsetY, isMonochrome } = liveWallpaperState;
   
-  const resolutionLabelPrefix = wallpaperType === 'phone' ? <><span className="mr-1">◉</span> </> : undefined;
-
   useEffect(() => {
     const handleFullScreenChange = () => {
         if (!document.fullscreenElement) {
@@ -375,7 +373,6 @@ export const useWallpaperPanel = ({
             theme={theme}
             isMobile={isMobile}
             label="Resolution" 
-            labelPrefix={resolutionLabelPrefix}
             value={resolution} 
             onChange={v => setLiveWallpaperSettings(s => ({ ...s, [wallpaperType]: { ...s[wallpaperType], resolution: v } }))} 
             onChangeCommitted={v => { setWallpaperSettings(s => ({ ...s, [wallpaperType]: { ...s[wallpaperType], resolution: v } })); trackEvent('wallpaper_slider_change', { slider_name: 'resolution', value: v, wallpaper_type: wallpaperType }); }}
@@ -509,7 +506,6 @@ export const useWallpaperPanel = ({
                                     theme={theme}
                                     isMobile={isMobile}
                                     label="Resolution" 
-                                    labelPrefix={resolutionLabelPrefix}
                                     value={resolution} 
                                     onChange={v => setLiveWallpaperSettings(s => ({ ...s, [wallpaperType]: { ...s[wallpaperType], resolution: v } }))} 
                                     onChangeCommitted={v => { setWallpaperSettings(s => ({ ...s, [wallpaperType]: { ...s[wallpaperType], resolution: v } })); trackEvent('wallpaper_slider_change', { slider_name: 'resolution', value: v, wallpaper_type: wallpaperType }); }}

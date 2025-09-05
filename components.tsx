@@ -73,6 +73,10 @@ export const Dropzone: React.FC<{ onFileSelect: (file: File, method: 'drag_drop'
             bold: "Drag & Drop or Click",
             normal: "to load a PNG image",
         },
+        valueAliasing: {
+            bold: "Drag & Drop or Click",
+            normal: "to load an image",
+        },
     };
 
     const currentTexts = context && dropTexts[context] 
