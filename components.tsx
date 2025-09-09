@@ -404,7 +404,7 @@ export const ToastNotification: React.FC<{
   );
 };
 
-export const SharePopup: React.FC<{ show: boolean; onClose: () => void; theme: Theme; communityLink: string; appUrl: string; }> = ({ show, onClose, theme, communityLink, appUrl }) => {
+export const SharePopup: React.FC<{ show: boolean; onClose: () => void; theme: Theme; communityLink: string; appUrl: string; variant: 'default' | 'special'; }> = ({ show, onClose, theme, communityLink, appUrl, variant = 'default' }) => {
     const [copyText, setCopyText] = useState('Copy');
 
     useEffect(() => {
@@ -423,27 +423,39 @@ export const SharePopup: React.FC<{ show: boolean; onClose: () => void; theme: T
         };
     }, [show, onClose]);
 
+    const isSpecial = variant === 'special';
+
+    // Texts for sharing
+    const defaultText = `Create your own Nothing style dot-matrix imagery with Matrices: ${appUrl}`;
+    const defaultTextWithHashtags = `${defaultText}\n\n#Matrices #NothingCommunity`;
+
+    const specialCopyText = "Have you unlocked the secret theme in Matrices Value Aliasing yet? 🗝️ On desktop, use 'feelingnothing' code word. On mobile, hold the celestial body until you are blessed! https://udaign.github.io/matrices/";
+    const specialXText = "#FeelingNothing\n\n😉🗝️ Have you unlocked the secret theme in Value Aliasing yet? On desktop, use 'feelingnothing' code word. On mobile, hold the celestial body until you are blessed!\n\nhttps://udaign.github.io/matrices/";
+    const specialRedditTitle = "Unlocked the secret theme in Matrices Value Aliasing! 🗝️";
+    const specialRedditContent = "On desktop, use 'feelingnothing' code word. On mobile, hold the celestial body until you are blessed! https://udaign.github.io/matrices/";
+    const specialWhatsAppText = "🗝️ Have you unlocked the secret theme in Matrices Value Aliasing yet? On desktop, use 'feelingnothing' code word. On mobile, hold the celestial body until you are blessed! https://udaign.github.io/matrices/";
+    const specialEmailSubject = "Secret theme in Matrices value Aliasing! 🗝️";
+    const specialEmailBody = "On desktop, use 'feelingnothing' code word. On mobile, hold the celestial body until you are blessed! https://udaign.github.io/matrices/";
+    const specialFacebookText = "This community-made tool is just awesome! Have you unlocked the secret theme in Matrices Value Aliasing yet? On desktop, use 'feelingnothing' code word. On mobile, hold the celestial body until you are blessed! #FeelingNothing https://udaign.github.io/matrices/";
+    
+    const textToCopy = isSpecial ? specialCopyText : appUrl;
+    const encodedUrl = encodeURIComponent(appUrl);
+
     const handleCopy = () => {
-        navigator.clipboard.writeText(appUrl);
-        trackEvent('share_popup_copy_link');
+        navigator.clipboard.writeText(textToCopy);
+        trackEvent('share_popup_copy_link', { variant });
         setCopyText('Copied!');
         setTimeout(() => setCopyText('Copy'), 2000);
     };
 
-    const text = `Create your own Nothing style dot-matrix imagery with Matrices: ${appUrl}`;
-    const textWithHashtags = `${text} #Matrices #NothingCommunity`;
-    const encodedUrl = encodeURIComponent(appUrl);
-    const encodedText = encodeURIComponent(text);
-    const encodedTextWithHashtags = encodeURIComponent(textWithHashtags);
-
     const socials = [
         { name: 'Nothing Community', icon: 'nothing', href: communityLink, color: '#2a2b7b' },
-        { name: 'X', icon: 'x', href: `https://twitter.com/intent/tweet?text=${encodedTextWithHashtags}`, color: '#000000' },
-        { name: 'Reddit', icon: 'reddit', href: `https://www.reddit.com/submit?title=${encodeURIComponent('Just created this with Matrices!')}&url=${encodedUrl}`, color: '#FF4500' },
-        { name: 'WhatsApp', icon: 'whatsapp', href: `https://api.whatsapp.com/send?text=${encodedText}`, color: '#25D366' },
-        { name: 'Email', icon: 'email', href: `mailto:?subject=${encodeURIComponent('Just created this with Matrices!')}&body=${encodedText}`, color: '#4285F4' },
+        { name: 'X', icon: 'x', href: `https://twitter.com/intent/tweet?text=${isSpecial ? encodeURIComponent(specialXText) : encodeURIComponent(defaultTextWithHashtags)}`, color: '#000000' },
+        { name: 'Reddit', icon: 'reddit', href: isSpecial ? `https://www.reddit.com/submit?title=${encodeURIComponent(specialRedditTitle)}&url=${encodedUrl}&text=${encodeURIComponent(specialRedditContent)}` : `https://www.reddit.com/submit?title=${encodeURIComponent('Just created this with Matrices!')}&url=${encodedUrl}`, color: '#FF4500' },
+        { name: 'WhatsApp', icon: 'whatsapp', href: `https://api.whatsapp.com/send?text=${isSpecial ? encodeURIComponent(specialWhatsAppText) : encodeURIComponent(defaultText)}`, color: '#25D366' },
+        { name: 'Email', icon: 'email', href: isSpecial ? `mailto:?subject=${encodeURIComponent(specialEmailSubject)}&body=${encodeURIComponent(specialEmailBody)}` : `mailto:?subject=${encodeURIComponent('Just created this with Matrices!')}&body=${encodeURIComponent(defaultText)}`, color: '#4285F4' },
         { name: 'LinkedIn', icon: 'linkedin', href: `https://www.linkedin.com/sharing/share-offsite/?url=${encodedUrl}`, color: '#0A66C2' },
-        { name: 'Facebook', icon: 'facebook', href: `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`, color: '#1877F2' },
+        { name: 'Facebook', icon: 'facebook', href: isSpecial ? `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}&quote=${encodeURIComponent(specialFacebookText)}` : `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`, color: '#1877F2' },
     ];
     
     const icons: Record<string, React.ReactNode> = {
@@ -524,7 +536,7 @@ export const SharePopup: React.FC<{ show: boolean; onClose: () => void; theme: T
                             href={social.href} 
                             target="_blank" 
                             rel="noopener noreferrer" 
-                            onClick={() => trackEvent('share_popup_click', { platform: social.name })}
+                            onClick={() => trackEvent('share_popup_click', { platform: social.name, variant })}
                             className="flex flex-col items-center space-y-2 text-center group"
                         >
                             <div 
@@ -544,12 +556,12 @@ export const SharePopup: React.FC<{ show: boolean; onClose: () => void; theme: T
                     <input 
                         type="text" 
                         readOnly 
-                        value={appUrl} 
+                        value={textToCopy} 
                         className={`w-full p-2 bg-transparent text-base truncate focus:outline-none ${theme === 'dark' ? 'text-nothing-light' : 'text-day-text'}`} 
                     />
                     <button 
                         onClick={handleCopy}
-                        className={`flex-shrink-0 flex items-center justify-center w-24 space-x-2 px-3 py-2 text-sm font-semibold rounded-r-md transition-all duration-300 ${copyText === 'Copied!' ? 'bg-green-600' : (theme === 'dark' ? 'bg-nothing-red hover:brightness-90' : 'bg-day-accent hover:brightness-90')} ${theme === 'dark' ? 'text-nothing-light' : 'text-white'}`}
+                        className={`flex-shrink-0 flex items-center justify-center w-24 space-x-2 px-3 py-2 text-sm font-semibold rounded-r-md transition-all duration-300 ${copyText === 'Copied!' ? 'bg-white text-nothing-dark' : (theme === 'dark' ? 'bg-nothing-red hover:brightness-90 text-nothing-light' : 'bg-day-accent hover:brightness-90 text-white')}`}
                     >
                         {copyText === 'Copy' && <span className="w-5 h-5">{icons.copy}</span>}
                         <span>{copyText}</span>

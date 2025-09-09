@@ -32,14 +32,15 @@ const App: React.FC = () => {
   const [isEasterEggPermanentlyUnlocked, setIsEasterEggPermanentlyUnlocked] = useState(false);
   const [isEasterEggHintVisible, setIsEasterEggHintVisible] = useState(false);
   const [showSharePopup, setShowSharePopup] = useState(false);
+  const [shareVariant, setShareVariant] = useState<'default' | 'special'>('default');
   const activeTabIndex = TABS.indexOf(activeTab);
   const longPressTimer = useRef<number | null>(null);
   const longPressActivated = useRef(false);
 
   // Special theme toast state
-  const [unlockedSpecialThemeInSession, setUnlockedSpecialThemeInSession] = useState(false);
   const [hasDownloadedSpecialTheme, setHasDownloadedSpecialTheme] = useState(false);
   const [showSpecialShareToast, setShowSpecialShareToast] = useState(false);
+  const [justUnlockedSpecialTheme, setJustUnlockedSpecialTheme] = useState(false);
 
   const pfpFileInputRef = useRef<HTMLInputElement>(null);
   const wallpaperFileInputRef = useRef<HTMLInputElement>(null);
@@ -48,9 +49,65 @@ const App: React.FC = () => {
 
   const linkClasses = theme === 'dark' ? 'font-medium text-nothing-light hover:text-white underline' : 'font-medium text-day-text hover:text-black underline';
   
+  const handleShare = async (variant: 'default' | 'special' = 'default') => {
+    trackEvent('share_initiated', { variant, source: imageSrc ? 'with_image' : 'no_image' });
+
+    const blob = imageSrc && activePanel.getCanvasBlob ? await activePanel.getCanvasBlob() : null;
+
+    // --- Web Share API with Image ---
+    if (navigator.share && blob) {
+      try {
+        const file = new File([blob], 'matrices-creation.png', { type: 'image/png' });
+        const text = variant === 'special'
+          ? "Have you unlocked the secret theme in Matrices Value Aliasing yet? 🗝️ On desktop, use 'feelingnothing' code word. On mobile, hold the celestial body until you are blessed! https://udaign.github.io/matrices/"
+          : `Created with Matrices. Link: ${APP_URL}`;
+        
+        const shareData = {
+          files: [file],
+          title: 'Matrices for Nothing Community',
+          text,
+          url: APP_URL,
+        };
+        if (navigator.canShare && navigator.canShare(shareData)) {
+          await navigator.share(shareData);
+          trackEvent('share_success_webshare_api', { method: 'image', variant });
+          return;
+        }
+      } catch (error) {
+        console.warn('Web Share API with image failed, falling back.', error);
+        trackEvent('share_error_webshare_api', { method: 'image', error: (error as Error).message, variant });
+      }
+    }
+
+    // --- Web Share API Text-Only Fallback ---
+    if (navigator.share) {
+      try {
+        const text = variant === 'special'
+            ? "Have you unlocked the secret theme in Matrices Value Aliasing yet? 🗝️ On desktop, use 'feelingnothing' code word. On mobile, hold the celestial body until you are blessed! https://udaign.github.io/matrices/"
+            : `Create your own Nothing style dot-matrix imagery with Matrices: ${APP_URL}`;
+
+        await navigator.share({
+          title: 'Matrices for Nothing Community',
+          text,
+          url: APP_URL,
+        });
+        trackEvent('share_success_webshare_api', { method: 'text', variant });
+        return;
+      } catch (error) {
+        console.warn('Web Share API text-only failed, falling back to popup.', error);
+        trackEvent('share_error_webshare_api', { method: 'text', error: (error as Error).message, variant });
+      }
+    }
+    
+    // --- Custom Popup Fallback ---
+    setShareVariant(variant);
+    setShowSharePopup(true);
+    trackEvent('share_popup_opened', { variant });
+  };
+  
   const triggerShareToast = useCallback((showSpecificToast?: () => void, isSpecial: boolean = false) => {
-    // Special toast logic
-    if (isSpecial && unlockedSpecialThemeInSession && !hasDownloadedSpecialTheme) {
+    // Special toast logic: show only on the session where the theme was first unlocked.
+    if (isSpecial && justUnlockedSpecialTheme && !hasDownloadedSpecialTheme) {
         setShowSpecialShareToast(true);
         setHasDownloadedSpecialTheme(true);
         // If this would have been the trigger for the normal toast, mark it as "shown" to prevent it appearing later.
@@ -74,7 +131,7 @@ const App: React.FC = () => {
       }
       setHasShownShareToastInSession(true);
     }
-  }, [downloadCount, hasShownShareToastInSession, unlockedSpecialThemeInSession, hasDownloadedSpecialTheme]);
+  }, [downloadCount, hasShownShareToastInSession, justUnlockedSpecialTheme, hasDownloadedSpecialTheme]);
 
   const markEasterEggAsUnlocked = useCallback(() => {
     try {
@@ -134,7 +191,19 @@ const App: React.FC = () => {
     </div>
   );
   
-  const commonProps = { theme, isMobile, footerLinks, triggerShareToast };
+  const commonProps = { 
+    theme, 
+    isMobile, 
+    footerLinks, 
+    triggerShareToast, 
+    handleShare,
+    showSharePopup,
+    setShowSharePopup,
+    communityLink: NOTHING_COMMUNITY_SHARE_LINK,
+    appUrl: APP_URL,
+    shareVariant,
+  };
+  
   const pfpPanel = usePfpPanel(commonProps);
   const wallpaperPanel = useWallpaperPanel(commonProps);
   const photoWidgetPanel = usePhotoWidgetPanel(commonProps);
@@ -144,7 +213,7 @@ const App: React.FC = () => {
     setEasterEggPrimed, 
     isEasterEggPermanentlyUnlocked, 
     markEasterEggAsUnlocked,
-    setUnlockedSpecialThemeInSession,
+    setJustUnlockedSpecialTheme,
   });
   
   const panels = {
@@ -157,53 +226,6 @@ const App: React.FC = () => {
   const activePanel = panels[activeTab];
   const imageSrc = activePanel.imageSrc;
   
-  const handleShare = async (variant: 'default' | 'special' = 'default') => {
-    trackEvent('share_initiated', { variant, source: imageSrc ? 'with_image' : 'no_image' });
-
-    const blob = imageSrc && activePanel.getCanvasBlob ? await activePanel.getCanvasBlob() : null;
-
-    // --- Web Share API with Image ---
-    if (navigator.share && blob) {
-      try {
-        const file = new File([blob], 'matrices-creation.png', { type: 'image/png' });
-        const shareData = {
-          files: [file],
-          title: 'Matrices for Nothing Community',
-          text: `Created with Matrices. Link: ${APP_URL}`,
-          url: APP_URL,
-        };
-        if (navigator.canShare && navigator.canShare(shareData)) {
-          await navigator.share(shareData);
-          trackEvent('share_success_webshare_api', { method: 'image' });
-          return;
-        }
-      } catch (error) {
-        console.warn('Web Share API with image failed, falling back.', error);
-        trackEvent('share_error_webshare_api', { method: 'image', error: (error as Error).message });
-      }
-    }
-
-    // --- Web Share API Text-Only Fallback ---
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title: 'Matrices for Nothing Community',
-          text: `Create your own Nothing style dot-matrix imagery with Matrices: ${APP_URL}`,
-          url: APP_URL,
-        });
-        trackEvent('share_success_webshare_api', { method: 'text' });
-        return;
-      } catch (error) {
-        console.warn('Web Share API text-only failed, falling back to popup.', error);
-        trackEvent('share_error_webshare_api', { method: 'text', error: (error as Error).message });
-      }
-    }
-    
-    // --- Custom Popup Fallback ---
-    setShowSharePopup(true);
-    trackEvent('share_popup_opened');
-  };
-
   useEffect(() => {
     const shouldShowHint =
       !easterEggPrimed &&
@@ -379,10 +401,10 @@ const App: React.FC = () => {
                   setEasterEggPrimed(false);
                   trackEvent('easter_egg_unlocked');
                 } else {
-                  trackEvent('share_community_header_click');
-                  handleShare();
+                  trackEvent('community_thread_header_click');
+                  window.open(NOTHING_COMMUNITY_SHARE_LINK, '_blank', 'noopener,noreferrer');
                 }
-              }} className={shareButtonClasses} aria-label={easterEggPrimed ? "Unlock Secret Theme" : "Share"}>
+              }} className={shareButtonClasses} aria-label={easterEggPrimed ? "Unlock Secret Theme" : "Visit Community Thread"}>
               {easterEggPrimed ? (
                   <>
                       <span className="hidden md:inline">Unlock Secret</span>
@@ -393,7 +415,7 @@ const App: React.FC = () => {
                   </>
               ) : (
                   <>
-                      <span className="hidden md:inline">Share</span>
+                      <span className="hidden md:inline">Community Thread</span>
                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-6 w-6 md:ml-2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
                   </>
               )}
@@ -561,6 +583,7 @@ const App: React.FC = () => {
             theme={theme}
             communityLink={NOTHING_COMMUNITY_SHARE_LINK}
             appUrl={APP_URL}
+            variant={shareVariant}
         />
       </div>
     </>

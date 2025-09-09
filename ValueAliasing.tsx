@@ -4,7 +4,7 @@ import { createPortal, flushSync } from 'react-dom';
 import { useHistory, useImageHandler } from './hooks';
 import { getTimestamp } from './utils';
 import { ValueAliasingState, WallpaperBgKey, WALLPAPER_BG_OPTIONS, Theme, ValueAliasingSettingsContainer, PrintState } from './types';
-import { Dropzone, EnhancedSlider, UndoRedoControls, SegmentedControl, ToastNotification, ToggleSwitch } from './components';
+import { Dropzone, EnhancedSlider, UndoRedoControls, SegmentedControl, ToastNotification, ToggleSwitch, SharePopup } from './components';
 import { trackEvent } from './analytics';
 
 const DEFAULT_SLIDER_VALUE = 50;
@@ -159,21 +159,33 @@ export const useValueAliasingPanel = ({
   isMobile,
   footerLinks,
   triggerShareToast,
+  handleShare,
   easterEggPrimed,
   setEasterEggPrimed,
   isEasterEggPermanentlyUnlocked,
   markEasterEggAsUnlocked,
-  setUnlockedSpecialThemeInSession,
+  setJustUnlockedSpecialTheme,
+  showSharePopup,
+  setShowSharePopup,
+  communityLink,
+  appUrl,
+  shareVariant,
 }: {
   theme: Theme;
   isMobile: boolean;
   footerLinks: React.ReactNode;
   triggerShareToast: (showSpecificToast?: () => void, isSpecial?: boolean) => void;
+  handleShare: (variant?: 'default' | 'special') => Promise<void>;
   easterEggPrimed: boolean;
   setEasterEggPrimed: React.Dispatch<React.SetStateAction<boolean>>;
   isEasterEggPermanentlyUnlocked: boolean;
   markEasterEggAsUnlocked: () => void;
-  setUnlockedSpecialThemeInSession: React.Dispatch<React.SetStateAction<boolean>>;
+  setJustUnlockedSpecialTheme: React.Dispatch<React.SetStateAction<boolean>>;
+  showSharePopup: boolean;
+  setShowSharePopup: React.Dispatch<React.SetStateAction<boolean>>;
+  communityLink: string;
+  appUrl: string;
+  shareVariant: 'default' | 'special';
 }) => {
   const { 
     state: valueAliasingSettings, 
@@ -262,9 +274,9 @@ export const useValueAliasingPanel = ({
           if (!isEasterEggActive) {
               trackEvent('easter_egg_activated', { feature: 'value_aliasing' });
               setIsEasterEggActive(true);
-              setUnlockedSpecialThemeInSession(true);
               if (!isEasterEggPermanentlyUnlocked) {
                   markEasterEggAsUnlocked();
+                  setJustUnlockedSpecialTheme(true);
               }
           }
       } else {
@@ -283,7 +295,7 @@ export const useValueAliasingPanel = ({
               return { ...s, print: updatedState as PrintState };
           });
       }
-  }, [isEasterEggActive, isEasterEggPermanentlyUnlocked, markEasterEggAsUnlocked, setValueAliasingSettings, valueAliasingType, outputType, setUnlockedSpecialThemeInSession]);
+  }, [isEasterEggActive, isEasterEggPermanentlyUnlocked, markEasterEggAsUnlocked, setValueAliasingSettings, valueAliasingType, outputType, setJustUnlockedSpecialTheme]);
   
   const activateEasterEgg = useCallback(() => {
       handleThemeChange('community');
@@ -876,15 +888,26 @@ export const useValueAliasingPanel = ({
                     backgroundColor: (isTransparent && !isEasterEggActive && theme === 'dark') ? '#14151f' : (isTransparent && !isEasterEggActive && theme === 'light') ? '#efefef' : 'transparent',
                 }}
             />
-            <button
-                onClick={enterFullScreen}
-                className={`absolute bottom-3 right-3 z-10 p-2 rounded-md transition-colors duration-300 ${theme === 'dark' ? 'text-nothing-light bg-nothing-gray-dark hover:bg-nothing-gray-light hover:text-nothing-dark' : 'text-day-text bg-day-gray-light hover:bg-day-gray-dark hover:text-day-bg'}`}
-                aria-label="Enter full-screen preview"
-            >
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
-                  <path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/>
-                </svg>
-            </button>
+            <div className="absolute bottom-3 right-3 z-10 flex items-center space-x-2">
+                <button
+                    onClick={() => handleShare(isEasterEggActive ? 'special' : 'default')}
+                    className={`p-2 rounded-md transition-colors duration-300 ${theme === 'dark' ? 'text-nothing-light bg-nothing-gray-dark hover:bg-nothing-gray-light hover:text-nothing-dark' : 'text-day-text bg-day-gray-light hover:bg-day-gray-dark hover:text-day-bg'}`}
+                    aria-label="Share this creation"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
+                        <path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 8.81C7.5 8.31 6.79 8 6 8c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.66 1.34 3 3 3s3-1.34 3-3-1.34-3-3-3z"/>
+                    </svg>
+                </button>
+                <button
+                    onClick={enterFullScreen}
+                    className={`p-2 rounded-md transition-colors duration-300 ${theme === 'dark' ? 'text-nothing-light bg-nothing-gray-dark hover:bg-nothing-gray-light hover:text-nothing-dark' : 'text-day-text bg-day-gray-light hover:bg-day-gray-dark hover:text-day-bg'}`}
+                    aria-label="Enter full-screen preview"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
+                      <path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/>
+                    </svg>
+                </button>
+            </div>
         </div>
         {isFullScreenPreview && createPortal(
             <div
@@ -1048,15 +1071,26 @@ export const useValueAliasingPanel = ({
                   </div>
                 )}
 
-                <button
-                    onClick={exitFullScreen}
-                    className={`fixed bottom-8 right-8 z-50 p-2 rounded-md transition-colors duration-300 ${theme === 'dark' ? 'text-nothing-light bg-nothing-gray-dark hover:bg-nothing-gray-light hover:text-nothing-dark' : 'text-day-text bg-day-gray-light hover:bg-day-gray-dark hover:text-day-bg'}`}
-                    aria-label="Exit full-screen preview"
-                >
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
-                      <path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"/>
-                    </svg>
-                </button>
+                <div className="fixed bottom-8 right-8 z-50 flex items-center space-x-2">
+                     <button
+                        onClick={() => handleShare(isEasterEggActive ? 'special' : 'default')}
+                        className={`p-2 rounded-md transition-colors duration-300 ${theme === 'dark' ? 'text-nothing-light bg-nothing-gray-dark hover:bg-nothing-gray-light hover:text-nothing-dark' : 'text-day-text bg-day-gray-light hover:bg-day-gray-dark hover:text-day-bg'}`}
+                        aria-label="Share this creation"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
+                            <path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 8.81C7.5 8.31 6.79 8 6 8c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.66 1.34 3 3 3s3-1.34 3-3-1.34-3-3-3z"/>
+                        </svg>
+                    </button>
+                    <button
+                        onClick={exitFullScreen}
+                        className={`p-2 rounded-md transition-colors duration-300 ${theme === 'dark' ? 'text-nothing-light bg-nothing-gray-dark hover:bg-nothing-gray-light hover:text-nothing-dark' : 'text-day-text bg-day-gray-light hover:bg-day-gray-dark hover:text-day-bg'}`}
+                        aria-label="Exit full-screen preview"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
+                          <path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"/>
+                        </svg>
+                    </button>
+                </div>
                 <ToastNotification
                   show={showFsToast}
                   onClose={() => setShowFsToast(false)}
@@ -1065,6 +1099,14 @@ export const useValueAliasingPanel = ({
                   isMobile={false}
                   imageRendered={!!imageSrc}
                   className="z-[60] !bottom-24"
+                />
+                <SharePopup 
+                    show={showSharePopup}
+                    onClose={() => setShowSharePopup(false)}
+                    theme={theme}
+                    communityLink={communityLink}
+                    appUrl={appUrl}
+                    variant={shareVariant}
                 />
             </div>,
             document.body

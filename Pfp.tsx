@@ -105,7 +105,7 @@ const drawPfpMatrix = (ctx: CanvasRenderingContext2D, options: {
     });
 };
 
-export const usePfpPanel = ({ theme, isMobile, footerLinks, triggerShareToast }: { theme: Theme, isMobile: boolean, footerLinks: React.ReactNode, triggerShareToast: (showSpecificToast?: () => void) => void }) => {
+export const usePfpPanel = ({ theme, isMobile, footerLinks, triggerShareToast, handleShare }: { theme: Theme, isMobile: boolean, footerLinks: React.ReactNode, triggerShareToast: (showSpecificToast?: () => void) => void, handleShare: (variant?: 'default' | 'special') => Promise<void> }) => {
   const { state: pfpState, setState: setPfpState, undo: undoPfp, redo: redoPfp, reset: resetPfp, canUndo: canUndoPfp, canRedo: canRedoPfp } = useHistory(PFP_INITIAL_STATE);
   const [livePfpState, setLivePfpState] = useState(pfpState);
   
@@ -553,31 +553,42 @@ export const usePfpPanel = ({ theme, isMobile, footerLinks, triggerShareToast }:
   const previewPanel = !imageSrc ? (
     <Dropzone onFileSelect={handleFileSelect} isLoading={isLoading} theme={theme} context="pfp" />
   ) : (
-    <div className="w-full max-w-md mx-auto">
-      <header className="text-center mb-4">
-        <p className={`${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'} text-sm md:text-base`}>
-          Diameter: <span className={`font-semibold ${theme === 'dark' ? 'text-nothing-light' : 'text-day-text'}`}>{diameter}px</span> | Pixels: <span className={`font-semibold ${theme === 'dark' ? 'text-nothing-light' : 'text-day-text'}`}>{activePixelCount}</span>
-        </p>
-      </header>
-      <div className="relative">
-        <canvas
-          ref={canvasRef}
-          width={CANVAS_SIZE}
-          height={CANVAS_SIZE}
-          className="w-full h-auto rounded-lg"
-          aria-label="Pixel Matrix Canvas"
-          onMouseDown={handlePfpDragStart}
-          onTouchStart={handlePfpDragStart}
-          style={{
-              cursor: pfpCropIsNeeded ? 'grab' : 'default',
-              touchAction: pfpCropIsNeeded ? 'none' : 'auto'
-          }}
-        />
-      </div>
-      <div className="flex flex-col items-center my-6">
-          <p className={`text-sm ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'} mb-2 text-center`}>Profile Picture Preview</p>
-          <canvas ref={previewCanvasRef} width={75} height={75} className={`rounded-full`} aria-label="Profile Picture Preview" />
-      </div>
+    <div className="relative w-full h-full flex flex-col items-center justify-center">
+        <div className="w-full max-w-md">
+            <header className="text-center mb-4">
+                <p className={`${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'} text-sm md:text-base`}>
+                Diameter: <span className={`font-semibold ${theme === 'dark' ? 'text-nothing-light' : 'text-day-text'}`}>{diameter}px</span> | Pixels: <span className={`font-semibold ${theme === 'dark' ? 'text-nothing-light' : 'text-day-text'}`}>{activePixelCount}</span>
+                </p>
+            </header>
+            <div>
+                <canvas
+                ref={canvasRef}
+                width={CANVAS_SIZE}
+                height={CANVAS_SIZE}
+                className="w-full h-auto rounded-lg"
+                aria-label="Pixel Matrix Canvas"
+                onMouseDown={handlePfpDragStart}
+                onTouchStart={handlePfpDragStart}
+                style={{
+                    cursor: pfpCropIsNeeded ? 'grab' : 'default',
+                    touchAction: pfpCropIsNeeded ? 'none' : 'auto'
+                }}
+                />
+            </div>
+            <div className="flex flex-col items-center my-6">
+                <p className={`text-sm ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'} mb-2 text-center`}>Profile Picture Preview</p>
+                <canvas ref={previewCanvasRef} width={75} height={75} className={`rounded-full`} aria-label="Profile Picture Preview" />
+            </div>
+        </div>
+        <button
+            onClick={() => handleShare()}
+            className={`absolute bottom-3 right-3 z-10 p-2 rounded-md transition-colors duration-300 ${theme === 'dark' ? 'text-nothing-light bg-nothing-gray-dark hover:bg-nothing-gray-light hover:text-nothing-dark' : 'text-day-text bg-day-gray-light hover:bg-day-gray-dark hover:text-day-bg'}`}
+            aria-label="Share this creation"
+        >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
+                <path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 8.81C7.5 8.31 6.79 8 6 8c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.66 1.34 3 3 3s3-1.34 3-3-1.34-3-3-3z"/>
+            </svg>
+        </button>
     </div>
   );
 

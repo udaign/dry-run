@@ -109,7 +109,7 @@ const drawPhotoWidgetMatrix = (ctx: CanvasRenderingContext2D, options: {
     }
 };
 
-export const usePhotoWidgetPanel = ({ theme, isMobile, footerLinks, triggerShareToast }: { theme: Theme, isMobile: boolean, footerLinks: React.ReactNode, triggerShareToast: (showSpecificToast?: () => void) => void }) => {
+export const usePhotoWidgetPanel = ({ theme, isMobile, footerLinks, triggerShareToast, handleShare }: { theme: Theme, isMobile: boolean, footerLinks: React.ReactNode, triggerShareToast: (showSpecificToast?: () => void) => void, handleShare: (variant?: 'default' | 'special') => Promise<void> }) => {
   const { state: photoWidgetSettings, setState: setPhotoWidgetSettings, undo: undoPhotoWidget, redo: redoPhotoWidget, reset: resetPhotoWidget, canUndo: canUndoPhotoWidget, canRedo: canRedoPhotoWidget } = useHistory(PHOTO_WIDGET_MODES_INITIAL_STATE);
   const [livePhotoWidgetSettings, setLivePhotoWidgetSettings] = useState(photoWidgetSettings);
   const [outputMode, setOutputMode] = useState<PhotoWidgetOutputMode>('transparent');
@@ -357,15 +357,26 @@ export const usePhotoWidgetPanel = ({ theme, isMobile, footerLinks, triggerShare
   const previewPanel = !imageSrc ? (
     <Dropzone onFileSelect={handleFileSelect} isLoading={isLoading} theme={theme} accept="image/png" context="photoWidget" />
   ) : (
-    <div className="w-full max-w-2xl mx-auto flex items-center justify-center">
-        <canvas
-            ref={canvasRef}
-            width={canvasWidth}
-            height={canvasHeight}
-            className="max-w-full max-h-full h-auto w-auto rounded-lg"
-            aria-label="Photo Widget Matrix Canvas"
-            style={{aspectRatio: `${canvasWidth} / ${canvasHeight}`}}
-        />
+    <div className="relative w-full h-full flex items-center justify-center">
+        <div className="w-full max-w-2xl">
+            <canvas
+                ref={canvasRef}
+                width={canvasWidth}
+                height={canvasHeight}
+                className="max-w-full max-h-full h-auto w-auto rounded-lg"
+                aria-label="Photo Widget Matrix Canvas"
+                style={{aspectRatio: `${canvasWidth} / ${canvasHeight}`}}
+            />
+        </div>
+        <button
+            onClick={() => handleShare()}
+            className={`absolute bottom-3 right-3 z-10 p-2 rounded-md transition-colors duration-300 ${theme === 'dark' ? 'text-nothing-light bg-nothing-gray-dark hover:bg-nothing-gray-light hover:text-nothing-dark' : 'text-day-text bg-day-gray-light hover:bg-day-gray-dark hover:text-day-bg'}`}
+            aria-label="Share this creation"
+        >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
+                <path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 8.81C7.5 8.31 6.79 8 6 8c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.66 1.34 3 3 3s3-1.34 3-3-1.34-3-3-3z"/>
+            </svg>
+        </button>
     </div>
   );
 
