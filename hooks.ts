@@ -62,7 +62,7 @@ export const useHistory = <T,>(initialState: T) => {
 interface UseImageHandlerProps {
   featureName: string;
   onFileSelectCallback: () => void;
-  triggerShareToast: (showSpecificToast?: () => void) => void;
+  triggerShareToast: (showSpecificToast?: () => void, isSpecial?: boolean) => void;
 }
 
 export const useImageHandler = ({ featureName, onFileSelectCallback, triggerShareToast }: UseImageHandlerProps) => {
@@ -103,6 +103,7 @@ export const useImageHandler = ({ featureName, onFileSelectCallback, triggerShar
         filename: string,
         analyticsParams: Record<string, any>,
         onSuccess?: () => void,
+        options?: { extension?: string }
     ) => {
         if (isDownloading) return;
         setIsDownloading(true);
@@ -120,7 +121,8 @@ export const useImageHandler = ({ featureName, onFileSelectCallback, triggerShar
                 if (blob) {
                     const url = URL.createObjectURL(blob);
                     const link = document.createElement('a');
-                    link.download = `${filename}-${getTimestamp()}.png`;
+                    const extension = options?.extension || 'png';
+                    link.download = `${filename}-${getTimestamp()}.${extension}`;
                     link.href = url;
                     document.body.appendChild(link);
                     link.click();

@@ -129,6 +129,23 @@ export const usePfpPanel = ({ theme, isMobile, footerLinks, triggerShareToast }:
     triggerShareToast: triggerShareToast,
   });
 
+  const [showInfoTooltip, setShowInfoTooltip] = useState(false);
+  const infoTooltipRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!showInfoTooltip) return;
+
+    const handleClickOutside = (event: MouseEvent) => {
+        if (infoTooltipRef.current && !infoTooltipRef.current.contains(event.target as Node)) {
+            setShowInfoTooltip(false);
+        }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showInfoTooltip]);
+
   useEffect(() => { setLivePfpState(pfpState); }, [pfpState]);
 
   const diameter = useMemo(() => Math.floor((0.32 * resolution + 9) / 2) * 2 + 1, [resolution]);
@@ -276,38 +293,38 @@ export const usePfpPanel = ({ theme, isMobile, footerLinks, triggerShareToast }:
     previewCtx.restore();
   }, [gridColors, calculatedPixelGap, diameter, isCircular, matrixMask, isTransparent, theme, isGlowEnabled, glowIntensity]);
   
-  const handleDownload = () => {
-    const getCanvasBlob = (): Promise<Blob | null> => {
-        return new Promise(resolve => {
-            try {
-                const canvas = document.createElement('canvas');
-                canvas.width = CANVAS_SIZE;
-                canvas.height = CANVAS_SIZE;
-                const ctx = canvas.getContext('2d');
-                if (!ctx) {
-                    throw new Error('Failed to get canvas context for download.');
-                }
-                drawPfpMatrix(ctx, {
-                  width: CANVAS_SIZE,
-                  height: CANVAS_SIZE,
-                  isTransparent: livePfpState.isTransparent,
-                  gridColors,
-                  matrixMask,
-                  diameter,
-                  calculatedPixelGap,
-                  isCircular: livePfpState.isCircular,
-                  padding: PADDING,
-                  isGlowEnabled: livePfpState.isGlowEnabled,
-                  glowIntensity: livePfpState.glowIntensity,
-                });
-                canvas.toBlob(blob => resolve(blob), 'image/png');
-            } catch (e) {
-                console.error("Error creating PFP blob:", e);
-                resolve(null);
-            }
-        });
-    };
+  const getCanvasBlob = useCallback((): Promise<Blob | null> => {
+      return new Promise(resolve => {
+          try {
+              const canvas = document.createElement('canvas');
+              canvas.width = CANVAS_SIZE;
+              canvas.height = CANVAS_SIZE;
+              const ctx = canvas.getContext('2d');
+              if (!ctx) {
+                  throw new Error('Failed to get canvas context for download.');
+              }
+              drawPfpMatrix(ctx, {
+                width: CANVAS_SIZE,
+                height: CANVAS_SIZE,
+                isTransparent: livePfpState.isTransparent,
+                gridColors,
+                matrixMask,
+                diameter,
+                calculatedPixelGap,
+                isCircular: livePfpState.isCircular,
+                padding: PADDING,
+                isGlowEnabled: livePfpState.isGlowEnabled,
+                glowIntensity: livePfpState.glowIntensity,
+              });
+              canvas.toBlob(blob => resolve(blob), 'image/png');
+          } catch (e) {
+              console.error("Error creating PFP blob:", e);
+              resolve(null);
+          }
+      });
+  }, [livePfpState, gridColors, matrixMask, diameter, calculatedPixelGap]);
 
+  const handleDownload = () => {
     const analyticsParams: Record<string, string | number | boolean | undefined> = {
       feature: 'pfp',
       setting_resolution: livePfpState.resolution,
@@ -420,8 +437,43 @@ export const usePfpPanel = ({ theme, isMobile, footerLinks, triggerShareToast }:
 
   const controlsPanel = imageSrc ? (
     <div className="max-w-md mx-auto w-full flex flex-col space-y-4 px-6 sm:px-6 md:px-8 pt-6 md:pt-3 pb-8 sm:pb-6 md:pb-8">
-        <div className="flex justify-center items-center">
+        <div className="flex justify-center items-center space-x-4">
             <UndoRedoControls onUndo={() => { undoPfp(); trackEvent('pfp_undo'); }} onRedo={() => { redoPfp(); trackEvent('pfp_redo'); }} canUndo={canUndoPfp} canRedo={canRedoPfp} theme={theme} />
+            <div className="relative" ref={infoTooltipRef}>
+              <button
+                onClick={() => {
+                  setShowInfoTooltip(prev => !prev);
+                  trackEvent('pfp_info_tooltip_toggle');
+                }}
+                className={`flex items-center justify-center p-2.5 text-sm font-semibold transition-colors duration-200 rounded-md ${theme === 'dark' ? 'bg-gray-700 text-nothing-light hover:bg-gray-600' : 'bg-gray-200 text-day-text hover:bg-gray-300'}`}
+                aria-label="Show info about recommended defaults"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <line x1="12" y1="16" x2="12" y2="12"></line>
+                  <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                </svg>
+              </button>
+              {showInfoTooltip && (
+                <div 
+                  role="tooltip"
+                  className={`absolute z-10 w-max px-3 py-1.5 text-xs font-medium rounded-md shadow-lg pointer-events-none ${
+                    theme === 'dark' ? 'bg-nothing-light text-nothing-dark' : 'bg-day-text text-day-bg'
+                  } ${
+                    isMobile
+                    ? 'bottom-full left-1/2 -translate-x-1/2 mb-2'
+                    : 'left-full top-1/2 -translate-y-1/2 ml-2'
+                  }`}
+                >
+                  ◉ = Recommended defaults
+                  <div className={`absolute w-0 h-0 ${
+                    isMobile
+                    ? `top-full left-1/2 -translate-x-1/2 border-x-4 border-x-transparent border-t-4 ${theme === 'dark' ? 'border-t-nothing-light' : 'border-t-day-text'}`
+                    : `top-1/2 -translate-y-1/2 right-full border-y-4 border-y-transparent border-r-4 ${theme === 'dark' ? 'border-r-nothing-light' : 'border-r-day-text'}`
+                  }`} />
+                </div>
+              )}
+            </div>
         </div>
         
         <div className={`p-4 rounded-lg space-y-4 ${theme === 'dark' ? 'bg-nothing-darker' : 'bg-white border border-gray-300'}`}>
@@ -507,19 +559,21 @@ export const usePfpPanel = ({ theme, isMobile, footerLinks, triggerShareToast }:
           Diameter: <span className={`font-semibold ${theme === 'dark' ? 'text-nothing-light' : 'text-day-text'}`}>{diameter}px</span> | Pixels: <span className={`font-semibold ${theme === 'dark' ? 'text-nothing-light' : 'text-day-text'}`}>{activePixelCount}</span>
         </p>
       </header>
-      <canvas
-        ref={canvasRef}
-        width={CANVAS_SIZE}
-        height={CANVAS_SIZE}
-        className="w-full h-auto rounded-lg"
-        aria-label="Pixel Matrix Canvas"
-        onMouseDown={handlePfpDragStart}
-        onTouchStart={handlePfpDragStart}
-        style={{
-            cursor: pfpCropIsNeeded ? 'grab' : 'default',
-            touchAction: pfpCropIsNeeded ? 'none' : 'auto'
-        }}
-      />
+      <div className="relative">
+        <canvas
+          ref={canvasRef}
+          width={CANVAS_SIZE}
+          height={CANVAS_SIZE}
+          className="w-full h-auto rounded-lg"
+          aria-label="Pixel Matrix Canvas"
+          onMouseDown={handlePfpDragStart}
+          onTouchStart={handlePfpDragStart}
+          style={{
+              cursor: pfpCropIsNeeded ? 'grab' : 'default',
+              touchAction: pfpCropIsNeeded ? 'none' : 'auto'
+          }}
+        />
+      </div>
       <div className="flex flex-col items-center my-6">
           <p className={`text-sm ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'} mb-2 text-center`}>Profile Picture Preview</p>
           <canvas ref={previewCanvasRef} width={75} height={75} className={`rounded-full`} aria-label="Profile Picture Preview" />
@@ -531,5 +585,5 @@ export const usePfpPanel = ({ theme, isMobile, footerLinks, triggerShareToast }:
 
   const replaceButton = <Dropzone onFileSelect={handleFileSelect} isLoading={isLoading} compact={true} theme={theme}/>;
 
-  return { previewPanel, controlsPanel, imageSrc, isLoading, handleFileSelect, handleDownload, downloadButton, replaceButton };
+  return { previewPanel, controlsPanel, imageSrc, isLoading, handleFileSelect, handleDownload, downloadButton, replaceButton, getCanvasBlob };
 };

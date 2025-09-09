@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { createPortal, flushSync } from 'react-dom';
 import { useHistory, useImageHandler } from './hooks';
@@ -124,13 +125,14 @@ export const useWallpaperPanel = ({
   const handleResetCurrentWallpaper = useCallback(() => {
     trackEvent('wallpaper_reset_defaults', { wallpaper_type: wallpaperType });
     setWallpaperSettings(currentSettings => {
-      const { cropOffsetX, cropOffsetY } = currentSettings[wallpaperType];
+      const { cropOffsetX, cropOffsetY, background } = currentSettings[wallpaperType];
       return {
         ...currentSettings,
         [wallpaperType]: {
           ...DUAL_WALLPAPER_INITIAL_STATE[wallpaperType],
           cropOffsetX,
           cropOffsetY,
+          background,
         }
       };
     });
@@ -198,6 +200,17 @@ export const useWallpaperPanel = ({
     }
   }, [image, wallpaperGridWidth, wallpaperGridHeight, calculatedWallpaperPixelGap, background, currentWallpaperWidth, currentWallpaperHeight, cropOffsetX, cropOffsetY, isFullScreenPreview, isMonochrome]);
   
+  const getCanvasBlob = useCallback((): Promise<Blob | null> => {
+      return new Promise(resolve => {
+          const canvas = isFullScreenPreview ? fullScreenCanvasRef.current : canvasRef.current;
+          if (canvas) {
+              canvas.toBlob(blob => resolve(blob), 'image/png');
+          } else {
+              resolve(null);
+          }
+      });
+  }, [isFullScreenPreview]);
+
   const handleFullScreenReplace = (file: File) => {
     trackEvent('wallpaper_fullscreen_replace_image', { wallpaper_type: wallpaperType });
     // FIX: `handleFileSelect` expects a second argument for the upload method.
@@ -219,17 +232,6 @@ export const useWallpaperPanel = ({
   };
   
   const handleDownload = () => {
-    const getCanvasBlob = (): Promise<Blob | null> => {
-        return new Promise(resolve => {
-            const canvas = isFullScreenPreview ? fullScreenCanvasRef.current : canvasRef.current;
-            if (canvas) {
-                canvas.toBlob(blob => resolve(blob), 'image/png');
-            } else {
-                resolve(null);
-            }
-        });
-    };
-
     const analyticsParams: Record<string, string | number | boolean | undefined> = {
       feature: 'wallpaper',
       wallpaper_type: wallpaperType,
@@ -360,11 +362,16 @@ export const useWallpaperPanel = ({
       { key: 'desktop', label: 'Desktop' }
   ];
 
+  const backgroundColorOptions = [
+      { key: 'white', label: 'White BG' },
+      { key: 'black', label: 'Black BG' }
+  ];
+
   const controlsPanel = imageSrc ? (
      <div className="max-w-md mx-auto w-full flex flex-col space-y-4 px-6 sm:px-6 md:px-8 pt-6 md:pt-3 pb-8 sm:pb-6 md:pb-8">
       <div className={`p-4 rounded-lg space-y-2 ${theme === 'dark' ? 'bg-nothing-darker' : 'bg-white border border-gray-300'}`}>
-        <label className={`text-sm ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'}`}>Wallpaper for</label>
         <SegmentedControl options={wallpaperTypeOptions} selected={wallpaperType} onSelect={handleWallpaperTypeSelect} theme={theme} />
+        <SegmentedControl options={backgroundColorOptions} selected={liveWallpaperState.background} onSelect={(key) => handleBackgroundColorSelect(key as WallpaperBgKey)} theme={theme} />
       </div>
       <UndoRedoControls onUndo={() => { undoWallpaper(); trackEvent('wallpaper_undo'); }} onRedo={() => { redoWallpaper(); trackEvent('wallpaper_redo'); }} canUndo={canUndoWallpaper} canRedo={canRedoWallpaper} theme={theme} />
       
@@ -398,14 +405,6 @@ export const useWallpaperPanel = ({
             <span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform duration-300 ${isMonochrome ? 'translate-x-6' : 'translate-x-1'}`} />
           </button>
         </div>
-        <ToggleSwitch
-            id="bg-color-toggle"
-            leftLabel="White BG"
-            rightLabel="Black BG"
-            isChecked={liveWallpaperState.background === 'black'}
-            onToggle={() => handleBackgroundColorSelect(liveWallpaperState.background === 'black' ? 'white' : 'black')}
-            theme={theme}
-        />
       </div>
       
       <div className="pt-2 flex space-x-2">
@@ -483,6 +482,11 @@ export const useWallpaperPanel = ({
                         touchAction: wallpaperCropIsNeeded ? 'none' : 'auto'
                     }}
                 />
+                {wallpaperCropIsNeeded && (
+                    <div className={`fixed bottom-8 left-1/2 -translate-x-1/2 z-50 px-2 py-1 rounded-md text-sm ${theme === 'dark' ? 'bg-nothing-dark/90 text-nothing-light' : 'bg-day-gray-light/90 text-day-text'} backdrop-blur-sm pointer-events-none`}>
+                        ⓘ Drag to Crop
+                    </div>
+                )}
                 
                 {!isMobile && (
                   <div className="fixed bottom-4 left-4 z-[51] w-80 flex flex-col items-start space-y-2">
@@ -497,8 +501,9 @@ export const useWallpaperPanel = ({
                           </div>
 
                           <div className="overflow-y-auto space-y-4 pr-2 -mr-2">
-                            <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-black/40' : 'bg-white/60'}`}>
+                            <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-black/40' : 'bg-white/60'} space-y-2`}>
                                 <SegmentedControl options={wallpaperTypeOptions} selected={wallpaperType} onSelect={handleWallpaperTypeSelect} theme={theme} />
+                                <SegmentedControl options={backgroundColorOptions} selected={liveWallpaperState.background} onSelect={(key) => handleBackgroundColorSelect(key as WallpaperBgKey)} theme={theme} />
                             </div>
                             <UndoRedoControls onUndo={() => { undoWallpaper(); trackEvent('wallpaper_undo'); }} onRedo={() => { redoWallpaper(); trackEvent('wallpaper_redo'); }} canUndo={canUndoWallpaper} canRedo={canRedoWallpaper} theme={theme} />
                             <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-black/40' : 'bg-white/60'} space-y-4`}>
@@ -530,14 +535,6 @@ export const useWallpaperPanel = ({
                                       <span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform duration-300 ${isMonochrome ? 'translate-x-6' : 'translate-x-1'}`} />
                                   </button>
                               </div>
-                              <ToggleSwitch
-                                  id="bg-color-toggle-fs"
-                                  leftLabel="White BG"
-                                  rightLabel="Black BG"
-                                  isChecked={liveWallpaperState.background === 'black'}
-                                  onToggle={() => handleBackgroundColorSelect(liveWallpaperState.background === 'black' ? 'white' : 'black')}
-                                  theme={theme}
-                              />
                             </div>
                             <div>
                               <button onClick={handleResetCurrentWallpaper} disabled={isLoading} className={`w-full font-semibold py-2 px-4 transition-all duration-300 disabled:opacity-50 rounded-md ${theme === 'dark' ? 'border border-gray-600 text-gray-300 hover:bg-gray-700' : 'border border-gray-300 text-day-gray-dark hover:bg-gray-200'}`} aria-label="Reset wallpaper controls to their default values"> Reset Controls </button>
@@ -585,10 +582,11 @@ export const useWallpaperPanel = ({
                 <ToastNotification
                   show={showFsToast}
                   onClose={() => setShowFsToast(false)}
+                  onShare={() => {}}
                   theme={theme}
                   isMobile={false}
                   imageRendered={!!imageSrc}
-                  className="z-[60]"
+                  className="z-[60] !bottom-24"
                 />
             </div>,
             document.body
@@ -600,5 +598,5 @@ export const useWallpaperPanel = ({
 
   const replaceButton = <Dropzone onFileSelect={handleFileSelect} isLoading={isLoading} compact={true} theme={theme}/>;
 
-  return { previewPanel, controlsPanel, imageSrc, isLoading, handleFileSelect, handleDownload, downloadButton, replaceButton, wallpaperType };
+  return { previewPanel, controlsPanel, imageSrc, isLoading, handleFileSelect, handleDownload, downloadButton, replaceButton, wallpaperType, getCanvasBlob };
 };

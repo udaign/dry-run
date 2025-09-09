@@ -206,30 +206,30 @@ export const usePhotoWidgetPanel = ({ theme, isMobile, footerLinks, triggerShare
     if (!ctx) return;
     drawPhotoWidgetMatrix(ctx, { width: canvasWidth, height: canvasHeight, outputMode, matrix: colorMatrix, pixelGap, isCircular, isAntiAliased });
   }, [colorMatrix, pixelGap, isCircular, isAntiAliased, outputMode, canvasWidth, canvasHeight]);
+  
+  const getCanvasBlob = useCallback((): Promise<Blob | null> => {
+      if (!colorMatrix) return Promise.resolve(null);
+      return new Promise(resolve => {
+          try {
+              const downloadWidth = PHOTO_WIDGET_BASE_SIZE;
+              const downloadHeight = PHOTO_WIDGET_BASE_SIZE;
+              const canvas = document.createElement('canvas');
+              canvas.width = downloadWidth;
+              canvas.height = downloadHeight;
+              const ctx = canvas.getContext('2d');
+              if (!ctx) throw new Error('Failed to get canvas context for download.');
+              
+              drawPhotoWidgetMatrix(ctx, { ...photoWidgetSettings[outputMode], outputMode, width: downloadWidth, height: downloadHeight, matrix: colorMatrix });
+              canvas.toBlob(blob => resolve(blob), 'image/png');
+          } catch (e) {
+              console.error("Error creating Photo Widget blob:", e);
+              resolve(null);
+          }
+      });
+  }, [colorMatrix, outputMode, photoWidgetSettings]);
+
 
   const handleDownload = () => {
-    if (!colorMatrix) return;
-
-    const getCanvasBlob = (): Promise<Blob | null> => {
-        return new Promise(resolve => {
-            try {
-                const downloadWidth = PHOTO_WIDGET_BASE_SIZE;
-                const downloadHeight = PHOTO_WIDGET_BASE_SIZE;
-                const canvas = document.createElement('canvas');
-                canvas.width = downloadWidth;
-                canvas.height = downloadHeight;
-                const ctx = canvas.getContext('2d');
-                if (!ctx) throw new Error('Failed to get canvas context for download.');
-                
-                drawPhotoWidgetMatrix(ctx, { ...photoWidgetSettings[outputMode], outputMode, width: downloadWidth, height: downloadHeight, matrix: colorMatrix });
-                canvas.toBlob(blob => resolve(blob), 'image/png');
-            } catch (e) {
-                console.error("Error creating Photo Widget blob:", e);
-                resolve(null);
-            }
-        });
-    };
-    
     const analyticsParams: Record<string, string | number | boolean | undefined> = {
       feature: 'photo_widget',
       setting_output_mode: outputMode,
@@ -267,16 +267,28 @@ export const usePhotoWidgetPanel = ({ theme, isMobile, footerLinks, triggerShare
       { key: 'fill', label: 'Fill' },
   ];
 
+  const fillThemeOptions = [
+      { key: 'light', label: 'Light Fill' },
+      { key: 'dark', label: 'Dark Fill' },
+  ];
+
   const controlsPanel = imageSrc ? (
     <div className="max-w-md mx-auto w-full flex flex-col space-y-4 px-6 sm:px-6 md:px-8 pt-6 md:pt-3 pb-8 sm:pb-6 md:pb-8">
       <div className={`p-4 rounded-lg space-y-2 ${theme === 'dark' ? 'bg-nothing-darker' : 'bg-white border border-gray-300'}`}>
-        <label className={`text-sm ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'}`}>Widget Preferences</label>
         <SegmentedControl
             options={outputModeOptions}
             selected={outputMode === 'transparent' ? 'transparent' : 'fill'}
             onSelect={handleOutputModeSelect}
             theme={theme}
         />
+        {outputMode !== 'transparent' && (
+            <SegmentedControl
+                options={fillThemeOptions}
+                selected={activeFillTheme}
+                onSelect={(key) => handleFillThemeChange(key as 'dark' | 'light')}
+                theme={theme}
+            />
+        )}
       </div>
 
       <div className="flex justify-center items-center">
@@ -330,16 +342,6 @@ export const usePhotoWidgetPanel = ({ theme, isMobile, footerLinks, triggerShare
             <span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform duration-300 ${isAntiAliased ? 'translate-x-6' : 'translate-x-1'}`} />
           </button>
         </div>
-        <div className={`transition-all duration-300 ease-in-out overflow-hidden focus-within:overflow-visible ${outputMode !== 'transparent' ? 'max-h-48 opacity-100' : 'max-h-0 opacity-0 !mt-0'}`}>
-            <ToggleSwitch
-                id="fill-theme-toggle"
-                leftLabel="Light Fill"
-                rightLabel="Dark Fill"
-                isChecked={activeFillTheme === 'dark'}
-                onToggle={() => handleFillThemeChange(activeFillTheme === 'dark' ? 'light' : 'dark')}
-                theme={theme}
-            />
-        </div>
       </div>
         
       <div className="pt-2 flex space-x-2">
@@ -371,5 +373,5 @@ export const usePhotoWidgetPanel = ({ theme, isMobile, footerLinks, triggerShare
   
   const replaceButton = <Dropzone onFileSelect={handleFileSelect} isLoading={isLoading} compact={true} theme={theme} accept="image/png" />;
 
-  return { previewPanel, controlsPanel, imageSrc, isLoading, handleFileSelect, handleDownload, downloadButton, replaceButton };
+  return { previewPanel, controlsPanel, imageSrc, isLoading, handleFileSelect, handleDownload, downloadButton, replaceButton, getCanvasBlob };
 };

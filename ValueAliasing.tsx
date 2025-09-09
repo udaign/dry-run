@@ -3,7 +3,7 @@ import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react'
 import { createPortal, flushSync } from 'react-dom';
 import { useHistory, useImageHandler } from './hooks';
 import { getTimestamp } from './utils';
-import { ValueAliasingState, WallpaperBgKey, WALLPAPER_BG_OPTIONS, Theme, ValueAliasingSettingsContainer } from './types';
+import { ValueAliasingState, WallpaperBgKey, WALLPAPER_BG_OPTIONS, Theme, ValueAliasingSettingsContainer, PrintState } from './types';
 import { Dropzone, EnhancedSlider, UndoRedoControls, SegmentedControl, ToastNotification, ToggleSwitch } from './components';
 import { trackEvent } from './analytics';
 
@@ -14,6 +14,43 @@ const VALUE_ALIASING_DESKTOP_WIDTH = 3840;
 const VALUE_ALIASING_DESKTOP_HEIGHT = 2160;
 const VALUE_ALIASING_PIXEL_GAP_MULTIPLIER = 0.0423936;
 const VALUE_ALIASING_RESOLUTION_MULTIPLIER = 71.8848;
+const PRINT_DPI = 300;
+
+const PRINT_SIZES: Record<string, { label: string, w: number, h: number, group: string, isRatio?: boolean }> = {
+    // US Standard
+    'us_8x10': { label: '8 x 10 in', w: 8, h: 10, group: 'US Standard' },
+    'us_8.5x11': { label: '8.5 x 11 in', w: 8.5, h: 11, group: 'US Standard' },
+    'us_11x14': { label: '11 x 14 in', w: 11, h: 14, group: 'US Standard' },
+    'us_11x17': { label: '11 x 17 in', w: 11, h: 17, group: 'US Standard' },
+    'us_12x16': { label: '12 x 16 in', w: 12, h: 16, group: 'US Standard' },
+    'us_12x18': { label: '12 x 18 in', w: 12, h: 18, group: 'US Standard' },
+    'us_16x20': { label: '16 x 20 in', w: 16, h: 20, group: 'US Standard' },
+    'us_18x24': { label: '18 x 24 in', w: 18, h: 24, group: 'US Standard' },
+    'us_20x30': { label: '20 x 30 in', w: 20, h: 30, group: 'US Standard' },
+    'us_24x36': { label: '24 x 36 in', w: 24, h: 36, group: 'US Standard' },
+    'us_27x40': { label: '27 x 40 in', w: 27, h: 40, group: 'US Standard' },
+    'us_36x48': { label: '36 x 48 in', w: 36, h: 48, group: 'US Standard' },
+    // ISO
+    'iso_a5': { label: 'A5', w: 5.83, h: 8.27, group: 'ISO' },
+    'iso_a4': { label: 'A4', w: 8.27, h: 11.69, group: 'ISO' },
+    'iso_a3': { label: 'A3', w: 11.69, h: 16.54, group: 'ISO' },
+    'iso_a2': { label: 'A2', w: 16.54, h: 23.39, group: 'ISO' },
+    'iso_a1': { label: 'A1', w: 23.39, h: 33.11, group: 'ISO' },
+    'iso_a0': { label: 'A0', w: 33.11, h: 46.81, group: 'ISO' },
+    // Ratio (base size of 12 inches for the smaller side)
+    'original': { label: 'Original Ratio', w: 1, h: 1, group: 'Ratio', isRatio: true },
+    'ratio_1:1': { label: '1:1', w: 12, h: 12, group: 'Ratio', isRatio: true },
+    'ratio_5:4': { label: '5:4', w: 15, h: 12, group: 'Ratio', isRatio: true },
+    'ratio_4:3': { label: '4:3', w: 16, h: 12, group: 'Ratio', isRatio: true },
+    'ratio_3:2': { label: '3:2', w: 18, h: 12, group: 'Ratio', isRatio: true },
+    'ratio_16:9': { label: '16:9', w: 21.33, h: 12, group: 'Ratio', isRatio: true },
+    'ratio_1.85:1': { label: '1.85:1', w: 22.2, h: 12, group: 'Ratio', isRatio: true },
+    'ratio_2:1': { label: '2:1', w: 24, h: 12, group: 'Ratio', isRatio: true },
+    'ratio_2.35:1': { label: '2.35:1', w: 28.2, h: 12, group: 'Ratio', isRatio: true },
+    'ratio_21:9': { label: '21:9', w: 28, h: 12, group: 'Ratio', isRatio: true },
+    'ratio_3:1': { label: '3:1', w: 36, h: 12, group: 'Ratio', isRatio: true },
+};
+const PRINT_SIZE_GROUPS = ['US Standard', 'ISO', 'Ratio'];
 
 const VALUE_ALIASING_INITIAL_STATE: ValueAliasingState = {
     resolution: DEFAULT_SLIDER_VALUE,
@@ -29,14 +66,24 @@ const VALUE_ALIASING_INITIAL_STATE: ValueAliasingState = {
     lowerLimit: 0,
 };
 
-const DUAL_VALUE_ALIASING_INITIAL_STATE: ValueAliasingSettingsContainer = {
-    phone: { ...VALUE_ALIASING_INITIAL_STATE },
-    desktop: { ...VALUE_ALIASING_INITIAL_STATE },
+const PRINT_INITIAL_STATE: PrintState = {
+    ...VALUE_ALIASING_INITIAL_STATE,
+    size: 'original',
+    orientation: 'portrait',
+};
+
+const FULL_VALUE_ALIASING_INITIAL_STATE: ValueAliasingSettingsContainer = {
+    outputType: 'wallpaper',
+    wallpaper: {
+        phone: { ...VALUE_ALIASING_INITIAL_STATE },
+        desktop: { ...VALUE_ALIASING_INITIAL_STATE },
+    },
+    print: PRINT_INITIAL_STATE,
 };
 
 const EASTER_EGG_COLORS = {
     yellow: '#FCCA21',
-    blue: '#0D4E81',
+    blue: '#1A5A8A',
     red: '#BD1721',
     grey: '#E0E0E0',
 };
@@ -50,36 +97,61 @@ const EASTER_EGG_PERMUTATIONS: [('yellow' | 'blue' | 'red'), ('yellow' | 'blue' 
     ['red', 'blue', 'yellow'],
 ];
 
-const drawEasterEggPattern = (ctx: CanvasRenderingContext2D, W: number, H: number, permutationIndex: number) => {
+const rgbToCmyk = (r: number, g: number, b: number): [number, number, number, number] => {
+    const r_ = r / 255;
+    const g_ = g / 255;
+    const b_ = b / 255;
+    const k = 1 - Math.max(r_, g_, b_);
+    if (k === 1) return [0, 0, 0, 1];
+    const c = (1 - r_ - k) / (1 - k);
+    const m = (1 - g_ - k) / (1 - k);
+    const y = (1 - b_ - k) / (1 - k);
+    return [c, m, y, k];
+};
+
+const cmykToRgb = (c: number, m: number, y: number, k: number): [number, number, number] => {
+    const r = 255 * (1 - c) * (1 - k);
+    const g = 255 * (1 - m) * (1 - k);
+    const b = 255 * (1 - y) * (1 - k);
+    return [Math.round(r), Math.round(g), Math.round(b)];
+};
+
+const simulateCmyk = (r: number, g: number, b: number): [number, number, number] => {
+    const [c, m, y, k] = rgbToCmyk(r, g, b);
+    return cmykToRgb(c, m, y, k);
+};
+
+const drawEasterEggPattern = (ctx: CanvasRenderingContext2D, W: number, H: number, permutationIndex: number, shouldSimulateCmyk: boolean) => {
     const permutation = EASTER_EGG_PERMUTATIONS[permutationIndex];
     if (!permutation) return;
 
-    // A = Top-left, B = Top-right, C = Bottom-left
-    const colorA = EASTER_EGG_COLORS[permutation[0]];
-    const colorB = EASTER_EGG_COLORS[permutation[1]];
-    const colorC = EASTER_EGG_COLORS[permutation[2]];
+    const getColor = (hex: string): string => {
+        if (!shouldSimulateCmyk) return hex;
+        const r = parseInt(hex.slice(1, 3), 16);
+        const g = parseInt(hex.slice(3, 5), 16);
+        const b = parseInt(hex.slice(5, 7), 16);
+        const [simR, simG, simB] = simulateCmyk(r, g, b);
+        return `rgb(${simR}, ${simG}, ${simB})`;
+    }
 
-    const g = 0.809; // Golden ratio for main rectangle
-    const mid = 0.5; // Midpoint for other rectangles
+    const colorA = getColor(EASTER_EGG_COLORS[permutation[0]]);
+    const colorB = getColor(EASTER_EGG_COLORS[permutation[1]]);
+    const colorC = getColor(EASTER_EGG_COLORS[permutation[2]]);
 
-    // 1. Fill the entire canvas with the base grey color.
-    // This color also serves as the color for rectangle 'D' and the gaps.
-    ctx.fillStyle = EASTER_EGG_COLORS.grey;
+    const g_ratio = 0.809;
+    const mid = 0.5;
+
+    ctx.fillStyle = getColor(EASTER_EGG_COLORS.grey);
     ctx.fillRect(0, 0, W, H);
 
-    // 2. Draw the three colored rectangles A, B, C on top of the grey background.
-    
-    // Rectangle A (top-left major)
     ctx.fillStyle = colorA;
-    ctx.fillRect(0, 0, g * W, g * H);
+    ctx.fillRect(0, 0, g_ratio * W, g_ratio * H);
 
-    // Rectangle B (top-right)
     ctx.fillStyle = colorB;
-    ctx.fillRect(g * W, 0, (1 - g) * W, mid * H);
+    ctx.fillRect(g_ratio * W, 0, (1 - g_ratio) * W, mid * H);
 
-    // Rectangle C (bottom-left)
     ctx.fillStyle = colorC;
-    ctx.fillRect(0, g * H, mid * W, (1 - g) * H);
+    ctx.fillRect(0, g_ratio * H, mid * W, (1 - g_ratio) * H);
 };
 
 export const useValueAliasingPanel = ({
@@ -89,13 +161,19 @@ export const useValueAliasingPanel = ({
   triggerShareToast,
   easterEggPrimed,
   setEasterEggPrimed,
+  isEasterEggPermanentlyUnlocked,
+  markEasterEggAsUnlocked,
+  setUnlockedSpecialThemeInSession,
 }: {
   theme: Theme;
   isMobile: boolean;
   footerLinks: React.ReactNode;
-  triggerShareToast: (showSpecificToast?: () => void) => void;
+  triggerShareToast: (showSpecificToast?: () => void, isSpecial?: boolean) => void;
   easterEggPrimed: boolean;
   setEasterEggPrimed: React.Dispatch<React.SetStateAction<boolean>>;
+  isEasterEggPermanentlyUnlocked: boolean;
+  markEasterEggAsUnlocked: () => void;
+  setUnlockedSpecialThemeInSession: React.Dispatch<React.SetStateAction<boolean>>;
 }) => {
   const { 
     state: valueAliasingSettings, 
@@ -105,8 +183,8 @@ export const useValueAliasingPanel = ({
     reset: resetValueAliasingHistory,
     resetHistory: resetValueAliasingHistoryStack,
     canUndo: canUndoValueAliasing, 
-    canRedo: canRedoValueAliasing 
-  } = useHistory(DUAL_VALUE_ALIASING_INITIAL_STATE);
+    canRedo: canDoValueAliasing 
+  } = useHistory(FULL_VALUE_ALIASING_INITIAL_STATE);
   
   const [liveValueAliasingSettings, setLiveValueAliasingSettings] = useState(valueAliasingSettings);
   const [valueAliasingType, setValueAliasingType] = useState<'phone' | 'desktop'>(isMobile ? 'phone' : 'desktop');
@@ -121,15 +199,35 @@ export const useValueAliasingPanel = ({
   const [isEasterEggActive, setIsEasterEggActive] = useState(false);
   const [activePermutationIndex, setActivePermutationIndex] = useState<number | null>(null);
 
+  const { outputType } = liveValueAliasingSettings;
+
+  const liveActiveState = useMemo(() => {
+      const { wallpaper, print } = liveValueAliasingSettings;
+      return outputType === 'wallpaper' ? wallpaper[valueAliasingType] : print;
+  }, [liveValueAliasingSettings, outputType, valueAliasingType]);
+
+  const effectiveLiveState = useMemo(() => {
+      if (isEasterEggActive) {
+          return {
+              ...liveActiveState,
+              isPureValue: true,
+              isTransparent: false,
+          };
+      }
+      return liveActiveState;
+  }, [isEasterEggActive, liveActiveState]);
+
+  const { resolution, pixelGap, cropOffsetX, cropOffsetY, isMonochrome, exposure, contrast, lowerLimit } = liveActiveState;
+  const { background, isPureValue, isTransparent } = effectiveLiveState;
+
   const resetEasterEgg = useCallback(() => {
     setIsEasterEggActive(false);
     setActivePermutationIndex(null);
   }, []);
 
   const onFileSelectCallback = useCallback(() => {
-    resetValueAliasingHistory();
     resetEasterEgg();
-  }, [resetValueAliasingHistory, resetEasterEgg]);
+  }, [resetEasterEgg]);
   
   const {
     imageSrc,
@@ -145,33 +243,52 @@ export const useValueAliasingPanel = ({
     triggerShareToast: triggerShareToast
   });
 
-  useEffect(() => { setLiveValueAliasingSettings(valueAliasingSettings); }, [valueAliasingSettings]);
+  useEffect(() => {
+    if (image) {
+        const newOrientation = image.width >= image.height ? 'landscape' : 'portrait';
+        const newInitialState = JSON.parse(JSON.stringify(FULL_VALUE_ALIASING_INITIAL_STATE));
+        newInitialState.print.size = 'original';
+        newInitialState.print.orientation = newOrientation;
+        resetValueAliasingHistoryStack(newInitialState);
+    } else {
+        resetValueAliasingHistoryStack(FULL_VALUE_ALIASING_INITIAL_STATE);
+    }
+  }, [image, resetValueAliasingHistoryStack]);
 
-  const liveValueAliasingState = liveValueAliasingSettings[valueAliasingType];
-  const { resolution, pixelGap, background, cropOffsetX, cropOffsetY, isMonochrome, exposure, contrast, isPureValue, isTransparent, lowerLimit } = liveValueAliasingState;
+  useEffect(() => { setLiveValueAliasingSettings(valueAliasingSettings); }, [valueAliasingSettings]);
+  
+  const handleThemeChange = useCallback((themeSelection: 'dark' | 'light' | 'community') => {
+      if (themeSelection === 'community') {
+          if (!isEasterEggActive) {
+              trackEvent('easter_egg_activated', { feature: 'value_aliasing' });
+              setIsEasterEggActive(true);
+              setUnlockedSpecialThemeInSession(true);
+              if (!isEasterEggPermanentlyUnlocked) {
+                  markEasterEggAsUnlocked();
+              }
+          }
+      } else {
+          trackEvent('value_aliasing_style_select', { style: themeSelection, from_community_theme: isEasterEggActive });
+          
+          setIsEasterEggActive(false);
+          setValueAliasingSettings(s => {
+              const newBackground: WallpaperBgKey = themeSelection === 'dark' ? 'black' : 'white';
+              const newSettings: Partial<ValueAliasingState> = { background: newBackground };
+
+              if (s.outputType === 'wallpaper') {
+                  const updatedState = { ...s.wallpaper[valueAliasingType], ...newSettings };
+                  return { ...s, wallpaper: { ...s.wallpaper, [valueAliasingType]: updatedState }};
+              }
+              const updatedState = { ...s.print, ...newSettings };
+              return { ...s, print: updatedState as PrintState };
+          });
+      }
+  }, [isEasterEggActive, isEasterEggPermanentlyUnlocked, markEasterEggAsUnlocked, setValueAliasingSettings, valueAliasingType, outputType, setUnlockedSpecialThemeInSession]);
   
   const activateEasterEgg = useCallback(() => {
-    setIsEasterEggActive(true);
-    const currentSettings = valueAliasingSettings;
-    const newSettings = {
-        ...currentSettings,
-        phone: {
-            ...currentSettings.phone,
-            background: 'white' as WallpaperBgKey,
-            isPureValue: true,
-            isTransparent: false,
-        },
-        desktop: {
-            ...currentSettings.desktop,
-            background: 'white' as WallpaperBgKey,
-            isPureValue: true,
-            isTransparent: false,
-        },
-    };
-    resetValueAliasingHistoryStack(newSettings);
-    trackEvent('easter_egg_activated', { feature: 'value_aliasing' });
-  }, [valueAliasingSettings, resetValueAliasingHistoryStack]);
-  
+      handleThemeChange('community');
+  }, [handleThemeChange]);
+
   const getRandomPermutationIndex = (excludeIndex: number | null = null): number => {
     const totalPermutations = EASTER_EGG_PERMUTATIONS.length;
     if (excludeIndex === null) {
@@ -238,35 +355,60 @@ export const useValueAliasingPanel = ({
   }, []);
 
   const handleResetCurrentValueAliasing = useCallback(() => {
-    trackEvent('value_aliasing_reset_defaults', { value_aliasing_type: valueAliasingType });
-    setValueAliasingSettings(currentSettings => {
-      const currentModeSettings = currentSettings[valueAliasingType];
-      const { cropOffsetX, cropOffsetY, background } = currentModeSettings;
+    trackEvent('value_aliasing_reset_defaults', { value_aliasing_type: outputType === 'wallpaper' ? valueAliasingType : 'print' });
+    setValueAliasingSettings(s => {
+        const resetStateForMode = (state: ValueAliasingState | PrintState, initial: ValueAliasingState | PrintState) => {
+            const { cropOffsetX, cropOffsetY } = state;
+            const printSpecifics = 'size' in state ? { size: state.size, orientation: state.orientation } : {};
+            const baseReset = { ...initial, cropOffsetX, cropOffsetY, ...printSpecifics };
+            return baseReset;
+        };
 
-      const persistentState: Partial<ValueAliasingState> = {
-        cropOffsetX,
-        cropOffsetY,
-        background,
-      };
-
-      if (isEasterEggActive) {
-        persistentState.isPureValue = currentModeSettings.isPureValue;
-        persistentState.isTransparent = currentModeSettings.isTransparent;
-      }
-
-      return {
-        ...currentSettings,
-        [valueAliasingType]: {
-          ...DUAL_VALUE_ALIASING_INITIAL_STATE[valueAliasingType],
-          ...persistentState
+        if (s.outputType === 'wallpaper') {
+            return { ...s, wallpaper: {
+                ...s.wallpaper,
+                [valueAliasingType]: resetStateForMode(s.wallpaper[valueAliasingType], FULL_VALUE_ALIASING_INITIAL_STATE.wallpaper[valueAliasingType]) as ValueAliasingState
+            }};
+        } else {
+            return { ...s, print: resetStateForMode(s.print, FULL_VALUE_ALIASING_INITIAL_STATE.print) as PrintState };
         }
-      };
     });
-  }, [valueAliasingType, setValueAliasingSettings, isEasterEggActive]);
+}, [valueAliasingType, setValueAliasingSettings, outputType]);
 
-  const [currentValueAliasingWidth, currentValueAliasingHeight] = useMemo(() => valueAliasingType === 'desktop' ? [VALUE_ALIASING_DESKTOP_WIDTH, VALUE_ALIASING_DESKTOP_HEIGHT] : [VALUE_ALIASING_PHONE_WIDTH, VALUE_ALIASING_PHONE_HEIGHT], [valueAliasingType]);
+  const [currentValueAliasingWidth, currentValueAliasingHeight] = useMemo(() => {
+      if (outputType === 'print') {
+          const printState = liveActiveState as PrintState;
+          const sizeInfo = PRINT_SIZES[printState.size];
+          if (!sizeInfo) return [VALUE_ALIASING_DESKTOP_WIDTH, VALUE_ALIASING_DESKTOP_HEIGHT];
 
-  const valueAliasingGridWidth = useMemo(() => Math.floor(10 + ((valueAliasingType === 'desktop' ? resolution * 4 : resolution * 1.2) / 100) * VALUE_ALIASING_RESOLUTION_MULTIPLIER), [resolution, valueAliasingType]);
+          let w, h;
+
+          if (printState.size === 'original') {
+              if (!image) return [3600, 3600];
+              const baseSize = 12 * PRINT_DPI;
+              const imgAspect = image.width / image.height;
+              if (imgAspect >= 1) { // landscape or square
+                  w = baseSize;
+                  h = Math.round(baseSize / imgAspect);
+              } else { // portrait
+                  h = baseSize;
+                  w = Math.round(baseSize * imgAspect);
+              }
+          } else {
+              w = sizeInfo.w * PRINT_DPI;
+              h = sizeInfo.h * PRINT_DPI;
+          }
+
+          return printState.orientation === 'landscape' ? [Math.max(w, h), Math.min(w, h)] : [Math.min(w, h), Math.max(w, h)];
+      }
+      return valueAliasingType === 'desktop' ? [VALUE_ALIASING_DESKTOP_WIDTH, VALUE_ALIASING_DESKTOP_HEIGHT] : [VALUE_ALIASING_PHONE_WIDTH, VALUE_ALIASING_PHONE_HEIGHT];
+  }, [outputType, valueAliasingType, liveActiveState, image]);
+
+  const valueAliasingGridWidth = useMemo(() => {
+      const multiplier = outputType === 'print' ? 4 : (valueAliasingType === 'desktop' ? 4 : 1.2);
+      return Math.floor(10 + ((resolution * multiplier) / 100) * VALUE_ALIASING_RESOLUTION_MULTIPLIER);
+  }, [resolution, valueAliasingType, outputType]);
+  
   const valueAliasingGridHeight = useMemo(() => Math.round(valueAliasingGridWidth * (currentValueAliasingHeight / currentValueAliasingWidth)), [valueAliasingGridWidth, currentValueAliasingWidth, currentValueAliasingHeight]);
   const calculatedValueAliasingPixelGap = useMemo(() => pixelGap * VALUE_ALIASING_PIXEL_GAP_MULTIPLIER, [pixelGap]);
   const valueAliasingCropIsNeeded = useMemo(() => image ? Math.abs((image.width / image.height) - (currentValueAliasingWidth / currentValueAliasingHeight)) > 0.01 : false, [image, currentValueAliasingWidth, currentValueAliasingHeight]);
@@ -278,13 +420,24 @@ export const useValueAliasingPanel = ({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     
+    const shouldSimulateCmyk = outputType === 'print';
+
     if (isEasterEggActive && activePermutationIndex !== null) {
-        drawEasterEggPattern(ctx, currentValueAliasingWidth, currentValueAliasingHeight, activePermutationIndex);
+        drawEasterEggPattern(ctx, currentValueAliasingWidth, currentValueAliasingHeight, activePermutationIndex, shouldSimulateCmyk);
     } else {
         if (isTransparent) {
             ctx.clearRect(0, 0, currentValueAliasingWidth, currentValueAliasingHeight);
         } else {
-            ctx.fillStyle = WALLPAPER_BG_OPTIONS[background]?.color || '#000000';
+            const bgColor = WALLPAPER_BG_OPTIONS[background]?.color || '#000000';
+            if (shouldSimulateCmyk) {
+                const r = parseInt(bgColor.slice(1, 3), 16);
+                const g = parseInt(bgColor.slice(3, 5), 16);
+                const b = parseInt(bgColor.slice(5, 7), 16);
+                const [simR, simG, simB] = simulateCmyk(r, g, b);
+                ctx.fillStyle = `rgb(${simR}, ${simG}, ${simB})`;
+            } else {
+                ctx.fillStyle = bgColor;
+            }
             ctx.fillRect(0, 0, currentValueAliasingWidth, currentValueAliasingHeight);
         }
     }
@@ -313,25 +466,36 @@ export const useValueAliasingPanel = ({
     const calculatedContrast = contrast <= 50 ? contrast / 50 : 1 + ((contrast - 50) / 50) * 2;
     const threshold = lowerLimit / 100.0;
     
+    const useLightLogic = isEasterEggActive || background === 'white';
+    const useEffectivePureValue = isEasterEggActive || isPureValue;
+
     for (let y = 0; y < valueAliasingGridHeight; y++) {
         for (let x = 0; x < valueAliasingGridWidth; x++) {
             const i = (y * valueAliasingGridWidth + x) * 4;
-            const r = data[i], g = data[i+1], b = data[i+2];
+            const r_pixel = data[i], g_pixel = data[i+1], b_pixel = data[i+2];
 
             if (isMonochrome) {
-                const originalGray = 0.299 * r + 0.587 * g + 0.114 * b;
+                const originalGray = 0.299 * r_pixel + 0.587 * g_pixel + 0.114 * b_pixel;
                 let adjusted = ((originalGray / 255.0 - 0.5) * calculatedContrast + 0.5) * 255.0 + calculatedExposure;
                 const finalGray = Math.round(Math.max(0, Math.min(255, adjusted)));
                 
-                const sizeMultiplier = background === 'black' 
-                    ? finalGray / 255.0
-                    : (255.0 - finalGray) / 255.0;
+                const sizeMultiplier = useLightLogic
+                    ? (255.0 - finalGray) / 255.0
+                    : finalGray / 255.0;
 
                 if (sizeMultiplier > threshold) {
-                    if (isPureValue) {
-                        ctx.fillStyle = background === 'black' ? 'rgb(255, 255, 255)' : 'rgb(0, 0, 0)';
+                    let r, g, b;
+                    if (useEffectivePureValue) {
+                        [r, g, b] = useLightLogic ? [0, 0, 0] : [255, 255, 255];
                     } else {
-                        ctx.fillStyle = `rgb(${finalGray}, ${finalGray}, ${finalGray})`;
+                        [r, g, b] = [finalGray, finalGray, finalGray];
+                    }
+
+                    if (shouldSimulateCmyk) {
+                        const [simR, simG, simB] = simulateCmyk(r, g, b);
+                        ctx.fillStyle = `rgb(${simR}, ${simG}, ${simB})`;
+                    } else {
+                        ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
                     }
 
                     const baseRadius = Math.min(pxRenderW, pxRenderH) / 2;
@@ -351,8 +515,19 @@ export const useValueAliasingPanel = ({
             }
         }
     }
-  }, [image, valueAliasingGridWidth, valueAliasingGridHeight, calculatedValueAliasingPixelGap, background, currentValueAliasingWidth, currentValueAliasingHeight, cropOffsetX, cropOffsetY, isFullScreenPreview, isMonochrome, exposure, contrast, isPureValue, isTransparent, lowerLimit, isEasterEggActive, activePermutationIndex, valueAliasingType]);
+  }, [image, valueAliasingGridWidth, valueAliasingGridHeight, calculatedValueAliasingPixelGap, background, currentValueAliasingWidth, currentValueAliasingHeight, cropOffsetX, cropOffsetY, isFullScreenPreview, isMonochrome, exposure, contrast, isPureValue, isTransparent, lowerLimit, isEasterEggActive, activePermutationIndex, valueAliasingType, outputType]);
   
+  const getCanvasBlob = useCallback((): Promise<Blob | null> => {
+      return new Promise(resolve => {
+          const canvas = isFullScreenPreview ? fullScreenCanvasRef.current : canvasRef.current;
+          if (canvas) {
+              canvas.toBlob(blob => resolve(blob), 'image/png');
+          } else {
+              resolve(null);
+          }
+      });
+  }, [isFullScreenPreview]);
+
   const handleFullScreenReplace = (file: File) => {
     trackEvent('value_aliasing_fullscreen_replace_image', { value_aliasing_type: valueAliasingType });
     handleFileSelect(file, 'click');
@@ -373,42 +548,45 @@ export const useValueAliasingPanel = ({
   };
   
   const handleDownload = () => {
-    const getCanvasBlob = (): Promise<Blob | null> => {
-        return new Promise(resolve => {
-            const canvas = isFullScreenPreview ? fullScreenCanvasRef.current : canvasRef.current;
-            if (canvas) {
-                canvas.toBlob(blob => resolve(blob), 'image/png');
-            } else {
-                resolve(null);
-            }
-        });
-    };
-
     const analyticsParams: Record<string, string | number | boolean | undefined> = {
       feature: 'value_aliasing',
-      value_aliasing_type: valueAliasingType,
-      setting_resolution: liveValueAliasingState.resolution,
-      setting_pixel_gap: liveValueAliasingState.pixelGap,
-      setting_background: liveValueAliasingState.background,
-      setting_crop_offset_x: liveValueAliasingState.cropOffsetX,
-      setting_crop_offset_y: liveValueAliasingState.cropOffsetY,
-      setting_is_monochrome: liveValueAliasingState.isMonochrome,
-      setting_exposure: liveValueAliasingState.exposure,
-      setting_contrast: liveValueAliasingState.contrast,
-      setting_is_pure_value: liveValueAliasingState.isPureValue,
-      setting_is_transparent: liveValueAliasingState.isTransparent,
-      setting_lower_limit: liveValueAliasingState.lowerLimit,
+      output_type: outputType,
+      is_special_theme: isEasterEggActive,
+      setting_resolution: liveActiveState.resolution,
+      setting_pixel_gap: liveActiveState.pixelGap,
+      setting_background: liveActiveState.background,
+      setting_crop_offset_x: liveActiveState.cropOffsetX,
+      setting_crop_offset_y: liveActiveState.cropOffsetY,
+      setting_is_monochrome: liveActiveState.isMonochrome,
+      setting_exposure: liveActiveState.exposure,
+      setting_contrast: liveActiveState.contrast,
+      setting_is_pure_value: liveActiveState.isPureValue,
+      setting_is_transparent: liveActiveState.isTransparent,
+      setting_lower_limit: liveActiveState.lowerLimit,
     };
-
+    
     const onSuccess = () => {
         if (isFullScreenPreview) {
-            triggerShareToast(() => setShowFsToast(true));
+            triggerShareToast(() => setShowFsToast(true), isEasterEggActive);
         } else {
-            triggerShareToast();
+            triggerShareToast(undefined, isEasterEggActive);
         }
     };
+    
+    const isPrint = liveValueAliasingSettings.outputType === 'print';
+    let filename: string;
 
-    baseHandleDownload(getCanvasBlob, 'matrices-valuealiasing', analyticsParams, onSuccess);
+    if (isPrint) {
+        const { size, orientation } = liveValueAliasingSettings.print;
+        filename = `matrices-valuealiasing-print-${size}-${orientation}`;
+        analyticsParams.print_size = size;
+        analyticsParams.print_orientation = orientation;
+    } else {
+        filename = `matrices-valuealiasing-${valueAliasingType}`;
+        analyticsParams.wallpaper_type = valueAliasingType;
+    }
+
+    baseHandleDownload(getCanvasBlob, filename, analyticsParams, onSuccess);
   };
 
   const dragState = useRef({ isDragging: false, startX: 0, startY: 0, initialOffsetX: 0.5, initialOffsetY: 0.5, hasMoved: false });
@@ -417,31 +595,28 @@ export const useValueAliasingPanel = ({
       if (!valueAliasingCropIsNeeded) return;
       
       e.preventDefault();
-
       dragState.current.isDragging = true;
       dragState.current.hasMoved = false;
       
       const point = 'touches' in e ? e.touches[0] : e;
       dragState.current.startX = point.clientX;
       dragState.current.startY = point.clientY;
-      dragState.current.initialOffsetX = liveValueAliasingSettings[valueAliasingType].cropOffsetX;
-      dragState.current.initialOffsetY = liveValueAliasingSettings[valueAliasingType].cropOffsetY;
+      dragState.current.initialOffsetX = liveActiveState.cropOffsetX;
+      dragState.current.initialOffsetY = liveActiveState.cropOffsetY;
       
       document.body.style.cursor = 'grabbing';
-  }, [valueAliasingCropIsNeeded, liveValueAliasingSettings, valueAliasingType]);
+  }, [valueAliasingCropIsNeeded, liveActiveState]);
 
   const handleValueAliasingDragMove = useCallback((e: MouseEvent | TouchEvent) => {
       if (!dragState.current.isDragging || !image) return;
       
       dragState.current.hasMoved = true;
-
       const point = 'touches' in e ? e.touches[0] : e;
       
       let deltaX = point.clientX - dragState.current.startX;
       let deltaY = point.clientY - dragState.current.startY;
       
       const activeCanvas = isFullScreenPreview ? fullScreenCanvasRef.current : canvasRef.current;
-
       if (activeCanvas) {
           const rect = activeCanvas.getBoundingClientRect();
           if (rect.width > 0 && rect.height > 0) {
@@ -462,7 +637,17 @@ export const useValueAliasingPanel = ({
       let newOffsetX = panRangeX > 0 ? dragState.current.initialOffsetX - (deltaX / panRangeX) : dragState.current.initialOffsetX;
       let newOffsetY = panRangeY > 0 ? dragState.current.initialOffsetY - (deltaY / panRangeY) : dragState.current.initialOffsetY;
       
-      setLiveValueAliasingSettings(s => ({ ...s, [valueAliasingType]: { ...s[valueAliasingType], cropOffsetX: Math.max(0, Math.min(1, newOffsetX)), cropOffsetY: Math.max(0, Math.min(1, newOffsetY)) } }));
+      const newCropState = {
+          cropOffsetX: Math.max(0, Math.min(1, newOffsetX)),
+          cropOffsetY: Math.max(0, Math.min(1, newOffsetY)),
+      };
+
+      setLiveValueAliasingSettings(s => {
+          if (s.outputType === 'wallpaper') {
+              return { ...s, wallpaper: { ...s.wallpaper, [valueAliasingType]: { ...s.wallpaper[valueAliasingType], ...newCropState }}};
+          }
+          return { ...s, print: { ...s.print, ...newCropState }};
+      });
   }, [image, currentValueAliasingWidth, currentValueAliasingHeight, valueAliasingType, isFullScreenPreview]);
 
   const handleValueAliasingDragEnd = useCallback(() => {
@@ -470,15 +655,20 @@ export const useValueAliasingPanel = ({
           dragState.current.isDragging = false;
           
           if (dragState.current.hasMoved) {
-            trackEvent('value_aliasing_crop', { value_aliasing_type: valueAliasingType });
+            trackEvent('value_aliasing_crop', { value_aliasing_type: outputType === 'wallpaper' ? valueAliasingType : 'print' });
           }
 
-          const { cropOffsetX: liveCropOffsetX, cropOffsetY: liveCropOffsetY } = liveValueAliasingSettings[valueAliasingType];
-          setValueAliasingSettings(s => ({ ...s, [valueAliasingType]: { ...s[valueAliasingType], cropOffsetX: liveCropOffsetX, cropOffsetY: liveCropOffsetY } }));
+          const { cropOffsetX: liveCropOffsetX, cropOffsetY: liveCropOffsetY } = liveActiveState;
+          setValueAliasingSettings(s => {
+            if (s.outputType === 'wallpaper') {
+                return { ...s, wallpaper: { ...s.wallpaper, [valueAliasingType]: { ...s.wallpaper[valueAliasingType], cropOffsetX: liveCropOffsetX, cropOffsetY: liveCropOffsetY }}};
+            }
+            return { ...s, print: { ...s.print, cropOffsetX: liveCropOffsetX, cropOffsetY: liveCropOffsetY }};
+          });
           
           document.body.style.cursor = 'default';
       }
-  }, [liveValueAliasingSettings, valueAliasingType, setValueAliasingSettings]);
+  }, [liveActiveState, valueAliasingType, setValueAliasingSettings, outputType]);
 
   useEffect(() => {
       const onMove = (e: MouseEvent | TouchEvent) => handleValueAliasingDragMove(e);
@@ -499,159 +689,153 @@ export const useValueAliasingPanel = ({
       }
   }, [handleValueAliasingDragMove, handleValueAliasingDragEnd]);
 
-  const handleValueAliasingTypeSelect = (type: string) => {
-    trackEvent('value_aliasing_type_select', { type });
-    setValueAliasingType(type as 'phone' | 'desktop');
+  const updateLiveSetting = (key: keyof ValueAliasingState, value: any) => {
+    setLiveValueAliasingSettings(s => {
+        if (s.outputType === 'wallpaper') {
+            return { ...s, wallpaper: { ...s.wallpaper, [valueAliasingType]: { ...s.wallpaper[valueAliasingType], [key]: value }}};
+        }
+        return { ...s, print: { ...s.print, [key]: value }};
+    });
   };
-  
-  const handleStyleChange = (style: 'dark' | 'light') => {
-    const newBg = style === 'dark' ? 'black' : 'white';
-    trackEvent('value_aliasing_style_change', { style, value_aliasing_type: valueAliasingType });
-    setValueAliasingSettings(s => ({ ...s, [valueAliasingType]: { ...s[valueAliasingType], background: newBg } }));
-  };
-  
-  const valueAliasingTypeOptions = [
-      { key: 'phone', label: 'Phone' },
-      { key: 'desktop', label: 'Desktop' }
-  ];
 
-  const styleOptions = [
-      { key: 'dark', label: 'Dark' },
-      { key: 'light', label: 'Light' }
-  ];
+  const commitSetting = (key: keyof ValueAliasingState, value: any) => {
+    setValueAliasingSettings(s => {
+        if (s.outputType === 'wallpaper') {
+            return { ...s, wallpaper: { ...s.wallpaper, [valueAliasingType]: { ...s.wallpaper[valueAliasingType], [key]: value }}};
+        }
+        return { ...s, print: { ...s.print, [key]: value }};
+    });
+    trackEvent('value_aliasing_slider_change', { slider_name: key, value: value, output_mode: outputType === 'wallpaper' ? valueAliasingType : 'print' });
+  };
+  
+  const handleOutputTypeSelect = (type: 'wallpaper' | 'print') => {
+    trackEvent('value_aliasing_output_type_select', { type });
+    setValueAliasingSettings(s => ({ ...s, outputType: type }));
+  };
+
+  const valueAliasingTypeOptions = [ { key: 'phone', label: 'Phone' }, { key: 'desktop', label: 'Desktop' } ];
+  const outputTypeOptions = [ { key: 'wallpaper', label: 'Wallpaper' }, { key: 'print', label: 'Print' } ];
+  const orientationOptions = [ { key: 'landscape', label: 'Landscape' }, { key: 'portrait', label: 'Portrait' } ];
+  
+  const StyleSelector = () => {
+    const baseButtonClasses = `py-2 text-sm font-semibold transition-colors duration-200 focus:outline-none rounded-md flex items-center justify-center`;
+    const selectedClasses = theme === 'dark' ? 'bg-nothing-light text-nothing-dark font-bold' : 'bg-day-text text-day-bg font-bold';
+    const unselectedClasses = theme === 'dark' ? 'bg-nothing-gray-dark hover:bg-gray-700 text-nothing-light' : 'bg-day-gray-light hover:bg-gray-300 text-day-text';
+
+    return (
+        <div className={`flex space-x-1 p-1 rounded-lg ${theme === 'dark' ? 'bg-nothing-darker' : 'bg-gray-200'}`}>
+            <button 
+                onClick={() => handleThemeChange('dark')}
+                className={`${baseButtonClasses} flex-grow ${!isEasterEggActive && liveActiveState.background === 'black' ? selectedClasses : unselectedClasses}`}
+                aria-pressed={!isEasterEggActive && liveActiveState.background === 'black'}
+            >
+                Dark
+            </button>
+            <button 
+                onClick={() => handleThemeChange('light')}
+                className={`${baseButtonClasses} flex-grow ${!isEasterEggActive && liveActiveState.background === 'white' ? selectedClasses : unselectedClasses}`}
+                aria-pressed={!isEasterEggActive && liveActiveState.background === 'white'}
+            >
+                Light
+            </button>
+            {isEasterEggPermanentlyUnlocked && (
+                <button
+                    onClick={() => handleThemeChange('community')}
+                    className={`${baseButtonClasses} flex-shrink-0 w-10 ${isEasterEggActive ? selectedClasses : unselectedClasses}`}
+                    aria-label="Activate Community Theme"
+                    aria-pressed={isEasterEggActive}
+                >
+                    <svg viewBox="0 0 22 22" className="h-5 w-5" aria-hidden="true">
+                      <rect x="0" y="0" width="10" height="10" fill="#BD1721" />
+                      <rect x="12" y="0" width="10" height="10" fill="#FCCA21" />
+                      <rect x="0" y="12" width="10" height="10" fill="#0D4E81" />
+                      <rect x="12" y="12" width="10" height="10" fill="#E0E0E0" />
+                    </svg>
+                </button>
+            )}
+        </div>
+    );
+  };
+
+  const ShuffleButton = () => (
+    <button
+        onClick={handleRefreshGrid}
+        className={`p-2 transition-colors duration-200 rounded-md ${theme === 'dark' ? 'bg-gray-700 text-nothing-gray-light hover:text-white' : 'bg-gray-200 text-day-gray-dark hover:text-black'}`}
+        aria-label="Randomize Background Colors"
+    >
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="16 3 21 3 21 8"></polyline>
+            <line x1="4" y1="20" x2="21" y2="3"></line>
+            <polyline points="21 16 21 21 16 21"></polyline>
+            <line x1="15" y1="15" x2="21" y2="21"></line>
+            <line x1="4" y1="4" x2="9" y2="9"></line>
+        </svg>
+    </button>
+  );
 
   const controlsPanel = imageSrc ? (
      <div className="max-w-md mx-auto w-full flex flex-col space-y-4 px-6 sm:px-6 md:px-8 pt-6 md:pt-3 pb-8 sm:pb-6 md:pb-8">
-      {!isEasterEggActive ? (
-        <div className={`p-4 rounded-lg space-y-4 ${theme === 'dark' ? 'bg-nothing-darker' : 'bg-white border border-gray-300'}`}>
-          <SegmentedControl options={valueAliasingTypeOptions} selected={valueAliasingType} onSelect={handleValueAliasingTypeSelect} theme={theme} />
-          <SegmentedControl
-              options={styleOptions}
-              selected={liveValueAliasingState.background === 'black' ? 'dark' : 'light'}
-              onSelect={(key) => handleStyleChange(key as 'dark' | 'light')}
-              theme={theme}
-          />
-        </div>
-      ) : (
-        <div className={`p-4 rounded-lg space-y-4 ${theme === 'dark' ? 'bg-nothing-darker' : 'bg-white border border-gray-300'}`}>
-          <SegmentedControl options={valueAliasingTypeOptions} selected={valueAliasingType} onSelect={handleValueAliasingTypeSelect} theme={theme} />
-        </div>
-      )}
+      <div className={`p-4 rounded-lg space-y-4 ${theme === 'dark' ? 'bg-nothing-darker' : 'bg-white border border-gray-300'}`}>
+        <SegmentedControl options={outputTypeOptions} selected={outputType} onSelect={(key) => handleOutputTypeSelect(key as 'wallpaper' | 'print')} theme={theme} />
+        {outputType === 'wallpaper' ? (
+            <SegmentedControl options={valueAliasingTypeOptions} selected={valueAliasingType} onSelect={(key) => setValueAliasingType(key as 'phone' | 'desktop')} theme={theme} />
+        ) : (
+          <div className="space-y-4">
+              <div>
+                  <label htmlFor="print-size-select" className={`block text-sm mb-2 ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'}`}>Print Size</label>
+                  <select
+                      id="print-size-select"
+                      value={(liveActiveState as PrintState).size}
+                      onChange={(e) => {
+                          const newSize = e.target.value;
+                          setValueAliasingSettings(s => ({ ...s, print: { ...s.print, size: newSize }}));
+                          trackEvent('value_aliasing_print_size_change', { size: newSize });
+                      }}
+                      className={`w-full p-2 rounded-md border text-sm ${theme === 'dark' ? 'bg-nothing-gray-dark border-nothing-gray-dark text-nothing-light' : 'bg-day-gray-light border-gray-300 text-day-text'}`}
+                  >
+                      {PRINT_SIZE_GROUPS.map(group => (
+                          <optgroup label={group} key={group}>
+                              {Object.entries(PRINT_SIZES).filter(([, val]) => val.group === group).map(([key, val]) => (
+                                  <option key={key} value={key}>{val.label}</option>
+                              ))}
+                          </optgroup>
+                      ))}
+                  </select>
+              </div>
+              <SegmentedControl options={orientationOptions} selected={(liveActiveState as PrintState).orientation} onSelect={(key) => {
+                  const newOrientation = key as 'landscape' | 'portrait';
+                  setValueAliasingSettings(s => ({ ...s, print: { ...s.print, orientation: newOrientation }}));
+                  trackEvent('value_aliasing_orientation_change', { orientation: newOrientation });
+              }} theme={theme} />
+          </div>
+        )}
+        <StyleSelector />
+      </div>
 
       <div className="flex justify-center items-center space-x-4">
-        <UndoRedoControls onUndo={() => { undoValueAliasing(); trackEvent('value_aliasing_undo'); }} onRedo={() => { redoValueAliasing(); trackEvent('value_aliasing_redo'); }} canUndo={canUndoValueAliasing} canRedo={canRedoValueAliasing} theme={theme} />
-        {isEasterEggActive && (
-            <button
-                onClick={handleRefreshGrid}
-                className={`flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold transition-colors duration-200 rounded-md ${theme === 'dark' ? 'bg-gray-700 text-nothing-light hover:bg-gray-600' : 'bg-gray-200 text-day-text hover:bg-gray-300'}`}
-                aria-label="Randomize Background Grid"
-            >
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-                    <polyline points="23 4 23 10 17 10"></polyline>
-                    <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
-                </svg>
-                 <span>Refresh</span>
-            </button>
-        )}
+        <UndoRedoControls onUndo={() => { undoValueAliasing(); trackEvent('value_aliasing_undo'); }} onRedo={() => { redoValueAliasing(); trackEvent('value_aliasing_redo'); }} canUndo={canUndoValueAliasing} canRedo={canDoValueAliasing} theme={theme} />
+        {isEasterEggActive && <ShuffleButton />}
       </div>
       
       <div className={`p-4 rounded-lg space-y-4 ${theme === 'dark' ? 'bg-nothing-darker' : 'bg-white border border-gray-300'}`}>
-        <EnhancedSlider 
-            theme={theme}
-            isMobile={isMobile}
-            label="Exposure"
-            value={exposure} 
-            onChange={v => setLiveValueAliasingSettings(s => ({ ...s, [valueAliasingType]: { ...s[valueAliasingType], exposure: v } }))} 
-            onChangeCommitted={v => {
-              setValueAliasingSettings(s => ({ ...s, [valueAliasingType]: { ...s[valueAliasingType], exposure: v } }));
-              trackEvent('value_aliasing_slider_change', { slider_name: 'exposure', value: v, value_aliasing_type: valueAliasingType });
-            }}
-            onReset={() => {
-              setValueAliasingSettings(s => ({ ...s, [valueAliasingType]: { ...s[valueAliasingType], exposure: DEFAULT_SLIDER_VALUE } }));
-            }}
-            disabled={isLoading} 
-        />
-        <EnhancedSlider 
-            theme={theme}
-            isMobile={isMobile}
-            label="Contrast"
-            value={contrast} 
-            onChange={v => setLiveValueAliasingSettings(s => ({ ...s, [valueAliasingType]: { ...s[valueAliasingType], contrast: v } }))} 
-            onChangeCommitted={v => {
-              setValueAliasingSettings(s => ({ ...s, [valueAliasingType]: { ...s[valueAliasingType], contrast: v } }));
-              trackEvent('value_aliasing_slider_change', { slider_name: 'contrast', value: v, value_aliasing_type: valueAliasingType });
-            }}
-            onReset={() => {
-              setValueAliasingSettings(s => ({ ...s, [valueAliasingType]: { ...s[valueAliasingType], contrast: DEFAULT_SLIDER_VALUE } }));
-            }}
-            disabled={isLoading} 
-        />
-        <EnhancedSlider 
-            theme={theme}
-            isMobile={isMobile}
-            label="Resolution" 
-            value={resolution} 
-            onChange={v => setLiveValueAliasingSettings(s => ({ ...s, [valueAliasingType]: { ...s[valueAliasingType], resolution: v } }))} 
-            onChangeCommitted={v => {
-              setValueAliasingSettings(s => ({ ...s, [valueAliasingType]: { ...s[valueAliasingType], resolution: v } }));
-              trackEvent('value_aliasing_slider_change', { slider_name: 'resolution', value: v, value_aliasing_type: valueAliasingType });
-            }}
-            onReset={() => {
-              setValueAliasingSettings(s => ({ ...s, [valueAliasingType]: { ...s[valueAliasingType], resolution: DEFAULT_SLIDER_VALUE } }));
-            }}
-            disabled={isLoading} 
-        />
-        <EnhancedSlider 
-            theme={theme}
-            isMobile={isMobile}
-            label="Pixel Gap" 
-            value={pixelGap} 
-            onChange={v => setLiveValueAliasingSettings(s => ({ ...s, [valueAliasingType]: { ...s[valueAliasingType], pixelGap: v } }))}
-            onChangeCommitted={v => {
-              setValueAliasingSettings(s => ({ ...s, [valueAliasingType]: { ...s[valueAliasingType], pixelGap: v } }));
-              trackEvent('value_aliasing_slider_change', { slider_name: 'pixel_gap', value: v, value_aliasing_type: valueAliasingType });
-            }} 
-            onReset={() => {
-              setValueAliasingSettings(s => ({ ...s, [valueAliasingType]: { ...s[valueAliasingType], pixelGap: DEFAULT_SLIDER_VALUE } }));
-            }}
-            disabled={isLoading} 
-        />
-        <EnhancedSlider 
-            theme={theme}
-            isMobile={isMobile}
-            label="Lower Limit" 
-            value={lowerLimit} 
-            onChange={v => setLiveValueAliasingSettings(s => ({ ...s, [valueAliasingType]: { ...s[valueAliasingType], lowerLimit: v } }))}
-            onChangeCommitted={v => {
-              setValueAliasingSettings(s => ({ ...s, [valueAliasingType]: { ...s[valueAliasingType], lowerLimit: v } }));
-              trackEvent('value_aliasing_slider_change', { slider_name: 'lower_limit', value: v, value_aliasing_type: valueAliasingType });
-            }} 
-            onReset={() => {
-              setValueAliasingSettings(s => ({ ...s, [valueAliasingType]: { ...s[valueAliasingType], lowerLimit: 0 } }));
-            }}
-            disabled={isLoading} 
-        />
+        <EnhancedSlider theme={theme} isMobile={isMobile} label="Exposure" value={exposure} onChange={v => updateLiveSetting('exposure', v)} onChangeCommitted={v => commitSetting('exposure', v)} onReset={() => commitSetting('exposure', DEFAULT_SLIDER_VALUE)} disabled={isLoading} />
+        <EnhancedSlider theme={theme} isMobile={isMobile} label="Contrast" value={contrast} onChange={v => updateLiveSetting('contrast', v)} onChangeCommitted={v => commitSetting('contrast', v)} onReset={() => commitSetting('contrast', DEFAULT_SLIDER_VALUE)} disabled={isLoading} />
+        <EnhancedSlider theme={theme} isMobile={isMobile} label="Resolution" value={resolution} onChange={v => updateLiveSetting('resolution', v)} onChangeCommitted={v => commitSetting('resolution', v)} onReset={() => commitSetting('resolution', DEFAULT_SLIDER_VALUE)} disabled={isLoading} />
+        <EnhancedSlider theme={theme} isMobile={isMobile} label="Pixel Gap" value={pixelGap} onChange={v => updateLiveSetting('pixelGap', v)} onChangeCommitted={v => commitSetting('pixelGap', v)} onReset={() => commitSetting('pixelGap', DEFAULT_SLIDER_VALUE)} disabled={isLoading} />
+        <EnhancedSlider theme={theme} isMobile={isMobile} label="Lower Limit" value={lowerLimit} onChange={v => updateLiveSetting('lowerLimit', v)} onChangeCommitted={v => commitSetting('lowerLimit', 0)} onReset={() => commitSetting('lowerLimit', 0)} disabled={isLoading} />
       </div>
 
       {!isEasterEggActive && (
       <div className={`p-4 rounded-lg space-y-4 ${theme === 'dark' ? 'bg-nothing-darker' : 'bg-white border border-gray-300'}`}>
         <div className={`flex items-center justify-between ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'}`}>
             <label htmlFor="pure-values-toggle" className="text-sm">Pure Values</label>
-            <button id="pure-values-toggle" role="switch" aria-checked={isPureValue} onClick={() => { 
-                const newValue = !liveValueAliasingState.isPureValue;
-                setValueAliasingSettings(s => ({...s, [valueAliasingType]: { ...s[valueAliasingType], isPureValue: newValue }})); 
-                trackEvent('value_aliasing_toggle_change', { setting: 'pure_values', enabled: newValue, value_aliasing_type: valueAliasingType });
-            }} disabled={isLoading} className={`relative inline-flex items-center h-6 w-11 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 rounded-full ${theme === 'dark' ? 'focus:ring-offset-nothing-dark' : 'focus:ring-offset-day-bg'} ${isPureValue ? 'bg-nothing-red' : (theme === 'dark' ? 'bg-nothing-gray-dark' : 'bg-day-gray-light')}`}>
+            <button id="pure-values-toggle" role="switch" aria-checked={isPureValue} onClick={() => commitSetting('isPureValue', !isPureValue)} disabled={isLoading} className={`relative inline-flex items-center h-6 w-11 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 rounded-full ${theme === 'dark' ? 'focus:ring-offset-nothing-dark' : 'focus:ring-offset-day-bg'} ${isPureValue ? 'bg-nothing-red' : (theme === 'dark' ? 'bg-nothing-gray-dark' : 'bg-day-gray-light')}`}>
                 <span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform duration-300 ${isPureValue ? 'translate-x-6' : 'translate-x-1'}`} />
             </button>
         </div>
         <div className={`flex items-center justify-between ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'}`}>
             <label htmlFor="transparent-output-toggle" className="text-sm">Transparent Output</label>
-            <button id="transparent-output-toggle" role="switch" aria-checked={isTransparent} onClick={() => { 
-                const newValue = !liveValueAliasingState.isTransparent;
-                setValueAliasingSettings(s => ({...s, [valueAliasingType]: { ...s[valueAliasingType], isTransparent: newValue }})); 
-                trackEvent('value_aliasing_toggle_change', { setting: 'transparent_output', enabled: newValue, value_aliasing_type: valueAliasingType });
-            }} disabled={isLoading} className={`relative inline-flex items-center h-6 w-11 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 rounded-full ${theme === 'dark' ? 'focus:ring-offset-nothing-dark' : 'focus:ring-offset-day-bg'} ${isTransparent ? 'bg-nothing-red' : (theme === 'dark' ? 'bg-nothing-gray-dark' : 'bg-day-gray-light')}`}>
+            <button id="transparent-output-toggle" role="switch" aria-checked={isTransparent} onClick={() => commitSetting('isTransparent', !isTransparent)} disabled={isLoading} className={`relative inline-flex items-center h-6 w-11 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 rounded-full ${theme === 'dark' ? 'focus:ring-offset-nothing-dark' : 'focus:ring-offset-day-bg'} ${isTransparent ? 'bg-nothing-red' : (theme === 'dark' ? 'bg-nothing-gray-dark' : 'bg-day-gray-light')}`}>
                 <span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform duration-300 ${isTransparent ? 'translate-x-6' : 'translate-x-1'}`} />
             </button>
         </div>
@@ -682,7 +866,7 @@ export const useValueAliasingPanel = ({
                 ref={canvasRef} 
                 width={currentValueAliasingWidth} 
                 height={currentValueAliasingHeight} 
-                className={`border-2 rounded-lg ${theme === 'dark' ? 'border-nothing-gray-dark' : 'border-gray-300'} ${valueAliasingType === 'phone' ? (isMobile ? 'w-4/5 h-auto' : 'max-h-full w-auto') : 'max-w-full max-h-full'}`} 
+                className={`border-2 rounded-lg ${theme === 'dark' ? 'border-nothing-gray-dark' : 'border-gray-300'} ${outputType === 'wallpaper' && valueAliasingType === 'phone' ? (isMobile ? 'w-4/5 h-auto' : 'max-h-full w-auto') : 'max-w-full max-h-full'}`} 
                 aria-label="Value Aliasing Canvas" 
                 onMouseDown={handleValueAliasingDragStart}
                 onTouchStart={handleValueAliasingDragStart}
@@ -734,6 +918,11 @@ export const useValueAliasingPanel = ({
                         touchAction: valueAliasingCropIsNeeded ? 'none' : 'auto'
                     }}
                 />
+                {valueAliasingCropIsNeeded && (
+                    <div className={`fixed bottom-8 left-1/2 -translate-x-1/2 z-50 px-2 py-1 rounded-md text-sm ${theme === 'dark' ? 'bg-nothing-dark/90 text-nothing-light' : 'bg-day-gray-light/90 text-day-text'} backdrop-blur-sm pointer-events-none`}>
+                        ⓘ Drag to Crop
+                    </div>
+                )}
                 
                 {easterEggPrimed && (
                     <button
@@ -761,132 +950,65 @@ export const useValueAliasingPanel = ({
                           </div>
 
                           <div className="overflow-y-auto space-y-4 pr-2 -mr-2">
-                          {!isEasterEggActive ? (
+                             
                             <div className={`p-3 rounded-lg space-y-4 ${theme === 'dark' ? 'bg-black/40' : 'bg-white/60'}`}>
-                                <SegmentedControl options={valueAliasingTypeOptions} selected={valueAliasingType} onSelect={handleValueAliasingTypeSelect} theme={theme} />
-                                <SegmentedControl
-                                    options={styleOptions}
-                                    selected={liveValueAliasingState.background === 'black' ? 'dark' : 'light'}
-                                    onSelect={(key) => handleStyleChange(key as 'dark' | 'light')}
-                                    theme={theme}
-                                />
-                            </div>
-                          ) : (
-                            <div className={`p-3 rounded-lg space-y-4 ${theme === 'dark' ? 'bg-black/40' : 'bg-white/60'}`}>
-                                <SegmentedControl options={valueAliasingTypeOptions} selected={valueAliasingType} onSelect={handleValueAliasingTypeSelect} theme={theme} />
-                            </div>
-                          )}
-                            <div className="flex justify-center items-center space-x-4">
-                                <UndoRedoControls onUndo={() => { undoValueAliasing(); trackEvent('value_aliasing_undo'); }} onRedo={() => { redoValueAliasing(); trackEvent('value_aliasing_redo'); }} canUndo={canUndoValueAliasing} canRedo={canRedoValueAliasing} theme={theme} />
-                                {isEasterEggActive && (
-                                    <button
-                                        onClick={handleRefreshGrid}
-                                        className={`p-2 transition-colors duration-200 rounded-md ${theme === 'dark' ? 'bg-gray-700 text-nothing-light hover:bg-gray-600' : 'bg-gray-200 text-day-text hover:bg-gray-300'}`}
-                                        aria-label="Randomize Background Grid"
-                                    >
-                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
-                                            <polyline points="23 4 23 10 17 10"></polyline>
-                                            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
-                                        </svg>
-                                    </button>
+                                <SegmentedControl options={outputTypeOptions} selected={outputType} onSelect={(key) => handleOutputTypeSelect(key as 'wallpaper' | 'print')} theme={theme} />
+                                {outputType === 'wallpaper' ? (
+                                    <SegmentedControl options={valueAliasingTypeOptions} selected={valueAliasingType} onSelect={(key) => setValueAliasingType(key as 'phone' | 'desktop')} theme={theme} />
+                                ) : (
+                                    <div className="space-y-4">
+                                        <div>
+                                            <label htmlFor="print-size-select-fs" className={`block text-sm mb-2 ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'}`}>Print Size</label>
+                                            <select
+                                                id="print-size-select-fs"
+                                                value={(liveActiveState as PrintState).size}
+                                                onChange={(e) => {
+                                                    const newSize = e.target.value;
+                                                    setValueAliasingSettings(s => ({ ...s, print: { ...s.print, size: newSize }}));
+                                                    trackEvent('value_aliasing_print_size_change', { size: newSize });
+                                                }}
+                                                className={`w-full p-2 rounded-md border text-sm ${theme === 'dark' ? 'bg-nothing-gray-dark border-nothing-gray-dark text-nothing-light' : 'bg-day-gray-light border-gray-300 text-day-text'}`}
+                                            >
+                                                {PRINT_SIZE_GROUPS.map(group => (
+                                                    <optgroup label={group} key={group}>
+                                                        {Object.entries(PRINT_SIZES).filter(([, val]) => val.group === group).map(([key, val]) => (
+                                                            <option key={key} value={key}>{val.label}</option>
+                                                        ))}
+                                                    </optgroup>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        <SegmentedControl options={orientationOptions} selected={(liveActiveState as PrintState).orientation} onSelect={(key) => {
+                                            const newOrientation = key as 'landscape' | 'portrait';
+                                            setValueAliasingSettings(s => ({ ...s, print: { ...s.print, orientation: newOrientation }}));
+                                            trackEvent('value_aliasing_orientation_change', { orientation: newOrientation });
+                                        }} theme={theme} />
+                                    </div>
                                 )}
+                                <StyleSelector />
+                            </div>
+                            <div className="flex justify-center items-center space-x-4">
+                                <UndoRedoControls onUndo={() => { undoValueAliasing(); trackEvent('value_aliasing_undo'); }} onRedo={() => { redoValueAliasing(); trackEvent('value_aliasing_redo'); }} canUndo={canUndoValueAliasing} canRedo={canDoValueAliasing} theme={theme} />
+                                {isEasterEggActive && <ShuffleButton />}
                             </div>
                             <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-black/40' : 'bg-white/60'} space-y-4`}>
-                                <EnhancedSlider 
-                                    theme={theme}
-                                    isMobile={isMobile}
-                                    label="Exposure"
-                                    value={exposure} 
-                                    onChange={v => setLiveValueAliasingSettings(s => ({ ...s, [valueAliasingType]: { ...s[valueAliasingType], exposure: v } }))} 
-                                    onChangeCommitted={v => {
-                                      setValueAliasingSettings(s => ({ ...s, [valueAliasingType]: { ...s[valueAliasingType], exposure: v } }));
-                                      trackEvent('value_aliasing_slider_change', { slider_name: 'exposure', value: v, value_aliasing_type: valueAliasingType });
-                                    }}
-                                    onReset={() => {
-                                      setValueAliasingSettings(s => ({ ...s, [valueAliasingType]: { ...s[valueAliasingType], exposure: DEFAULT_SLIDER_VALUE } }));
-                                    }}
-                                    disabled={isLoading} 
-                                />
-                                <EnhancedSlider 
-                                    theme={theme}
-                                    isMobile={isMobile}
-                                    label="Contrast"
-                                    value={contrast} 
-                                    onChange={v => setLiveValueAliasingSettings(s => ({ ...s, [valueAliasingType]: { ...s[valueAliasingType], contrast: v } }))} 
-                                    onChangeCommitted={v => {
-                                      setValueAliasingSettings(s => ({ ...s, [valueAliasingType]: { ...s[valueAliasingType], contrast: v } }));
-                                      trackEvent('value_aliasing_slider_change', { slider_name: 'contrast', value: v, value_aliasing_type: valueAliasingType });
-                                    }}
-                                    onReset={() => {
-                                      setValueAliasingSettings(s => ({ ...s, [valueAliasingType]: { ...s[valueAliasingType], contrast: DEFAULT_SLIDER_VALUE } }));
-                                    }}
-                                    disabled={isLoading} 
-                                />
-                                <EnhancedSlider 
-                                    theme={theme}
-                                    isMobile={isMobile}
-                                    label="Resolution" 
-                                    value={resolution} 
-                                    onChange={v => setLiveValueAliasingSettings(s => ({ ...s, [valueAliasingType]: { ...s[valueAliasingType], resolution: v } }))} 
-                                    onChangeCommitted={v => {
-                                      setValueAliasingSettings(s => ({ ...s, [valueAliasingType]: { ...s[valueAliasingType], resolution: v } }));
-                                      trackEvent('value_aliasing_slider_change', { slider_name: 'resolution', value: v, value_aliasing_type: valueAliasingType });
-                                    }}
-                                    onReset={() => {
-                                      setValueAliasingSettings(s => ({ ...s, [valueAliasingType]: { ...s[valueAliasingType], resolution: DEFAULT_SLIDER_VALUE } }));
-                                    }}
-                                    disabled={isLoading} 
-                                />
-                                <EnhancedSlider 
-                                    theme={theme}
-                                    isMobile={isMobile}
-                                    label="Pixel Gap" 
-                                    value={pixelGap} 
-                                    onChange={v => setLiveValueAliasingSettings(s => ({ ...s, [valueAliasingType]: { ...s[valueAliasingType], pixelGap: v } }))}
-                                    onChangeCommitted={v => {
-                                      setValueAliasingSettings(s => ({ ...s, [valueAliasingType]: { ...s[valueAliasingType], pixelGap: v } }));
-                                      trackEvent('value_aliasing_slider_change', { slider_name: 'pixel_gap', value: v, value_aliasing_type: valueAliasingType });
-                                    }}
-                                    onReset={() => {
-                                      setValueAliasingSettings(s => ({ ...s, [valueAliasingType]: { ...s[valueAliasingType], pixelGap: DEFAULT_SLIDER_VALUE } }));
-                                    }}
-                                    disabled={isLoading} 
-                                />
-                                 <EnhancedSlider 
-                                    theme={theme}
-                                    isMobile={isMobile}
-                                    label="Lower Limit" 
-                                    value={lowerLimit} 
-                                    onChange={v => setLiveValueAliasingSettings(s => ({ ...s, [valueAliasingType]: { ...s[valueAliasingType], lowerLimit: v } }))}
-                                    onChangeCommitted={v => {
-                                      setValueAliasingSettings(s => ({ ...s, [valueAliasingType]: { ...s[valueAliasingType], lowerLimit: v } }));
-                                      trackEvent('value_aliasing_slider_change', { slider_name: 'lower_limit', value: v, value_aliasing_type: valueAliasingType });
-                                    }} 
-                                    onReset={() => {
-                                      setValueAliasingSettings(s => ({ ...s, [valueAliasingType]: { ...s[valueAliasingType], lowerLimit: 0 } }));
-                                    }}
-                                    disabled={isLoading} 
-                                />
+                                <EnhancedSlider theme={theme} isMobile={isMobile} label="Exposure" value={exposure} onChange={v => updateLiveSetting('exposure', v)} onChangeCommitted={v => commitSetting('exposure', v)} onReset={() => commitSetting('exposure', DEFAULT_SLIDER_VALUE)} disabled={isLoading} />
+                                <EnhancedSlider theme={theme} isMobile={isMobile} label="Contrast" value={contrast} onChange={v => updateLiveSetting('contrast', v)} onChangeCommitted={v => commitSetting('contrast', v)} onReset={() => commitSetting('contrast', DEFAULT_SLIDER_VALUE)} disabled={isLoading} />
+                                <EnhancedSlider theme={theme} isMobile={isMobile} label="Resolution" value={resolution} onChange={v => updateLiveSetting('resolution', v)} onChangeCommitted={v => commitSetting('resolution', v)} onReset={() => commitSetting('resolution', DEFAULT_SLIDER_VALUE)} disabled={isLoading} />
+                                <EnhancedSlider theme={theme} isMobile={isMobile} label="Pixel Gap" value={pixelGap} onChange={v => updateLiveSetting('pixelGap', v)} onChangeCommitted={v => commitSetting('pixelGap', v)} onReset={() => commitSetting('pixelGap', DEFAULT_SLIDER_VALUE)} disabled={isLoading} />
+                                <EnhancedSlider theme={theme} isMobile={isMobile} label="Lower Limit" value={lowerLimit} onChange={v => updateLiveSetting('lowerLimit', v)} onChangeCommitted={v => commitSetting('lowerLimit', 0)} onReset={() => commitSetting('lowerLimit', 0)} disabled={isLoading} />
                             </div>
                             {!isEasterEggActive && (
-                            <div className={`p-3 rounded-lg space-y-4 ${theme === 'dark' ? 'bg-black/40' : 'bg-white/60'}`}>
+                            <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-black/40' : 'bg-white/60'} space-y-4`}>
                                 <div className={`flex items-center justify-between ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'}`}>
                                     <label htmlFor="pure-values-toggle-fs" className="text-sm">Pure Values</label>
-                                    <button id="pure-values-toggle-fs" role="switch" aria-checked={isPureValue} onClick={() => { 
-                                        const newValue = !liveValueAliasingState.isPureValue;
-                                        setValueAliasingSettings(s => ({...s, [valueAliasingType]: { ...s[valueAliasingType], isPureValue: newValue }})); 
-                                        trackEvent('value_aliasing_toggle_change', { setting: 'pure_values', enabled: newValue, value_aliasing_type: valueAliasingType }); 
-                                    }} disabled={isLoading} className={`relative inline-flex items-center h-6 w-11 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 rounded-full ${theme === 'dark' ? 'focus:ring-offset-nothing-dark' : 'focus:ring-offset-day-bg'} ${isPureValue ? 'bg-nothing-red' : (theme === 'dark' ? 'bg-nothing-gray-dark' : 'bg-day-gray-light')}`}>
+                                    <button id="pure-values-toggle-fs" role="switch" aria-checked={isPureValue} onClick={() => commitSetting('isPureValue', !isPureValue)} disabled={isLoading} className={`relative inline-flex items-center h-6 w-11 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 rounded-full ${theme === 'dark' ? 'focus:ring-offset-nothing-dark' : 'focus:ring-offset-day-bg'} ${isPureValue ? 'bg-nothing-red' : (theme === 'dark' ? 'bg-nothing-gray-dark' : 'bg-day-gray-light')}`}>
                                         <span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform duration-300 ${isPureValue ? 'translate-x-6' : 'translate-x-1'}`} />
                                     </button>
                                 </div>
                                 <div className={`flex items-center justify-between ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'}`}>
                                     <label htmlFor="transparent-output-toggle-fs" className="text-sm">Transparent Output</label>
-                                    <button id="transparent-output-toggle-fs" role="switch" aria-checked={isTransparent} onClick={() => { 
-                                        const newValue = !liveValueAliasingState.isTransparent;
-                                        setValueAliasingSettings(s => ({...s, [valueAliasingType]: { ...s[valueAliasingType], isTransparent: newValue }})); 
-                                        trackEvent('value_aliasing_toggle_change', { setting: 'transparent_output', enabled: newValue, value_aliasing_type: valueAliasingType }); 
-                                    }} disabled={isLoading} className={`relative inline-flex items-center h-6 w-11 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 rounded-full ${theme === 'dark' ? 'focus:ring-offset-nothing-dark' : 'focus:ring-offset-day-bg'} ${isTransparent ? 'bg-nothing-red' : (theme === 'dark' ? 'bg-nothing-gray-dark' : 'bg-day-gray-light')}`}>
+                                    <button id="transparent-output-toggle-fs" role="switch" aria-checked={isTransparent} onClick={() => commitSetting('isTransparent', !isTransparent)} disabled={isLoading} className={`relative inline-flex items-center h-6 w-11 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 rounded-full ${theme === 'dark' ? 'focus:ring-offset-nothing-dark' : 'focus:ring-offset-day-bg'} ${isTransparent ? 'bg-nothing-red' : (theme === 'dark' ? 'bg-nothing-gray-dark' : 'bg-day-gray-light')}`}>
                                         <span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform duration-300 ${isTransparent ? 'translate-x-6' : 'translate-x-1'}`} />
                                     </button>
                                 </div>
@@ -938,10 +1060,11 @@ export const useValueAliasingPanel = ({
                 <ToastNotification
                   show={showFsToast}
                   onClose={() => setShowFsToast(false)}
+                  onShare={() => {}}
                   theme={theme}
                   isMobile={false}
                   imageRendered={!!imageSrc}
-                  className="z-[60]"
+                  className="z-[60] !bottom-24"
                 />
             </div>,
             document.body
@@ -953,5 +1076,5 @@ export const useValueAliasingPanel = ({
 
   const replaceButton = <Dropzone onFileSelect={handleFileSelect} isLoading={isLoading} compact={true} theme={theme}/>;
 
-  return { previewPanel, controlsPanel, imageSrc, isLoading, handleFileSelect, handleDownload, downloadButton, replaceButton, valueAliasingType: valueAliasingType, activateEasterEgg, isEasterEggActive };
+  return { previewPanel, controlsPanel, imageSrc, isLoading, handleFileSelect, handleDownload, downloadButton, replaceButton, valueAliasingType: valueAliasingType, activateEasterEgg, isEasterEggActive, getCanvasBlob };
 };

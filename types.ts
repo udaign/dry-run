@@ -49,7 +49,7 @@ export type PhotoWidgetSettingsContainer = {
 
 export type PhotoWidgetColorMatrix = ({ r: number; g: number; b: number; a: number; } | null)[][];
 
-// Value Aliasing (copy of Wallpaper)
+// Value Aliasing
 export type ValueAliasingState = {
     resolution: number;
     pixelGap: number;
@@ -64,7 +64,16 @@ export type ValueAliasingState = {
     lowerLimit: number;
 };
 
+export type PrintState = ValueAliasingState & {
+    size: string;
+    orientation: 'landscape' | 'portrait';
+};
+
 export type ValueAliasingSettingsContainer = {
-    phone: ValueAliasingState;
-    desktop: ValueAliasingState;
+    outputType: 'wallpaper' | 'print';
+    wallpaper: {
+        phone: ValueAliasingState;
+        desktop: ValueAliasingState;
+    };
+    print: PrintState;
 };

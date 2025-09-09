@@ -6,30 +6,40 @@ import { usePhotoWidgetPanel } from './PhotoWidget';
 import { useValueAliasingPanel } from './ValueAliasing';
 import { Theme, Tab } from './types';
 import { trackEvent } from './analytics';
-import { ToastNotification } from './components';
+import { ToastNotification, SharePopup } from './components';
 
-const TABS: Tab[] = ['wallpaper', 'pfp', 'photoWidget', 'valueAliasing'];
+const TABS: Tab[] = ['valueAliasing', 'pfp', 'wallpaper', 'photoWidget'];
 const TAB_LABELS: Record<Tab, string> = {
   wallpaper: 'Matrix Wallpaper',
   pfp: 'Glyph Mirror',
   photoWidget: 'Photo Widget',
   valueAliasing: 'Value Aliasing',
 };
-const SHARE_LINK = "https://nothing.community/d/38047-introducing-matrices-a-handy-utility-to-create-matrix-styled-imagery";
+const NOTHING_COMMUNITY_SHARE_LINK = "https://nothing.community/d/38047-introducing-matrices-a-handy-utility-to-create-matrix-styled-imagery";
+const APP_URL = "https://udaign.github.io/matrices/";
 
 const App: React.FC = () => {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [theme, setTheme] = useState<Theme>(
     () => window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
   );
-  const [activeTab, setActiveTab] = useState<Tab>('wallpaper');
+  const [activeTab, setActiveTab] = useState<Tab>('valueAliasing');
   const [downloadCount, setDownloadCount] = useState(0);
   const [showShareToast, setShowShareToast] = useState(false);
   const [hasShownShareToastInSession, setHasShownShareToastInSession] = useState(false);
   const [userInput, setUserInput] = useState('');
   const [easterEggPrimed, setEasterEggPrimed] = useState(false);
+  const [isEasterEggPermanentlyUnlocked, setIsEasterEggPermanentlyUnlocked] = useState(false);
   const [isEasterEggHintVisible, setIsEasterEggHintVisible] = useState(false);
+  const [showSharePopup, setShowSharePopup] = useState(false);
   const activeTabIndex = TABS.indexOf(activeTab);
+  const longPressTimer = useRef<number | null>(null);
+  const longPressActivated = useRef(false);
+
+  // Special theme toast state
+  const [unlockedSpecialThemeInSession, setUnlockedSpecialThemeInSession] = useState(false);
+  const [hasDownloadedSpecialTheme, setHasDownloadedSpecialTheme] = useState(false);
+  const [showSpecialShareToast, setShowSpecialShareToast] = useState(false);
 
   const pfpFileInputRef = useRef<HTMLInputElement>(null);
   const wallpaperFileInputRef = useRef<HTMLInputElement>(null);
@@ -38,7 +48,19 @@ const App: React.FC = () => {
 
   const linkClasses = theme === 'dark' ? 'font-medium text-nothing-light hover:text-white underline' : 'font-medium text-day-text hover:text-black underline';
   
-  const triggerShareToast = useCallback((showSpecificToast?: () => void) => {
+  const triggerShareToast = useCallback((showSpecificToast?: () => void, isSpecial: boolean = false) => {
+    // Special toast logic
+    if (isSpecial && unlockedSpecialThemeInSession && !hasDownloadedSpecialTheme) {
+        setShowSpecialShareToast(true);
+        setHasDownloadedSpecialTheme(true);
+        // If this would have been the trigger for the normal toast, mark it as "shown" to prevent it appearing later.
+        if (downloadCount + 1 === 2 && !hasShownShareToastInSession) {
+            setHasShownShareToastInSession(true);
+        }
+        return; // Prioritize special toast
+    }
+
+    // Normal toast logic
     if (hasShownShareToastInSession) {
         return;
     }
@@ -52,17 +74,53 @@ const App: React.FC = () => {
       }
       setHasShownShareToastInSession(true);
     }
-  }, [downloadCount, hasShownShareToastInSession]);
+  }, [downloadCount, hasShownShareToastInSession, unlockedSpecialThemeInSession, hasDownloadedSpecialTheme]);
+
+  const markEasterEggAsUnlocked = useCallback(() => {
+    try {
+      localStorage.setItem('easterEggUnlocked', 'true');
+      setIsEasterEggPermanentlyUnlocked(true);
+    } catch (error) {
+      console.error("Failed to save easter egg state to localStorage:", error);
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      if (localStorage.getItem('easterEggUnlocked') === 'true') {
+        setIsEasterEggPermanentlyUnlocked(true);
+      }
+    } catch (error) {
+      console.error("Failed to read easter egg state from localStorage:", error);
+    }
+  }, []);
+
+  const handleThemeTogglePress = useCallback((vaImageSrc: string | null) => {
+    longPressActivated.current = false;
+    if (isMobile && !isEasterEggPermanentlyUnlocked && !easterEggPrimed && activeTab === 'valueAliasing' && !!vaImageSrc) {
+        longPressTimer.current = window.setTimeout(() => {
+            setEasterEggPrimed(true);
+            trackEvent('easter_egg_primed', { method: 'long_press' });
+            longPressActivated.current = true;
+        }, 4800);
+    }
+  }, [isMobile, isEasterEggPermanentlyUnlocked, easterEggPrimed, activeTab]);
+
+  const handleThemeToggleRelease = useCallback(() => {
+      if (longPressTimer.current) {
+          clearTimeout(longPressTimer.current);
+          longPressTimer.current = null;
+      }
+  }, []);
 
   const footerLinks = (
     <div className={`text-sm ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'} opacity-80 space-y-1`}>
       <p>
-        {activeTab === 'pfp' && '◉ = Recommended defaults. '}
         Made with 🤍❤️🖤 for Nothing Community.
       </p>
       <p>
         <a href="https://nothing.community/d/38047-introducing-matrices-a-handy-utility-to-create-matrix-styled-imagery" target="_blank" rel="noopener noreferrer" className={linkClasses} onClick={() => trackEvent('discussion_visit')}>
-          {isEasterEggHintVisible ? 'Feeling Nothing' : 'Feedback & feature requests'}
+          {isEasterEggHintVisible && !isMobile ? 'Feeling Nothing' : 'Feedback & feature requests'}
         </a>
         <span className="mx-2">|</span>
         <a href="mailto:udaybhaskar2283@gmail.com" className={linkClasses} onClick={() => trackEvent('email_click')}>
@@ -80,7 +138,14 @@ const App: React.FC = () => {
   const pfpPanel = usePfpPanel(commonProps);
   const wallpaperPanel = useWallpaperPanel(commonProps);
   const photoWidgetPanel = usePhotoWidgetPanel(commonProps);
-  const valueAliasingPanel = useValueAliasingPanel({ ...commonProps, easterEggPrimed, setEasterEggPrimed });
+  const valueAliasingPanel = useValueAliasingPanel({ 
+    ...commonProps, 
+    easterEggPrimed, 
+    setEasterEggPrimed, 
+    isEasterEggPermanentlyUnlocked, 
+    markEasterEggAsUnlocked,
+    setUnlockedSpecialThemeInSession,
+  });
   
   const panels = {
     pfp: pfpPanel,
@@ -91,11 +156,59 @@ const App: React.FC = () => {
 
   const activePanel = panels[activeTab];
   const imageSrc = activePanel.imageSrc;
+  
+  const handleShare = async (variant: 'default' | 'special' = 'default') => {
+    trackEvent('share_initiated', { variant, source: imageSrc ? 'with_image' : 'no_image' });
+
+    const blob = imageSrc && activePanel.getCanvasBlob ? await activePanel.getCanvasBlob() : null;
+
+    // --- Web Share API with Image ---
+    if (navigator.share && blob) {
+      try {
+        const file = new File([blob], 'matrices-creation.png', { type: 'image/png' });
+        const shareData = {
+          files: [file],
+          title: 'Matrices for Nothing Community',
+          text: `Created with Matrices. Link: ${APP_URL}`,
+          url: APP_URL,
+        };
+        if (navigator.canShare && navigator.canShare(shareData)) {
+          await navigator.share(shareData);
+          trackEvent('share_success_webshare_api', { method: 'image' });
+          return;
+        }
+      } catch (error) {
+        console.warn('Web Share API with image failed, falling back.', error);
+        trackEvent('share_error_webshare_api', { method: 'image', error: (error as Error).message });
+      }
+    }
+
+    // --- Web Share API Text-Only Fallback ---
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'Matrices for Nothing Community',
+          text: `Create your own Nothing style dot-matrix imagery with Matrices: ${APP_URL}`,
+          url: APP_URL,
+        });
+        trackEvent('share_success_webshare_api', { method: 'text' });
+        return;
+      } catch (error) {
+        console.warn('Web Share API text-only failed, falling back to popup.', error);
+        trackEvent('share_error_webshare_api', { method: 'text', error: (error as Error).message });
+      }
+    }
+    
+    // --- Custom Popup Fallback ---
+    setShowSharePopup(true);
+    trackEvent('share_popup_opened');
+  };
 
   useEffect(() => {
     const shouldShowHint =
       !easterEggPrimed &&
       !valueAliasingPanel.isEasterEggActive &&
+      !isEasterEggPermanentlyUnlocked &&
       activeTab === 'valueAliasing' &&
       !!valueAliasingPanel.imageSrc;
 
@@ -105,6 +218,7 @@ const App: React.FC = () => {
   }, [
     easterEggPrimed,
     valueAliasingPanel.isEasterEggActive,
+    isEasterEggPermanentlyUnlocked,
     activeTab,
     valueAliasingPanel.imageSrc,
     isEasterEggHintVisible,
@@ -112,7 +226,7 @@ const App: React.FC = () => {
 
   useEffect(() => {
     // Stop listening for the easter egg if it's already primed or fully active.
-    if (easterEggPrimed || valueAliasingPanel.isEasterEggActive) return;
+    if (easterEggPrimed || valueAliasingPanel.isEasterEggActive || isEasterEggPermanentlyUnlocked) return;
   
     const targetSequence = 'feelingnothing';
     const handler = (e: KeyboardEvent) => {
@@ -135,6 +249,7 @@ const App: React.FC = () => {
         setUserInput(newSequence);
         if (newSequence === targetSequence) {
           setEasterEggPrimed(true);
+          trackEvent('easter_egg_primed', { method: 'keyboard' });
           setUserInput(''); // Reset after success
         }
       } else {
@@ -146,7 +261,7 @@ const App: React.FC = () => {
   
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [userInput, easterEggPrimed, activeTab, valueAliasingPanel.isEasterEggActive, valueAliasingPanel.imageSrc]);
+  }, [userInput, easterEggPrimed, activeTab, valueAliasingPanel.isEasterEggActive, valueAliasingPanel.imageSrc, isEasterEggPermanentlyUnlocked]);
 
   const handlePfpFileSelect = (file: File) => {
       pfpPanel.handleFileSelect(file, 'click');
@@ -215,6 +330,10 @@ const App: React.FC = () => {
   }, [theme]);
   
   const handleThemeToggle = () => {
+    if (longPressActivated.current) {
+        longPressActivated.current = false;
+        return;
+    }
     const newTheme = theme === 'dark' ? 'light' : 'dark';
     trackEvent('theme_change', { theme: newTheme });
     setTheme(newTheme);
@@ -226,10 +345,10 @@ const App: React.FC = () => {
   };
 
   const tabDescriptions = {
+    valueAliasing: <>Create value-aliased imagery. <strong className={`font-bold ${theme === 'dark' ? 'text-nothing-light' : 'text-black'}`}>Drag to crop</strong> into desired area.</>,
     pfp: <>Create glyph mirror styled profile pictures. <strong className={`font-bold ${theme === 'dark' ? 'text-nothing-light' : 'text-black'}`}>Drag to crop</strong> into desired area.</>,
     wallpaper: <>Create matrix styled wallpapers. <strong className={`font-bold ${theme === 'dark' ? 'text-nothing-light' : 'text-black'}`}>Drag to crop</strong> into desired area.</>,
     photoWidget: "Create matrix styled photo widgets.",
-    valueAliasing: <>Create value-aliased imagery. <strong className={`font-bold ${theme === 'dark' ? 'text-nothing-light' : 'text-black'}`}>Drag to crop</strong> into desired area.</>,
   };
     
   const previewContainerPadding = useMemo(() => {
@@ -239,7 +358,7 @@ const App: React.FC = () => {
     return 'p-4 sm:p-6';
   }, [activeTab, panels.wallpaper, panels.valueAliasing, isMobile]);
   
-  const shareButtonClasses = `flex items-center p-2 md:px-3 transition-colors duration-300 rounded-md text-sm font-semibold ${theme === 'dark' ? 'text-nothing-light bg-nothing-gray-dark hover:bg-nothing-gray-light hover:text-nothing-dark' : 'text-day-text bg-day-gray-light hover:bg-day-gray-dark hover:text-day-bg'} ${easterEggPrimed && valueAliasingPanel.imageSrc ? 'easter-egg-glow' : ''}`;
+  const shareButtonClasses = `flex items-center p-2 md:px-3 transition-colors duration-300 rounded-md text-sm font-semibold ${theme === 'dark' ? 'text-nothing-light bg-nothing-gray-dark hover:bg-nothing-gray-light hover:text-nothing-dark' : 'text-day-text bg-day-gray-light hover:bg-day-gray-dark hover:text-day-bg'} ${easterEggPrimed ? 'easter-egg-glow' : ''}`;
 
   return (
     <>
@@ -252,24 +371,42 @@ const App: React.FC = () => {
         <header className={`flex-shrink-0 sticky top-0 z-30 flex justify-between items-center p-4 border-b ${theme === 'dark' ? 'bg-nothing-dark border-nothing-gray-dark' : 'bg-day-bg border-gray-300'}`}>
           <h1 className="text-2xl sm:text-3xl font-normal page-title">MATRICES FOR NOTHING COMMUNITY</h1>
           <div className="flex items-center space-x-2">
-            <a href={easterEggPrimed && valueAliasingPanel.imageSrc ? '#' : SHARE_LINK} target="_blank" rel="noopener noreferrer" onClick={(e) => {
-                if (easterEggPrimed && valueAliasingPanel.imageSrc) {
+            <button onClick={(e) => {
+                if (easterEggPrimed) {
                   e.preventDefault();
                   setActiveTab('valueAliasing');
                   valueAliasingPanel.activateEasterEgg();
                   setEasterEggPrimed(false);
+                  trackEvent('easter_egg_unlocked');
                 } else {
                   trackEvent('share_community_header_click');
+                  handleShare();
                 }
-              }} className={shareButtonClasses} aria-label="Share to Nothing Community">
-              {easterEggPrimed && valueAliasingPanel.imageSrc ? 'Click to Unlock' : (
+              }} className={shareButtonClasses} aria-label={easterEggPrimed ? "Unlock Secret Theme" : "Share"}>
+              {easterEggPrimed ? (
                   <>
-                      <span className="hidden md:inline">Share to Community</span>
+                      <span className="hidden md:inline">Unlock Secret</span>
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-6 w-6 md:ml-2">
+                          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                          <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                      </svg>
+                  </>
+              ) : (
+                  <>
+                      <span className="hidden md:inline">Share</span>
                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-6 w-6 md:ml-2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
                   </>
               )}
-            </a>
-            <button onClick={handleThemeToggle} className={`p-2 transition-colors duration-300 rounded-md ${theme === 'dark' ? 'text-nothing-light bg-nothing-gray-dark hover:bg-nothing-gray-light hover:text-nothing-dark' : 'text-day-text bg-day-gray-light hover:bg-day-gray-dark hover:text-day-bg'}`} aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}>
+            </button>
+            <button 
+              onClick={handleThemeToggle}
+              onMouseDown={() => handleThemeTogglePress(panels.valueAliasing.imageSrc)}
+              onMouseUp={handleThemeToggleRelease}
+              onMouseLeave={handleThemeToggleRelease}
+              onTouchStart={() => handleThemeTogglePress(panels.valueAliasing.imageSrc)}
+              onTouchEnd={handleThemeToggleRelease}
+              className={`p-2 transition-colors duration-300 rounded-md ${theme === 'dark' ? 'text-nothing-light bg-nothing-gray-dark hover:bg-nothing-gray-light hover:text-nothing-dark' : 'text-day-text bg-day-gray-light hover:bg-day-gray-dark hover:text-day-bg'}`} 
+              aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}>
               {theme === 'dark' ? (
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="feather feather-sun h-6 w-6"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
               ) : (
@@ -335,13 +472,25 @@ const App: React.FC = () => {
               </div>
               <div className="block md:hidden">{activePanel.controlsPanel}</div>
               {!isMobile && (
-                <ToastNotification
-                  show={showShareToast}
-                  onClose={() => setShowShareToast(false)}
-                  theme={theme}
-                  isMobile={isMobile}
-                  imageRendered={!!imageSrc}
-                />
+                <>
+                  <ToastNotification
+                    show={showShareToast}
+                    onClose={() => setShowShareToast(false)}
+                    onShare={handleShare}
+                    theme={theme}
+                    isMobile={isMobile}
+                    imageRendered={!!imageSrc}
+                  />
+                  <ToastNotification
+                    show={showSpecialShareToast}
+                    onClose={() => setShowSpecialShareToast(false)}
+                    onShare={() => handleShare('special')}
+                    theme={theme}
+                    isMobile={isMobile}
+                    imageRendered={!!imageSrc}
+                    variant="special"
+                  />
+                </>
               )}
             </div>
           </div>
@@ -385,14 +534,34 @@ const App: React.FC = () => {
         </div>
         
         {isMobile && (
-          <ToastNotification
-            show={showShareToast}
-            onClose={() => setShowShareToast(false)}
-            theme={theme}
-            isMobile={isMobile}
-            imageRendered={!!imageSrc}
-          />
+          <>
+            <ToastNotification
+              show={showShareToast}
+              onClose={() => setShowShareToast(false)}
+              onShare={handleShare}
+              theme={theme}
+              isMobile={isMobile}
+              imageRendered={!!imageSrc}
+            />
+            <ToastNotification
+              show={showSpecialShareToast}
+              onClose={() => setShowSpecialShareToast(false)}
+              onShare={() => handleShare('special')}
+              theme={theme}
+              isMobile={isMobile}
+              imageRendered={!!imageSrc}
+              variant="special"
+            />
+          </>
         )}
+        
+        <SharePopup 
+            show={showSharePopup}
+            onClose={() => setShowSharePopup(false)}
+            theme={theme}
+            communityLink={NOTHING_COMMUNITY_SHARE_LINK}
+            appUrl={APP_URL}
+        />
       </div>
     </>
   );
