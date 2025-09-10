@@ -1,6 +1,6 @@
 {
   "homepage": "https://udaign.github.io/dry-run",
-  "name": "copy-of-matrices-for-nothing-community-v4---post-deployment-fixes",
+  "name": "copy-of-matrices-for-nothing-community-v4---for-2nd-post-deployment-testing-fixes",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -13,7 +13,8 @@
   },
   "dependencies": {
     "react": "^19.1.0",
-    "react-dom": "^19.1.0"
+    "react-dom": "^19.1.0",
+    "pdf-lib": "^1.17.1"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

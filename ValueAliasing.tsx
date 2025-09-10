@@ -1,10 +1,10 @@
-
 import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { createPortal, flushSync } from 'react-dom';
+import { PDFDocument } from 'pdf-lib';
 import { useHistory, useImageHandler } from './hooks';
 import { getTimestamp } from './utils';
 import { ValueAliasingState, WallpaperBgKey, WALLPAPER_BG_OPTIONS, Theme, ValueAliasingSettingsContainer, PrintState } from './types';
-import { Dropzone, EnhancedSlider, UndoRedoControls, SegmentedControl, ToastNotification, ToggleSwitch, SharePopup } from './components';
+import { Dropzone, EnhancedSlider, UndoRedoControls, SegmentedControl, ToastNotification, ToggleSwitch, SharePopup, LoadingPopup } from './components';
 import { trackEvent } from './analytics';
 
 const DEFAULT_SLIDER_VALUE = 50;
@@ -210,6 +210,9 @@ export const useValueAliasingPanel = ({
   
   const [isEasterEggActive, setIsEasterEggActive] = useState(false);
   const [activePermutationIndex, setActivePermutationIndex] = useState<number | null>(null);
+
+  const [printFormat, setPrintFormat] = useState<'png' | 'pdf'>('png');
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
   const { outputType } = liveValueAliasingSettings;
 
@@ -558,8 +561,79 @@ export const useValueAliasingPanel = ({
           e.target.value = '';
       }
   };
+
+  const handlePdfDownload = async () => {
+    if (!image) return;
+    setIsGeneratingPdf(true);
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    try {
+        const printState = valueAliasingSettings.print;
+        const sizeInfo = PRINT_SIZES[printState.size];
+        let widthInches, heightInches;
+
+        if (printState.size === 'original') {
+            const baseSizeInches = 12;
+            const imgAspect = image.width / image.height;
+            widthInches = imgAspect >= 1 ? baseSizeInches : baseSizeInches * imgAspect;
+            heightInches = imgAspect >= 1 ? baseSizeInches / imgAspect : baseSizeInches;
+        } else {
+            widthInches = sizeInfo.w;
+            heightInches = sizeInfo.h;
+        }
+
+        if (printState.orientation === 'landscape') {
+            [widthInches, heightInches] = [Math.max(widthInches, heightInches), Math.min(widthInches, heightInches)];
+        } else {
+            [widthInches, heightInches] = [Math.min(widthInches, heightInches), Math.max(widthInches, heightInches)];
+        }
+        
+        const canvas = isFullScreenPreview ? fullScreenCanvasRef.current : canvasRef.current;
+        if (!canvas) throw new Error("Canvas element not found");
+
+        const pngBlob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png'));
+        if (!pngBlob) throw new Error('Failed to create PNG blob from canvas.');
+        const pngBytes = await pngBlob.arrayBuffer();
+
+        const pdfDoc = await PDFDocument.create();
+        const page = pdfDoc.addPage([widthInches * 72, heightInches * 72]);
+        const pngImage = await pdfDoc.embedPng(pngBytes);
+        
+        page.drawImage(pngImage, {
+            x: 0,
+            y: 0,
+            width: page.getWidth(),
+            height: page.getHeight(),
+        });
+
+        const pdfBytes = await pdfDoc.save();
+        
+        const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        
+        const filename = `matrices-valuealiasing-print-${printState.size}-${printState.orientation}-${getTimestamp()}.pdf`;
+        link.download = filename;
+        link.href = url;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    } catch (error) {
+        console.error("Failed to generate PDF:", error);
+        trackEvent('download_error', { feature: 'value_aliasing_pdf', error: (error as Error).message });
+    } finally {
+        setIsGeneratingPdf(false);
+    }
+  };
   
   const handleDownload = () => {
+    const isPrint = liveValueAliasingSettings.outputType === 'print';
+    if (isPrint && printFormat === 'pdf') {
+        handlePdfDownload();
+        return;
+    }
+
     const analyticsParams: Record<string, string | number | boolean | undefined> = {
       feature: 'value_aliasing',
       output_type: outputType,
@@ -585,20 +659,21 @@ export const useValueAliasingPanel = ({
         }
     };
     
-    const isPrint = liveValueAliasingSettings.outputType === 'print';
     let filename: string;
+    let extension = 'png';
 
     if (isPrint) {
         const { size, orientation } = liveValueAliasingSettings.print;
         filename = `matrices-valuealiasing-print-${size}-${orientation}`;
         analyticsParams.print_size = size;
         analyticsParams.print_orientation = orientation;
+        analyticsParams.print_format = 'png';
     } else {
         filename = `matrices-valuealiasing-${valueAliasingType}`;
         analyticsParams.wallpaper_type = valueAliasingType;
     }
 
-    baseHandleDownload(getCanvasBlob, filename, analyticsParams, onSuccess);
+    baseHandleDownload(getCanvasBlob, filename, analyticsParams, onSuccess, { extension });
   };
 
   const dragState = useRef({ isDragging: false, startX: 0, startY: 0, initialOffsetX: 0.5, initialOffsetY: 0.5, hasMoved: false });
@@ -772,15 +847,25 @@ export const useValueAliasingPanel = ({
   const ShuffleButton = () => (
     <button
         onClick={handleRefreshGrid}
-        className={`p-2 transition-colors duration-200 rounded-md ${theme === 'dark' ? 'bg-gray-700 text-nothing-gray-light hover:text-white' : 'bg-gray-200 text-day-gray-dark hover:text-black'}`}
+        className={`p-2 transition-colors duration-200 rounded-md ${theme === 'dark' ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'}`}
         aria-label="Randomize Background Colors"
     >
-        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="16 3 21 3 21 8"></polyline>
-            <line x1="4" y1="20" x2="21" y2="3"></line>
-            <polyline points="21 16 21 21 16 21"></polyline>
-            <line x1="15" y1="15" x2="21" y2="21"></line>
-            <line x1="4" y1="4" x2="9" y2="9"></line>
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+            <defs>
+                <pattern id="colorShufflePattern" patternUnits="userSpaceOnUse" width="24" height="24">
+                    <rect x="0" y="0" width="12" height="12" fill="#BD1721" />
+                    <rect x="12" y="0" width="12" height="12" fill="#FCCA21" />
+                    <rect x="0" y="12" width="12" height="12" fill="#0D4E81" />
+                    <rect x="12" y="12" width="12" height="12" fill="#E0E0E0" />
+                </pattern>
+            </defs>
+            <g stroke="url(#colorShufflePattern)">
+                <polyline points="16 3 21 3 21 8"></polyline>
+                <line x1="4" y1="20" x2="21" y2="3"></line>
+                <polyline points="21 16 21 21 16 21"></polyline>
+                <line x1="15" y1="15" x2="21" y2="21"></line>
+                <line x1="4" y1="4" x2="9" y2="9"></line>
+            </g>
         </svg>
     </button>
   );
@@ -819,6 +904,21 @@ export const useValueAliasingPanel = ({
                   setValueAliasingSettings(s => ({ ...s, print: { ...s.print, orientation: newOrientation }}));
                   trackEvent('value_aliasing_orientation_change', { orientation: newOrientation });
               }} theme={theme} />
+              <div>
+                  <label className={`block text-sm mb-2 ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'}`}>Output Format</label>
+                  <SegmentedControl
+                      options={[{ key: 'png', label: 'PNG' }, { key: 'pdf', label: 'PDF' }]}
+                      selected={printFormat}
+                      onSelect={(key) => {
+                          setPrintFormat(key as 'png' | 'pdf');
+                          trackEvent('value_aliasing_print_format_change', { format: key });
+                      }}
+                      theme={theme}
+                  />
+                  <p className={`text-xs mt-2 text-center ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'}`}>
+                      Use PNG for digital sharing and PDF for high-quality printing.
+                  </p>
+              </div>
           </div>
         )}
         <StyleSelector />
@@ -1111,10 +1211,13 @@ export const useValueAliasingPanel = ({
             </div>,
             document.body
         )}
+        <LoadingPopup show={isGeneratingPdf} message="Generating high-quality PDF for printing... This may take a moment." theme={theme} />
     </>
   );
 
-  const downloadButton = <button onClick={handleDownload} disabled={isLoading || isDownloading} className={`w-full h-full p-4 text-center text-lg font-bold transition-all duration-300 disabled:opacity-50 ${theme === 'dark' ? 'bg-nothing-red text-nothing-light hover:bg-opacity-80' : 'bg-day-accent text-white hover:bg-opacity-80'}`} aria-label="Download the current image"> Download </button>;
+  const downloadButton = <button onClick={handleDownload} disabled={isLoading || isDownloading || isGeneratingPdf} className={`w-full h-full p-4 text-center text-lg font-bold transition-all duration-300 disabled:opacity-50 ${theme === 'dark' ? 'bg-nothing-red text-nothing-light hover:bg-opacity-80' : 'bg-day-accent text-white hover:bg-opacity-80'}`} aria-label="Download the current image">
+    {isGeneratingPdf ? 'Generating PDF...' : 'Download'}
+  </button>;
 
   const replaceButton = <Dropzone onFileSelect={handleFileSelect} isLoading={isLoading} compact={true} theme={theme}/>;
 

@@ -1,5 +1,5 @@
-
 import React, { useRef, useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { Theme, PhotoWidgetOutputMode, Tab } from './types';
 import { trackEvent } from './analytics';
 
@@ -430,13 +430,13 @@ export const SharePopup: React.FC<{ show: boolean; onClose: () => void; theme: T
     const defaultTextWithHashtags = `${defaultText}\n\n#Matrices #NothingCommunity`;
 
     const specialCopyText = "Have you unlocked the secret theme in Matrices Value Aliasing yet? 🗝️ On desktop, use 'feelingnothing' code word. On mobile, hold the celestial body until you are blessed! https://udaign.github.io/matrices/";
-    const specialXText = "#FeelingNothing\n\n😉🗝️ Have you unlocked the secret theme in Value Aliasing yet? On desktop, use 'feelingnothing' code word. On mobile, hold the celestial body until you are blessed!\n\nhttps://udaign.github.io/matrices/";
+    const specialXText = "#FeelingNothing\n\n 🔑 Have you unlocked the secret theme in Matrices Value Aliasing yet? On desktop, use 'feelingnothing' code word. On mobile, hold the celestial body until you are blessed!\n\nhttps://udaign.github.io/matrices/";
     const specialRedditTitle = "Unlocked the secret theme in Matrices Value Aliasing! 🗝️";
-    const specialRedditContent = "On desktop, use 'feelingnothing' code word. On mobile, hold the celestial body until you are blessed! https://udaign.github.io/matrices/";
+    const specialRedditContent = "On desktop, use 'feelingnothing' code word. On mobile, hold the celestial body until you are blessed!";
     const specialWhatsAppText = "🗝️ Have you unlocked the secret theme in Matrices Value Aliasing yet? On desktop, use 'feelingnothing' code word. On mobile, hold the celestial body until you are blessed! https://udaign.github.io/matrices/";
-    const specialEmailSubject = "Secret theme in Matrices value Aliasing! 🗝️";
-    const specialEmailBody = "On desktop, use 'feelingnothing' code word. On mobile, hold the celestial body until you are blessed! https://udaign.github.io/matrices/";
-    const specialFacebookText = "This community-made tool is just awesome! Have you unlocked the secret theme in Matrices Value Aliasing yet? On desktop, use 'feelingnothing' code word. On mobile, hold the celestial body until you are blessed! #FeelingNothing https://udaign.github.io/matrices/";
+    const specialEmailSubject = "Secret special theme in Matrices! 🗝️";
+    const specialEmailBody = "Upload your image to Value Aliasing and on desktop, use 'feelingnothing' code word. On mobile, hold the celestial body until you are blessed! https://udaign.github.io/matrices/";
+    const specialFacebookText = "This community-made tool is just awesome! Have you unlocked the secret theme in Matrices Value Aliasing yet? On desktop, use 'feelingnothing' code word. On mobile, hold the celestial body until you are blessed! #FeelingNothing";
     
     const textToCopy = isSpecial ? specialCopyText : appUrl;
     const encodedUrl = encodeURIComponent(appUrl);
@@ -569,5 +569,30 @@ export const SharePopup: React.FC<{ show: boolean; onClose: () => void; theme: T
                 </div>
             </div>
         </div>
+    );
+};
+
+export const LoadingPopup: React.FC<{ show: boolean; message: string; theme: Theme }> = ({ show, message, theme }) => {
+    if (!show) return null;
+
+    return createPortal(
+        <div 
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm transition-opacity duration-300"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="loading-popup-message"
+        >
+            <div 
+                className={`flex flex-col items-center space-y-4 p-8 rounded-lg shadow-2xl w-80 ${theme === 'dark' ? 'bg-nothing-darker text-nothing-light' : 'bg-white text-day-text'}`}
+            >
+                <svg className="animate-spin h-10 w-10 text-nothing-red" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <p id="loading-popup-message" className="text-center font-semibold">{message}</p>
+                <p className={`text-sm text-center ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'}`}>Please do not close this window.</p>
+            </div>
+        </div>,
+        document.body
     );
 };
