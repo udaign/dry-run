@@ -1211,7 +1211,7 @@ export const useValueAliasingPanel = ({
             </div>,
             document.body
         )}
-        <LoadingPopup show={isGeneratingPdf} message="Generating high-quality PDF for printing... This may take a moment." theme={theme} />
+        <LoadingPopup show={isGeneratingPdf} message="Generating high-quality PDF for printing... This may cause a momentary freeze." theme={theme} />
     </>
   );
 
