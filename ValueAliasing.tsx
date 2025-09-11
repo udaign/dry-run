@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { createPortal, flushSync } from 'react-dom';
 import { useHistory, useImageHandler } from './hooks';
@@ -560,6 +559,8 @@ export const useValueAliasingPanel = ({
   };
   
   const handleDownload = () => {
+    const isPrint = liveValueAliasingSettings.outputType === 'print';
+
     const analyticsParams: Record<string, string | number | boolean | undefined> = {
       feature: 'value_aliasing',
       output_type: outputType,
@@ -585,8 +586,8 @@ export const useValueAliasingPanel = ({
         }
     };
     
-    const isPrint = liveValueAliasingSettings.outputType === 'print';
     let filename: string;
+    let extension = 'png';
 
     if (isPrint) {
         const { size, orientation } = liveValueAliasingSettings.print;
@@ -598,7 +599,7 @@ export const useValueAliasingPanel = ({
         analyticsParams.wallpaper_type = valueAliasingType;
     }
 
-    baseHandleDownload(getCanvasBlob, filename, analyticsParams, onSuccess);
+    baseHandleDownload(getCanvasBlob, filename, analyticsParams, onSuccess, { extension });
   };
 
   const dragState = useRef({ isDragging: false, startX: 0, startY: 0, initialOffsetX: 0.5, initialOffsetY: 0.5, hasMoved: false });
