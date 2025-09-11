@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { createPortal, flushSync } from 'react-dom';
+import { PDFDocument } from 'pdf-lib';
 import { useHistory, useImageHandler } from './hooks';
 import { getTimestamp } from './utils';
 import { ValueAliasingState, WallpaperBgKey, WALLPAPER_BG_OPTIONS, Theme, ValueAliasingSettingsContainer, PrintState } from './types';
@@ -567,7 +568,6 @@ export const useValueAliasingPanel = ({
     await new Promise(resolve => setTimeout(resolve, 50));
 
     try {
-        const { PDFDocument } = await import('pdf-lib');
         const printState = valueAliasingSettings.print;
         const sizeInfo = PRINT_SIZES[printState.size];
         let widthInches, heightInches;
@@ -1211,7 +1211,7 @@ export const useValueAliasingPanel = ({
             </div>,
             document.body
         )}
-        <LoadingPopup show={isGeneratingPdf} message="Generating high-quality PDF for printing... This may cause a momentary freeze." theme={theme} />
+        <LoadingPopup show={isGeneratingPdf} message="Generating high-quality PDF for printing... This may take a moment." theme={theme} />
     </>
   );
 
