@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { createPortal, flushSync } from 'react-dom';
 import { useHistory, useImageHandler } from './hooks';
@@ -559,8 +560,6 @@ export const useValueAliasingPanel = ({
   };
   
   const handleDownload = () => {
-    const isPrint = liveValueAliasingSettings.outputType === 'print';
-
     const analyticsParams: Record<string, string | number | boolean | undefined> = {
       feature: 'value_aliasing',
       output_type: outputType,
@@ -586,6 +585,7 @@ export const useValueAliasingPanel = ({
         }
     };
     
+    const isPrint = liveValueAliasingSettings.outputType === 'print';
     let filename: string;
 
     if (isPrint) {
@@ -772,25 +772,15 @@ export const useValueAliasingPanel = ({
   const ShuffleButton = () => (
     <button
         onClick={handleRefreshGrid}
-        className={`p-2 transition-colors duration-200 rounded-md ${theme === 'dark' ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'}`}
+        className={`p-2 transition-colors duration-200 rounded-md ${theme === 'dark' ? 'bg-gray-700 text-nothing-gray-light hover:text-white' : 'bg-gray-200 text-day-gray-dark hover:text-black'}`}
         aria-label="Randomize Background Colors"
     >
-        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-            <defs>
-                <pattern id="colorShufflePattern" patternUnits="userSpaceOnUse" width="24" height="24">
-                    <rect x="0" y="0" width="12" height="12" fill="#BD1721" />
-                    <rect x="12" y="0" width="12" height="12" fill="#FCCA21" />
-                    <rect x="0" y="12" width="12" height="12" fill="#0D4E81" />
-                    <rect x="12" y="12" width="12" height="12" fill="#E0E0E0" />
-                </pattern>
-            </defs>
-            <g stroke="url(#colorShufflePattern)">
-                <polyline points="16 3 21 3 21 8"></polyline>
-                <line x1="4" y1="20" x2="21" y2="3"></line>
-                <polyline points="21 16 21 21 16 21"></polyline>
-                <line x1="15" y1="15" x2="21" y2="21"></line>
-                <line x1="4" y1="4" x2="9" y2="9"></line>
-            </g>
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="16 3 21 3 21 8"></polyline>
+            <line x1="4" y1="20" x2="21" y2="3"></line>
+            <polyline points="21 16 21 21 16 21"></polyline>
+            <line x1="15" y1="15" x2="21" y2="21"></line>
+            <line x1="4" y1="4" x2="9" y2="9"></line>
         </svg>
     </button>
   );
