@@ -587,7 +587,6 @@ export const useValueAliasingPanel = ({
     };
     
     let filename: string;
-    let extension = 'png';
 
     if (isPrint) {
         const { size, orientation } = liveValueAliasingSettings.print;
@@ -599,7 +598,7 @@ export const useValueAliasingPanel = ({
         analyticsParams.wallpaper_type = valueAliasingType;
     }
 
-    baseHandleDownload(getCanvasBlob, filename, analyticsParams, onSuccess, { extension });
+    baseHandleDownload(getCanvasBlob, filename, analyticsParams, onSuccess);
   };
 
   const dragState = useRef({ isDragging: false, startX: 0, startY: 0, initialOffsetX: 0.5, initialOffsetY: 0.5, hasMoved: false });
