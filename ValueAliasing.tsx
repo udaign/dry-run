@@ -425,6 +425,131 @@ export const useValueAliasingPanel = ({
   const calculatedValueAliasingPixelGap = useMemo(() => pixelGap * VALUE_ALIASING_PIXEL_GAP_MULTIPLIER, [pixelGap]);
   const valueAliasingCropIsNeeded = useMemo(() => image ? Math.abs((image.width / image.height) - (currentValueAliasingWidth / currentValueAliasingHeight)) > 0.01 : false, [image, currentValueAliasingWidth, currentValueAliasingHeight]);
 
+  const drawValueAliasingMatrix = useCallback((ctx: CanvasRenderingContext2D, options: {
+      width: number;
+      height: number;
+      image: HTMLImageElement | null;
+      isEasterEggActive: boolean;
+      activePermutationIndex: number | null;
+      isTransparent: boolean;
+      background: WallpaperBgKey;
+      outputType: 'wallpaper' | 'print';
+      gridWidth: number;
+      gridHeight: number;
+      calculatedPixelGap: number;
+      cropOffsetX: number;
+      cropOffsetY: number;
+      isMonochrome: boolean;
+      exposure: number;
+      contrast: number;
+      isPureValue: boolean;
+      lowerLimit: number;
+  }) => {
+      const {
+          width, height, image,
+          isEasterEggActive, activePermutationIndex, isTransparent, background, outputType,
+          gridWidth, gridHeight, calculatedPixelGap,
+          cropOffsetX, cropOffsetY,
+          isMonochrome, exposure, contrast, isPureValue, lowerLimit
+      } = options;
+
+      const shouldSimulateCmyk = outputType === 'print';
+
+      if (isEasterEggActive && activePermutationIndex !== null) {
+          drawEasterEggPattern(ctx, width, height, activePermutationIndex, shouldSimulateCmyk);
+      } else {
+          if (isTransparent) {
+              ctx.clearRect(0, 0, width, height);
+          } else {
+              const bgColor = WALLPAPER_BG_OPTIONS[background]?.color || '#000000';
+              if (shouldSimulateCmyk) {
+                  const r = parseInt(bgColor.slice(1, 3), 16);
+                  const g = parseInt(bgColor.slice(3, 5), 16);
+                  const b = parseInt(bgColor.slice(5, 7), 16);
+                  const [simR, simG, simB] = simulateCmyk(r, g, b);
+                  ctx.fillStyle = `rgb(${simR}, ${simG}, ${simB})`;
+              } else {
+                  ctx.fillStyle = bgColor;
+              }
+              ctx.fillRect(0, 0, width, height);
+          }
+      }
+
+      if (!image) return;
+      
+      const imgAspect = image.width / image.height, canvasAspect = width / height;
+      let sx = 0, sy = 0, sWidth = image.width, sHeight = image.height;
+      if (imgAspect > canvasAspect) { sWidth = image.height * canvasAspect; sx = (image.width - sWidth) * cropOffsetX; }
+      else if (imgAspect < canvasAspect) { sHeight = image.width / canvasAspect; sy = (image.height - sHeight) * cropOffsetY; }
+      
+      const tempCanvas = document.createElement('canvas');
+      tempCanvas.width = gridWidth; tempCanvas.height = gridHeight;
+      const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
+      if (!tempCtx) return;
+      tempCtx.imageSmoothingEnabled = false;
+      tempCtx.drawImage(image, sx, sy, sWidth, sHeight, 0, 0, gridWidth, gridHeight);
+      
+      const data = tempCtx.getImageData(0, 0, gridWidth, gridHeight).data;
+      const totalGapW = (gridWidth - 1) * calculatedPixelGap;
+      const totalGapH = (gridHeight - 1) * calculatedPixelGap;
+      const pxRenderW = (width - totalGapW) / gridWidth;
+      const pxRenderH = (height - totalGapH) / gridHeight;
+
+      const calculatedExposure = (exposure - 50) * 2;
+      const calculatedContrast = contrast <= 50 ? contrast / 50 : 1 + ((contrast - 50) / 50) * 2;
+      const threshold = lowerLimit / 100.0;
+      
+      const useLightLogic = isEasterEggActive || background === 'white';
+      const useEffectivePureValue = isEasterEggActive || isPureValue;
+
+      for (let y = 0; y < gridHeight; y++) {
+          for (let x = 0; x < gridWidth; x++) {
+              const i = (y * gridWidth + x) * 4;
+              const r_pixel = data[i], g_pixel = data[i+1], b_pixel = data[i+2];
+
+              if (isMonochrome) {
+                  const originalGray = 0.299 * r_pixel + 0.587 * g_pixel + 0.114 * b_pixel;
+                  let adjusted = ((originalGray / 255.0 - 0.5) * calculatedContrast + 0.5) * 255.0 + calculatedExposure;
+                  const finalGray = Math.round(Math.max(0, Math.min(255, adjusted)));
+                  
+                  const sizeMultiplier = useLightLogic
+                      ? (255.0 - finalGray) / 255.0
+                      : finalGray / 255.0;
+
+                  if (sizeMultiplier > threshold) {
+                      let r, g, b;
+                      if (useEffectivePureValue) {
+                          [r, g, b] = useLightLogic ? [0, 0, 0] : [255, 255, 255];
+                      } else {
+                          [r, g, b] = [finalGray, finalGray, finalGray];
+                      }
+
+                      if (shouldSimulateCmyk) {
+                          const [simR, simG, simB] = simulateCmyk(r, g, b);
+                          ctx.fillStyle = `rgb(${simR}, ${simG}, ${simB})`;
+                      } else {
+                          ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
+                      }
+
+                      const baseRadius = Math.min(pxRenderW, pxRenderH) / 2;
+                      const finalRadius = baseRadius * sizeMultiplier;
+                      
+                      if (finalRadius > 0.1) {
+                          const drawX = x * (pxRenderW + calculatedPixelGap);
+                          const drawY = y * (pxRenderH + calculatedPixelGap);
+                          const centerX = drawX + pxRenderW / 2;
+                          const centerY = drawY + pxRenderH / 2;
+                          
+                          ctx.beginPath();
+                          ctx.arc(centerX, centerY, finalRadius, 0, 2 * Math.PI);
+                          ctx.fill();
+                      }
+                  }
+              }
+          }
+      }
+  }, []);
+
   useEffect(() => {
     const canvas = isFullScreenPreview ? fullScreenCanvasRef.current : canvasRef.current;
     if (!canvas) return;
@@ -432,113 +557,76 @@ export const useValueAliasingPanel = ({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     
-    const shouldSimulateCmyk = outputType === 'print';
-
-    if (isEasterEggActive && activePermutationIndex !== null) {
-        drawEasterEggPattern(ctx, currentValueAliasingWidth, currentValueAliasingHeight, activePermutationIndex, shouldSimulateCmyk);
-    } else {
-        if (isTransparent) {
-            ctx.clearRect(0, 0, currentValueAliasingWidth, currentValueAliasingHeight);
-        } else {
-            const bgColor = WALLPAPER_BG_OPTIONS[background]?.color || '#000000';
-            if (shouldSimulateCmyk) {
-                const r = parseInt(bgColor.slice(1, 3), 16);
-                const g = parseInt(bgColor.slice(3, 5), 16);
-                const b = parseInt(bgColor.slice(5, 7), 16);
-                const [simR, simG, simB] = simulateCmyk(r, g, b);
-                ctx.fillStyle = `rgb(${simR}, ${simG}, ${simB})`;
-            } else {
-                ctx.fillStyle = bgColor;
-            }
-            ctx.fillRect(0, 0, currentValueAliasingWidth, currentValueAliasingHeight);
-        }
-    }
-
-    if (!image) return;
-    
-    const imgAspect = image.width / image.height, canvasAspect = currentValueAliasingWidth / currentValueAliasingHeight;
-    let sx = 0, sy = 0, sWidth = image.width, sHeight = image.height;
-    if (imgAspect > canvasAspect) { sWidth = image.height * canvasAspect; sx = (image.width - sWidth) * cropOffsetX; }
-    else if (imgAspect < canvasAspect) { sHeight = image.width / canvasAspect; sy = (image.height - sHeight) * cropOffsetY; }
-    
-    const tempCanvas = document.createElement('canvas');
-    tempCanvas.width = valueAliasingGridWidth; tempCanvas.height = valueAliasingGridHeight;
-    const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
-    if (!tempCtx) return;
-    tempCtx.imageSmoothingEnabled = false;
-    tempCtx.drawImage(image, sx, sy, sWidth, sHeight, 0, 0, valueAliasingGridWidth, valueAliasingGridHeight);
-    
-    const data = tempCtx.getImageData(0, 0, valueAliasingGridWidth, valueAliasingGridHeight).data;
-    const totalGapW = (valueAliasingGridWidth - 1) * calculatedValueAliasingPixelGap;
-    const totalGapH = (valueAliasingGridHeight - 1) * calculatedValueAliasingPixelGap;
-    const pxRenderW = (currentValueAliasingWidth - totalGapW) / valueAliasingGridWidth;
-    const pxRenderH = (currentValueAliasingHeight - totalGapH) / valueAliasingGridHeight;
-
-    const calculatedExposure = (exposure - 50) * 2;
-    const calculatedContrast = contrast <= 50 ? contrast / 50 : 1 + ((contrast - 50) / 50) * 2;
-    const threshold = lowerLimit / 100.0;
-    
-    const useLightLogic = isEasterEggActive || background === 'white';
-    const useEffectivePureValue = isEasterEggActive || isPureValue;
-
-    for (let y = 0; y < valueAliasingGridHeight; y++) {
-        for (let x = 0; x < valueAliasingGridWidth; x++) {
-            const i = (y * valueAliasingGridWidth + x) * 4;
-            const r_pixel = data[i], g_pixel = data[i+1], b_pixel = data[i+2];
-
-            if (isMonochrome) {
-                const originalGray = 0.299 * r_pixel + 0.587 * g_pixel + 0.114 * b_pixel;
-                let adjusted = ((originalGray / 255.0 - 0.5) * calculatedContrast + 0.5) * 255.0 + calculatedExposure;
-                const finalGray = Math.round(Math.max(0, Math.min(255, adjusted)));
-                
-                const sizeMultiplier = useLightLogic
-                    ? (255.0 - finalGray) / 255.0
-                    : finalGray / 255.0;
-
-                if (sizeMultiplier > threshold) {
-                    let r, g, b;
-                    if (useEffectivePureValue) {
-                        [r, g, b] = useLightLogic ? [0, 0, 0] : [255, 255, 255];
-                    } else {
-                        [r, g, b] = [finalGray, finalGray, finalGray];
-                    }
-
-                    if (shouldSimulateCmyk) {
-                        const [simR, simG, simB] = simulateCmyk(r, g, b);
-                        ctx.fillStyle = `rgb(${simR}, ${simG}, ${simB})`;
-                    } else {
-                        ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
-                    }
-
-                    const baseRadius = Math.min(pxRenderW, pxRenderH) / 2;
-                    const finalRadius = baseRadius * sizeMultiplier;
-                    
-                    if (finalRadius > 0.1) {
-                        const drawX = x * (pxRenderW + calculatedValueAliasingPixelGap);
-                        const drawY = y * (pxRenderH + calculatedValueAliasingPixelGap);
-                        const centerX = drawX + pxRenderW / 2;
-                        const centerY = drawY + pxRenderH / 2;
-                        
-                        ctx.beginPath();
-                        ctx.arc(centerX, centerY, finalRadius, 0, 2 * Math.PI);
-                        ctx.fill();
-                    }
-                }
-            }
-        }
-    }
-  }, [image, valueAliasingGridWidth, valueAliasingGridHeight, calculatedValueAliasingPixelGap, background, currentValueAliasingWidth, currentValueAliasingHeight, cropOffsetX, cropOffsetY, isFullScreenPreview, isMonochrome, exposure, contrast, isPureValue, isTransparent, lowerLimit, isEasterEggActive, activePermutationIndex, valueAliasingType, outputType]);
+    drawValueAliasingMatrix(ctx, {
+        width: currentValueAliasingWidth,
+        height: currentValueAliasingHeight,
+        image,
+        isEasterEggActive,
+        activePermutationIndex,
+        isTransparent,
+        background,
+        outputType,
+        gridWidth: valueAliasingGridWidth,
+        gridHeight: valueAliasingGridHeight,
+        calculatedPixelGap: calculatedValueAliasingPixelGap,
+        cropOffsetX,
+        cropOffsetY,
+        isMonochrome,
+        exposure,
+        contrast,
+        isPureValue,
+        lowerLimit,
+    });
+  }, [
+      drawValueAliasingMatrix, image, valueAliasingGridWidth, valueAliasingGridHeight, calculatedValueAliasingPixelGap, 
+      background, currentValueAliasingWidth, currentValueAliasingHeight, cropOffsetX, cropOffsetY, isFullScreenPreview, 
+      isMonochrome, exposure, contrast, isPureValue, isTransparent, lowerLimit, isEasterEggActive, 
+      activePermutationIndex, outputType
+  ]);
   
   const getCanvasBlob = useCallback((): Promise<Blob | null> => {
       return new Promise(resolve => {
-          const canvas = isFullScreenPreview ? fullScreenCanvasRef.current : canvasRef.current;
-          if (canvas) {
+          try {
+              const canvas = document.createElement('canvas');
+              canvas.width = currentValueAliasingWidth;
+              canvas.height = currentValueAliasingHeight;
+              const ctx = canvas.getContext('2d');
+              if (!ctx || !image) {
+                  throw new Error('Failed to create canvas for download.');
+              }
+              
+              drawValueAliasingMatrix(ctx, {
+                  width: currentValueAliasingWidth,
+                  height: currentValueAliasingHeight,
+                  image,
+                  isEasterEggActive,
+                  activePermutationIndex,
+                  isTransparent: effectiveLiveState.isTransparent,
+                  background: effectiveLiveState.background,
+                  outputType: liveValueAliasingSettings.outputType,
+                  gridWidth: valueAliasingGridWidth,
+                  gridHeight: valueAliasingGridHeight,
+                  calculatedPixelGap: calculatedValueAliasingPixelGap,
+                  cropOffsetX: liveActiveState.cropOffsetX,
+                  cropOffsetY: liveActiveState.cropOffsetY,
+                  isMonochrome: liveActiveState.isMonochrome,
+                  exposure: liveActiveState.exposure,
+                  contrast: liveActiveState.contrast,
+                  isPureValue: effectiveLiveState.isPureValue,
+                  lowerLimit: liveActiveState.lowerLimit,
+              });
+
               canvas.toBlob(blob => resolve(blob), 'image/png');
-          } else {
+          } catch (e) {
+              console.error("Error creating Value Aliasing blob:", e);
               resolve(null);
           }
       });
-  }, [isFullScreenPreview]);
+  }, [
+      drawValueAliasingMatrix, image, currentValueAliasingWidth, currentValueAliasingHeight, isEasterEggActive, 
+      activePermutationIndex, effectiveLiveState, liveValueAliasingSettings.outputType, valueAliasingGridWidth, 
+      valueAliasingGridHeight, calculatedValueAliasingPixelGap, liveActiveState
+  ]);
 
   const handleFullScreenReplace = (file: File) => {
     trackEvent('value_aliasing_fullscreen_replace_image', { value_aliasing_type: valueAliasingType });
@@ -560,6 +648,8 @@ export const useValueAliasingPanel = ({
   };
   
   const handleDownload = () => {
+    const isPrint = liveValueAliasingSettings.outputType === 'print';
+
     const analyticsParams: Record<string, string | number | boolean | undefined> = {
       feature: 'value_aliasing',
       output_type: outputType,
@@ -585,7 +675,6 @@ export const useValueAliasingPanel = ({
         }
     };
     
-    const isPrint = liveValueAliasingSettings.outputType === 'print';
     let filename: string;
 
     if (isPrint) {
@@ -772,15 +861,25 @@ export const useValueAliasingPanel = ({
   const ShuffleButton = () => (
     <button
         onClick={handleRefreshGrid}
-        className={`p-2 transition-colors duration-200 rounded-md ${theme === 'dark' ? 'bg-gray-700 text-nothing-gray-light hover:text-white' : 'bg-gray-200 text-day-gray-dark hover:text-black'}`}
+        className={`p-2 transition-colors duration-200 rounded-md ${theme === 'dark' ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'}`}
         aria-label="Randomize Background Colors"
     >
-        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="16 3 21 3 21 8"></polyline>
-            <line x1="4" y1="20" x2="21" y2="3"></line>
-            <polyline points="21 16 21 21 16 21"></polyline>
-            <line x1="15" y1="15" x2="21" y2="21"></line>
-            <line x1="4" y1="4" x2="9" y2="9"></line>
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+            <defs>
+                <pattern id="colorShufflePattern" patternUnits="userSpaceOnUse" width="24" height="24">
+                    <rect x="0" y="0" width="12" height="12" fill="#BD1721" />
+                    <rect x="12" y="0" width="12" height="12" fill="#FCCA21" />
+                    <rect x="0" y="12" width="12" height="12" fill="#0D4E81" />
+                    <rect x="12" y="12" width="12" height="12" fill="#E0E0E0" />
+                </pattern>
+            </defs>
+            <g stroke="url(#colorShufflePattern)">
+                <polyline points="16 3 21 3 21 8"></polyline>
+                <line x1="4" y1="20" x2="21" y2="3"></line>
+                <polyline points="21 16 21 21 16 21"></polyline>
+                <line x1="15" y1="15" x2="21" y2="21"></line>
+                <line x1="4" y1="4" x2="9" y2="9"></line>
+            </g>
         </svg>
     </button>
   );
@@ -1114,7 +1213,9 @@ export const useValueAliasingPanel = ({
     </>
   );
 
-  const downloadButton = <button onClick={handleDownload} disabled={isLoading || isDownloading} className={`w-full h-full p-4 text-center text-lg font-bold transition-all duration-300 disabled:opacity-50 ${theme === 'dark' ? 'bg-nothing-red text-nothing-light hover:bg-opacity-80' : 'bg-day-accent text-white hover:bg-opacity-80'}`} aria-label="Download the current image"> Download </button>;
+  const downloadButton = <button onClick={handleDownload} disabled={isLoading || isDownloading} className={`w-full h-full p-4 text-center text-lg font-bold transition-all duration-300 disabled:opacity-50 ${theme === 'dark' ? 'bg-nothing-red text-nothing-light hover:bg-opacity-80' : 'bg-day-accent text-white hover:bg-opacity-80'}`} aria-label="Download the current image">
+    Download
+  </button>;
 
   const replaceButton = <Dropzone onFileSelect={handleFileSelect} isLoading={isLoading} compact={true} theme={theme}/>;
 

@@ -156,72 +156,144 @@ export const useWallpaperPanel = ({
   const wallpaperGridHeight = useMemo(() => Math.round(wallpaperGridWidth * (currentWallpaperHeight / currentWallpaperWidth)), [wallpaperGridWidth, currentWallpaperWidth, currentWallpaperHeight]);
   const calculatedWallpaperPixelGap = useMemo(() => pixelGap * WALLPAPER_PIXEL_GAP_MULTIPLIER, [pixelGap]);
   const wallpaperCropIsNeeded = useMemo(() => image ? Math.abs((image.width / image.height) - (currentWallpaperWidth / currentWallpaperHeight)) > 0.01 : false, [image, currentWallpaperWidth, currentWallpaperHeight]);
+  
+  const drawWallpaperMatrix = useCallback((ctx: CanvasRenderingContext2D, options: {
+      width: number;
+      height: number;
+      image: HTMLImageElement | null;
+      gridWidth: number;
+      gridHeight: number;
+      calculatedPixelGap: number;
+      background: WallpaperBgKey;
+      cropOffsetX: number;
+      cropOffsetY: number;
+      isMonochrome: boolean;
+  }) => {
+      const { width, height, image, gridWidth, gridHeight, calculatedPixelGap, background, cropOffsetX, cropOffsetY, isMonochrome } = options;
+
+      ctx.fillStyle = WALLPAPER_BG_OPTIONS[background]?.color || '#000000';
+      ctx.fillRect(0, 0, width, height);
+      if (!image) return;
+
+      const imgAspect = image.width / image.height, canvasAspect = width / height;
+      let sx = 0, sy = 0, sWidth = image.width, sHeight = image.height;
+      if (imgAspect > canvasAspect) { sWidth = image.height * canvasAspect; sx = (image.width - sWidth) * cropOffsetX; }
+      else if (imgAspect < canvasAspect) { sHeight = image.width / canvasAspect; sy = (image.height - sHeight) * cropOffsetY; }
+      
+      const tempCanvas = document.createElement('canvas');
+      tempCanvas.width = gridWidth; tempCanvas.height = gridHeight;
+      const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
+      if (!tempCtx) return;
+      tempCtx.imageSmoothingEnabled = false;
+      tempCtx.drawImage(image, sx, sy, sWidth, sHeight, 0, 0, gridWidth, gridHeight);
+      
+      const data = tempCtx.getImageData(0, 0, gridWidth, gridHeight).data;
+      const totalGapW = (gridWidth - 1) * calculatedPixelGap;
+      const totalGapH = (gridHeight - 1) * calculatedPixelGap;
+      const pxRenderW = (width - totalGapW) / gridWidth;
+      const pxRenderH = (height - totalGapH) / gridHeight;
+      
+      for (let y = 0; y < gridHeight; y++) {
+          for (let x = 0; x < gridWidth; x++) {
+              const i = (y * gridWidth + x) * 4;
+              const r = data[i], g = data[i+1], b = data[i+2];
+              if (isMonochrome) {
+                  const gray = Math.round(0.299 * r + 0.587 * g + 0.114 * b);
+                  ctx.fillStyle = `rgb(${gray}, ${gray}, ${gray})`;
+              } else {
+                  ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
+              }
+              const drawX = x * (pxRenderW + calculatedPixelGap);
+              const drawY = y * (pxRenderH + calculatedPixelGap);
+              
+              const radius = Math.min(pxRenderW, pxRenderH) / 2;
+              if (radius > 0) {
+                  ctx.beginPath();
+                  const centerX = drawX + pxRenderW / 2;
+                  const centerY = drawY + pxRenderH / 2;
+                  ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
+                  ctx.fill();
+              }
+          }
+      }
+  }, []);
 
   useEffect(() => {
-    // Determine the single canvas to draw on, preventing the double-draw performance issue.
     const canvas = isFullScreenPreview ? fullScreenCanvasRef.current : canvasRef.current;
     if (!canvas) return;
-
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     
-    ctx.fillStyle = WALLPAPER_BG_OPTIONS[background]?.color || '#000000';
-    ctx.fillRect(0, 0, currentWallpaperWidth, currentWallpaperHeight);
-    if (!image) return;
-    
-    const imgAspect = image.width / image.height, canvasAspect = currentWallpaperWidth / currentWallpaperHeight;
-    let sx = 0, sy = 0, sWidth = image.width, sHeight = image.height;
-    if (imgAspect > canvasAspect) { sWidth = image.height * canvasAspect; sx = (image.width - sWidth) * cropOffsetX; }
-    else if (imgAspect < canvasAspect) { sHeight = image.width / canvasAspect; sy = (image.height - sHeight) * cropOffsetY; }
-    
-    const tempCanvas = document.createElement('canvas');
-    tempCanvas.width = wallpaperGridWidth; tempCanvas.height = wallpaperGridHeight;
-    const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
-    if (!tempCtx) return;
-    tempCtx.imageSmoothingEnabled = false;
-    tempCtx.drawImage(image, sx, sy, sWidth, sHeight, 0, 0, wallpaperGridWidth, wallpaperGridHeight);
-    
-    const data = tempCtx.getImageData(0, 0, wallpaperGridWidth, wallpaperGridHeight).data;
-    const totalGapW = (wallpaperGridWidth - 1) * calculatedWallpaperPixelGap;
-    const totalGapH = (wallpaperGridHeight - 1) * calculatedWallpaperPixelGap;
-    const pxRenderW = (currentWallpaperWidth - totalGapW) / wallpaperGridWidth;
-    const pxRenderH = (currentWallpaperHeight - totalGapH) / wallpaperGridHeight;
-    
-    for (let y = 0; y < wallpaperGridHeight; y++) {
-        for (let x = 0; x < wallpaperGridWidth; x++) {
-            const i = (y * wallpaperGridWidth + x) * 4;
-            const r = data[i], g = data[i+1], b = data[i+2];
-            if (isMonochrome) {
-                const gray = Math.round(0.299 * r + 0.587 * g + 0.114 * b);
-                ctx.fillStyle = `rgb(${gray}, ${gray}, ${gray})`;
-            } else {
-                ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
-            }
-            const drawX = x * (pxRenderW + calculatedWallpaperPixelGap);
-            const drawY = y * (pxRenderH + calculatedWallpaperPixelGap);
-            
-            const radius = Math.min(pxRenderW, pxRenderH) / 2;
-            if (radius > 0) {
-                ctx.beginPath();
-                const centerX = drawX + pxRenderW / 2;
-                const centerY = drawY + pxRenderH / 2;
-                ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
-                ctx.fill();
-            }
-        }
-    }
-  }, [image, wallpaperGridWidth, wallpaperGridHeight, calculatedWallpaperPixelGap, background, currentWallpaperWidth, currentWallpaperHeight, cropOffsetX, cropOffsetY, isFullScreenPreview, isMonochrome]);
+    drawWallpaperMatrix(ctx, {
+        width: currentWallpaperWidth,
+        height: currentWallpaperHeight,
+        image,
+        gridWidth: wallpaperGridWidth,
+        gridHeight: wallpaperGridHeight,
+        calculatedPixelGap,
+        background,
+        cropOffsetX,
+        cropOffsetY,
+        isMonochrome,
+    });
+  }, [
+    drawWallpaperMatrix,
+    image, 
+    wallpaperGridWidth, 
+    wallpaperGridHeight, 
+    calculatedWallpaperPixelGap, 
+    background, 
+    currentWallpaperWidth, 
+    currentWallpaperHeight, 
+    cropOffsetX, 
+    cropOffsetY, 
+    isFullScreenPreview, 
+    isMonochrome
+  ]);
   
   const getCanvasBlob = useCallback((): Promise<Blob | null> => {
       return new Promise(resolve => {
-          const canvas = isFullScreenPreview ? fullScreenCanvasRef.current : canvasRef.current;
-          if (canvas) {
+          try {
+              const canvas = document.createElement('canvas');
+              canvas.width = currentWallpaperWidth;
+              canvas.height = currentWallpaperHeight;
+              const ctx = canvas.getContext('2d');
+              if (!ctx || !image) {
+                  throw new Error('Failed to create canvas for download.');
+              }
+
+              drawWallpaperMatrix(ctx, {
+                  width: currentWallpaperWidth,
+                  height: currentWallpaperHeight,
+                  image,
+                  gridWidth: wallpaperGridWidth,
+                  gridHeight: wallpaperGridHeight,
+                  calculatedPixelGap,
+                  background: liveWallpaperState.background,
+                  cropOffsetX: liveWallpaperState.cropOffsetX,
+                  cropOffsetY: liveWallpaperState.cropOffsetY,
+                  isMonochrome: liveWallpaperState.isMonochrome,
+              });
+              
               canvas.toBlob(blob => resolve(blob), 'image/png');
-          } else {
+          } catch (e) {
+              console.error("Error creating Wallpaper blob:", e);
               resolve(null);
           }
       });
-  }, [isFullScreenPreview]);
+  }, [
+      drawWallpaperMatrix,
+      image, 
+      currentWallpaperWidth, 
+      currentWallpaperHeight, 
+      wallpaperGridWidth, 
+      wallpaperGridHeight, 
+      calculatedWallpaperPixelGap, 
+      liveWallpaperState.background,
+      liveWallpaperState.cropOffsetX,
+      liveWallpaperState.cropOffsetY,
+      liveWallpaperState.isMonochrome,
+  ]);
 
   const handleFullScreenReplace = (file: File) => {
     trackEvent('wallpaper_fullscreen_replace_image', { wallpaper_type: wallpaperType });
