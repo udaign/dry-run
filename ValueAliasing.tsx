@@ -316,12 +316,10 @@ export const useValueAliasingPanel = ({
   };
 
   useEffect(() => {
-    if (isEasterEggActive) {
+    if (isEasterEggActive && activePermutationIndex === null) {
         setActivePermutationIndex(getRandomPermutationIndex());
-    } else {
-        setActivePermutationIndex(null);
     }
-  }, [isEasterEggActive]);
+  }, [isEasterEggActive, activePermutationIndex]);
 
   const handleRefreshGrid = () => {
       trackEvent('value_aliasing_easter_egg_refresh');
@@ -478,7 +476,6 @@ export const useValueAliasingPanel = ({
     const calculatedContrast = contrast <= 50 ? contrast / 50 : 1 + ((contrast - 50) / 50) * 2;
     const threshold = lowerLimit / 100.0;
     
-    const useLightLogic = isEasterEggActive || background === 'white';
     const useEffectivePureValue = isEasterEggActive || isPureValue;
 
     for (let y = 0; y < valueAliasingGridHeight; y++) {
@@ -491,37 +488,69 @@ export const useValueAliasingPanel = ({
                 let adjusted = ((originalGray / 255.0 - 0.5) * calculatedContrast + 0.5) * 255.0 + calculatedExposure;
                 const finalGray = Math.round(Math.max(0, Math.min(255, adjusted)));
                 
-                const sizeMultiplier = useLightLogic
-                    ? (255.0 - finalGray) / 255.0
-                    : finalGray / 255.0;
+                if (isEasterEggActive) {
+                    // Community theme logic: a copy of "light" method with pure black pixels
+                    const sizeMultiplier = (255.0 - finalGray) / 255.0;
 
-                if (sizeMultiplier > threshold) {
-                    let r, g, b;
-                    if (useEffectivePureValue) {
-                        [r, g, b] = useLightLogic ? [0, 0, 0] : [255, 255, 255];
-                    } else {
-                        [r, g, b] = [finalGray, finalGray, finalGray];
-                    }
-
-                    if (shouldSimulateCmyk) {
-                        const [simR, simG, simB] = simulateCmyk(r, g, b);
-                        ctx.fillStyle = `rgb(${simR}, ${simG}, ${simB})`;
-                    } else {
-                        ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
-                    }
-
-                    const baseRadius = Math.min(pxRenderW, pxRenderH) / 2;
-                    const finalRadius = baseRadius * sizeMultiplier;
-                    
-                    if (finalRadius > 0.1) {
-                        const drawX = x * (pxRenderW + calculatedValueAliasingPixelGap);
-                        const drawY = y * (pxRenderH + calculatedValueAliasingPixelGap);
-                        const centerX = drawX + pxRenderW / 2;
-                        const centerY = drawY + pxRenderH / 2;
+                    if (sizeMultiplier > threshold) {
+                        const [r, g, b] = [0, 0, 0]; // Pure value is forced, so pixels are black
                         
-                        ctx.beginPath();
-                        ctx.arc(centerX, centerY, finalRadius, 0, 2 * Math.PI);
-                        ctx.fill();
+                        if (shouldSimulateCmyk) {
+                            const [simR, simG, simB] = simulateCmyk(r, g, b);
+                            ctx.fillStyle = `rgb(${simR}, ${simG}, ${simB})`;
+                        } else {
+                            ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
+                        }
+                        
+                        const baseRadius = Math.min(pxRenderW, pxRenderH) / 2;
+                        const finalRadius = baseRadius * sizeMultiplier;
+                        
+                        if (finalRadius > 0.1) {
+                            const drawX = x * (pxRenderW + calculatedValueAliasingPixelGap);
+                            const drawY = y * (pxRenderH + calculatedValueAliasingPixelGap);
+                            const centerX = drawX + pxRenderW / 2;
+                            const centerY = drawY + pxRenderH / 2;
+                            
+                            ctx.beginPath();
+                            ctx.arc(centerX, centerY, finalRadius, 0, 2 * Math.PI);
+                            ctx.fill();
+                        }
+                    }
+                } else {
+                    // Regular dark/light theme logic
+                    const isLightMode = background === 'white';
+                    const sizeMultiplier = isLightMode
+                        ? (255.0 - finalGray) / 255.0
+                        : finalGray / 255.0;
+
+                    if (sizeMultiplier > threshold) {
+                        let r, g, b;
+                        if (useEffectivePureValue) { // Note: useEffectivePureValue is just `isPureValue` here
+                            [r, g, b] = isLightMode ? [0, 0, 0] : [255, 255, 255];
+                        } else {
+                            [r, g, b] = [finalGray, finalGray, finalGray];
+                        }
+
+                        if (shouldSimulateCmyk) {
+                            const [simR, simG, simB] = simulateCmyk(r, g, b);
+                            ctx.fillStyle = `rgb(${simR}, ${simG}, ${simB})`;
+                        } else {
+                            ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
+                        }
+                        
+                        const baseRadius = Math.min(pxRenderW, pxRenderH) / 2;
+                        const finalRadius = baseRadius * sizeMultiplier;
+
+                        if (finalRadius > 0.1) {
+                            const drawX = x * (pxRenderW + calculatedValueAliasingPixelGap);
+                            const drawY = y * (pxRenderH + calculatedValueAliasingPixelGap);
+                            const centerX = drawX + pxRenderW / 2;
+                            const centerY = drawY + pxRenderH / 2;
+                            
+                            ctx.beginPath();
+                            ctx.arc(centerX, centerY, finalRadius, 0, 2 * Math.PI);
+                            ctx.fill();
+                        }
                     }
                 }
             }
@@ -805,9 +834,10 @@ export const useValueAliasingPanel = ({
                       }}
                       className={`w-full p-2 rounded-md border text-sm ${theme === 'dark' ? 'bg-nothing-gray-dark border-nothing-gray-dark text-nothing-light' : 'bg-day-gray-light border-gray-300 text-day-text'}`}
                   >
+                      <option value="original">{PRINT_SIZES['original'].label}</option>
                       {PRINT_SIZE_GROUPS.map(group => (
                           <optgroup label={group} key={group}>
-                              {Object.entries(PRINT_SIZES).filter(([, val]) => val.group === group).map(([key, val]) => (
+                              {Object.entries(PRINT_SIZES).filter(([key, val]) => val.group === group && key !== 'original').map(([key, val]) => (
                                   <option key={key} value={key}>{val.label}</option>
                               ))}
                           </optgroup>
@@ -992,9 +1022,10 @@ export const useValueAliasingPanel = ({
                                                 }}
                                                 className={`w-full p-2 rounded-md border text-sm ${theme === 'dark' ? 'bg-nothing-gray-dark border-nothing-gray-dark text-nothing-light' : 'bg-day-gray-light border-gray-300 text-day-text'}`}
                                             >
+                                                <option value="original">{PRINT_SIZES['original'].label}</option>
                                                 {PRINT_SIZE_GROUPS.map(group => (
                                                     <optgroup label={group} key={group}>
-                                                        {Object.entries(PRINT_SIZES).filter(([, val]) => val.group === group).map(([key, val]) => (
+                                                        {Object.entries(PRINT_SIZES).filter(([key, val]) => val.group === group && key !== 'original').map(([key, val]) => (
                                                             <option key={key} value={key}>{val.label}</option>
                                                         ))}
                                                     </optgroup>

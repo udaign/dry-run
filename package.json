@@ -1,6 +1,6 @@
 {
   "homepage": "https://udaign.github.io/dry-run",
-  "name": "copy-of-matrices-for-nothing-community-v4---post-deployment-fixes",
+  "name": "copy-of-safe-copy-of-matrices-for-nothing-community-v4---where-download-is-as-snappy-as-it-should-be---back-on-track-for-v4-fixes",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -17,7 +17,6 @@
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
-    "gh-pages": "^6.3.0",
     "typescript": "~5.8.2",
     "vite": "^6.2.0"
   }

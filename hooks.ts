@@ -1,4 +1,3 @@
-
 import { useState, useCallback } from 'react';
 import { trackEvent } from './analytics';
 import { getTimestamp } from './utils';
@@ -30,7 +29,7 @@ export const useHistory = <T,>(initialState: T) => {
 
     const redo = useCallback(() => {
         if (index < history.length - 1) {
-            setIndex(index + 1);
+            setIndex(index - 1);
         }
     }, [index, history.length]);
     
@@ -108,40 +107,49 @@ export const useImageHandler = ({ featureName, onFileSelectCallback, triggerShar
         if (isDownloading) return;
         setIsDownloading(true);
 
-        const eventParams = { ...analyticsParams };
-        if (uploadTimestamp) {
-            const durationInSeconds = Math.round((Date.now() - uploadTimestamp) / 1000);
-            eventParams.duration_seconds = durationInSeconds;
-        }
-        trackEvent('download', eventParams);
+        try {
+            const startTime = performance.now();
+            const blob = await getCanvasBlob();
+            const endTime = performance.now();
+            
+            const generationTimeMs = Math.round(endTime - startTime);
 
-        setTimeout(async () => {
-            try {
-                const blob = await getCanvasBlob();
-                if (blob) {
-                    const url = URL.createObjectURL(blob);
-                    const link = document.createElement('a');
-                    const extension = options?.extension || 'png';
-                    link.download = `${filename}-${getTimestamp()}.${extension}`;
-                    link.href = url;
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-                    URL.revokeObjectURL(url);
-                    if (onSuccess) {
-                        onSuccess();
-                    } else {
-                        triggerShareToast();
-                    }
-                }
-            } catch (e) {
-                const errorMessage = e instanceof Error ? e.message : String(e);
-                console.error(`Error preparing ${featureName} for download:`, e);
-                trackEvent('download_error', { feature: featureName, error: errorMessage });
-            } finally {
-                setIsDownloading(false);
+            const eventParams = { ...analyticsParams };
+            if (uploadTimestamp) {
+                const durationInSeconds = Math.round((Date.now() - uploadTimestamp) / 1000);
+                eventParams.duration_seconds = durationInSeconds;
             }
-        }, 50);
+            eventParams.generation_time_ms = generationTimeMs;
+
+            trackEvent('download', eventParams);
+
+            if (generationTimeMs > 2000) {
+                trackEvent('slow_download', eventParams);
+            }
+
+            if (blob) {
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                const extension = options?.extension || 'png';
+                link.download = `${filename}-${getTimestamp()}.${extension}`;
+                link.href = url;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+                if (onSuccess) {
+                    onSuccess();
+                } else {
+                    triggerShareToast();
+                }
+            }
+        } catch (e) {
+            const errorMessage = e instanceof Error ? e.message : String(e);
+            console.error(`Error preparing ${featureName} for download:`, e);
+            trackEvent('download_error', { feature: featureName, error: errorMessage });
+        } finally {
+            setIsDownloading(false);
+        }
     }, [isDownloading, uploadTimestamp, featureName, triggerShareToast]);
 
     const clearImage = useCallback(() => {
