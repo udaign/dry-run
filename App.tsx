@@ -227,6 +227,36 @@ const App: React.FC = () => {
   const imageSrc = activePanel.imageSrc;
   
   useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore if an input, textarea, or select element is focused.
+      const target = e.target as HTMLElement;
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) || target.isContentEditable) {
+        return;
+      }
+
+      const isUndo = e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === 'z';
+      const isRedo = (e.ctrlKey && e.key.toLowerCase() === 'y') || (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'z');
+
+      if (isUndo || isRedo) {
+        const currentPanel = panels[activeTab];
+        if (!currentPanel.imageSrc) return;
+
+        e.preventDefault();
+
+        if (isUndo && currentPanel.canUndo) {
+          currentPanel.undo();
+          trackEvent(`${activeTab}_undo`, { method: 'keyboard_shortcut' });
+        } else if (isRedo && currentPanel.canRedo) {
+          currentPanel.redo();
+          trackEvent(`${activeTab}_redo`, { method: 'keyboard_shortcut' });
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [activeTab, panels]);
+
+  useEffect(() => {
     const shouldShowHint =
       !easterEggPrimed &&
       !valueAliasingPanel.isEasterEggActive &&

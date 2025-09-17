@@ -640,5 +640,5 @@ export const useWallpaperPanel = ({
 
   const replaceButton = <Dropzone onFileSelect={handleFileSelect} isLoading={isLoading} compact={true} theme={theme}/>;
 
-  return { previewPanel, controlsPanel, imageSrc, isLoading, handleFileSelect, handleDownload, downloadButton, replaceButton, wallpaperType, getCanvasBlob };
+  return { previewPanel, controlsPanel, imageSrc, isLoading, handleFileSelect, handleDownload, downloadButton, replaceButton, wallpaperType, getCanvasBlob, undo: undoWallpaper, redo: redoWallpaper, canUndo: canUndoWallpaper, canRedo: canRedoWallpaper };
 };

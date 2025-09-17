@@ -1240,5 +1240,5 @@ export const useValueAliasingPanel = ({
 
   const replaceButton = <Dropzone onFileSelect={handleFileSelect} isLoading={isLoading} compact={true} theme={theme}/>;
 
-  return { previewPanel, controlsPanel, imageSrc, isLoading, handleFileSelect, handleDownload, downloadButton, replaceButton, valueAliasingType: valueAliasingType, activateEasterEgg, isEasterEggActive, getCanvasBlob };
+  return { previewPanel, controlsPanel, imageSrc, isLoading, handleFileSelect, handleDownload, downloadButton, replaceButton, valueAliasingType: valueAliasingType, activateEasterEgg, isEasterEggActive, getCanvasBlob, undo: undoValueAliasing, redo: redoValueAliasing, canUndo: canUndoValueAliasing, canRedo: canDoValueAliasing };
 };

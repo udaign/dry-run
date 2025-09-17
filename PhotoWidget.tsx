@@ -384,5 +384,5 @@ export const usePhotoWidgetPanel = ({ theme, isMobile, footerLinks, triggerShare
   
   const replaceButton = <Dropzone onFileSelect={handleFileSelect} isLoading={isLoading} compact={true} theme={theme} accept="image/png" />;
 
-  return { previewPanel, controlsPanel, imageSrc, isLoading, handleFileSelect, handleDownload, downloadButton, replaceButton, getCanvasBlob };
+  return { previewPanel, controlsPanel, imageSrc, isLoading, handleFileSelect, handleDownload, downloadButton, replaceButton, getCanvasBlob, undo: undoPhotoWidget, redo: redoPhotoWidget, canUndo: canUndoPhotoWidget, canRedo: canRedoPhotoWidget };
 };

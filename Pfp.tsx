@@ -596,5 +596,5 @@ export const usePfpPanel = ({ theme, isMobile, footerLinks, triggerShareToast, h
 
   const replaceButton = <Dropzone onFileSelect={handleFileSelect} isLoading={isLoading} compact={true} theme={theme}/>;
 
-  return { previewPanel, controlsPanel, imageSrc, isLoading, handleFileSelect, handleDownload, downloadButton, replaceButton, getCanvasBlob };
+  return { previewPanel, controlsPanel, imageSrc, isLoading, handleFileSelect, handleDownload, downloadButton, replaceButton, getCanvasBlob, undo: undoPfp, redo: redoPfp, canUndo: canUndoPfp, canRedo: canRedoPfp };
 };

@@ -1,3 +1,4 @@
+
 import { useState, useCallback } from 'react';
 import { trackEvent } from './analytics';
 import { getTimestamp } from './utils';
@@ -29,7 +30,7 @@ export const useHistory = <T,>(initialState: T) => {
 
     const redo = useCallback(() => {
         if (index < history.length - 1) {
-            setIndex(index - 1);
+            setIndex(index + 1);
         }
     }, [index, history.length]);
     
