@@ -66,6 +66,7 @@ const App: React.FC = () => {
           files: [file],
           title: 'Matrices for Nothing Community',
           text,
+          url: APP_URL,
         };
         if (navigator.canShare && navigator.canShare(shareData)) {
           await navigator.share(shareData);
@@ -88,6 +89,7 @@ const App: React.FC = () => {
         await navigator.share({
           title: 'Matrices for Nothing Community',
           text,
+          url: APP_URL,
         });
         trackEvent('share_success_webshare_api', { method: 'text', variant });
         return;
