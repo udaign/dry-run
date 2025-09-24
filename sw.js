@@ -1,14 +1,14 @@
-const CACHE_NAME = 'matrices-cache-v1';
+const CACHE_NAME = 'dry-run-cache-v1';
 const urlsToCache = [
-  '/matrices/',
-  '/matrices/index.html',
-  '/matrices/manifest.json',
+  '/dry-run/',
+  '/dry-run/index.html',
+  '/dry-run/manifest.json',
   'https://cdn.tailwindcss.com',
   'https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&display=swap',
-  '/matrices/public/images/favicon.png',
-  '/matrices/public/images/icon-192x192.png',
-  '/matrices/public/images/icon-512x512.png',
-  '/matrices/public/images/maskable-icon.png',
+  '/dry-run/public/images/favicon.png',
+  '/dry-run/public/images/icon-192x192.png',
+  '/dry-run/public/images/icon-512x512.png',
+  '/dry-run/public/images/maskable-icon.png',
 ];
 
 self.addEventListener('install', (event) => {

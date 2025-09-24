@@ -2,9 +2,9 @@
   "name": "Matrices for Nothing Community",
   "short_name": "Matrices",
   "description": "Create and use dot-matrix styled imagery to show love for Nothing.",
-  "start_url": "/matrices/",
+  "start_url": "/dry-run/",
   "display": "standalone",
-  "background_color": "#0d0e14",
+  "background_color": "#14151f",
   "theme_color": "#14151f",
   "icons": [
     {
