@@ -59,7 +59,7 @@ const App: React.FC = () => {
       try {
         const file = new File([blob], 'matrices-creation.png', { type: 'image/png' });
         const text = variant === 'special'
-          ? "Have you unlocked the secret theme in Matrices Value Aliasing yet? 🗝️ On desktop, use 'feelingnothing' code word. On mobile, hold the celestial body until you are blessed! https://udaign.github.io/matrices/"
+          ? "Have you unlocked the secret theme in Matrices Value Aliasing yet? 🗝️ On desktop, type 'feelingnothing' code word. On mobile, hold the celestial body until you are blessed! https://udaign.github.io/matrices/"
           : `Created with Matrices. Link: ${APP_URL}`;
         
         const shareData = {
@@ -83,7 +83,7 @@ const App: React.FC = () => {
     if (navigator.share) {
       try {
         const text = variant === 'special'
-            ? "Have you unlocked the secret theme in Matrices Value Aliasing yet? 🗝️ On desktop, use 'feelingnothing' code word. On mobile, hold the celestial body until you are blessed! https://udaign.github.io/matrices/"
+            ? "Have you unlocked the secret theme in Matrices Value Aliasing yet? 🗝️ On desktop, type 'feelingnothing' code word. On mobile, hold the celestial body until you are blessed! https://udaign.github.io/matrices/"
             : `Create your own Nothing style dot-matrix imagery with Matrices: ${APP_URL}`;
 
         await navigator.share({
@@ -254,6 +254,50 @@ const App: React.FC = () => {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [activeTab, panels]);
+
+  useEffect(() => {
+    const handlePaste = (event: ClipboardEvent) => {
+      const items = event.clipboardData?.items;
+      if (!items) return;
+
+      // Ignore if an input, textarea, or select element is focused.
+      const target = event.target as HTMLElement;
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) || target.isContentEditable) {
+        return;
+      }
+
+      for (const item of Array.from(items)) {
+        if (item.type.startsWith('image/')) {
+          const file = item.getAsFile();
+          if (file) {
+            event.preventDefault();
+            trackEvent('paste_image', { feature: activeTab });
+            
+            switch (activeTab) {
+              case 'pfp':
+                panels.pfp.handleFileSelect(file, 'paste');
+                break;
+              case 'wallpaper':
+                panels.wallpaper.handleFileSelect(file, 'paste');
+                break;
+              case 'photoWidget':
+                panels.photoWidget.handleFileSelect(file, 'paste');
+                break;
+              case 'valueAliasing':
+                panels.valueAliasing.handleFileSelect(file, 'paste');
+                break;
+            }
+            break; // Only handle the first image
+          }
+        }
+      }
+    };
+
+    window.addEventListener('paste', handlePaste);
+    return () => {
+      window.removeEventListener('paste', handlePaste);
+    };
   }, [activeTab, panels]);
 
   useEffect(() => {

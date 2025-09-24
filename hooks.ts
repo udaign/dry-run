@@ -72,7 +72,7 @@ export const useImageHandler = ({ featureName, onFileSelectCallback, triggerShar
     const [isDownloading, setIsDownloading] = useState(false);
     const [uploadTimestamp, setUploadTimestamp] = useState<number | null>(null);
 
-    const handleFileSelect = useCallback((file: File, method: 'drag_drop' | 'click') => {
+    const handleFileSelect = useCallback((file: File, method: 'drag_drop' | 'click' | 'paste') => {
         setIsLoading(true);
         trackEvent('upload_image', { feature: featureName, method });
         const reader = new FileReader();
