@@ -1,5 +1,6 @@
 
-import { useState, useCallback } from 'react';
+// FIX: Import React to use types like React.SetStateAction
+import React, { useState, useCallback } from 'react';
 import { trackEvent } from './analytics';
 import { getTimestamp } from './utils';
 

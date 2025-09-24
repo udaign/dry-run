@@ -955,7 +955,7 @@ export const useValueAliasingPanel = ({
         <EnhancedSlider theme={theme} isMobile={isMobile} label="Contrast" value={contrast} onChange={v => updateLiveSetting('contrast', v)} onChangeCommitted={v => commitSetting('contrast', v)} onReset={() => commitSetting('contrast', DEFAULT_SLIDER_VALUE)} disabled={isLoading} />
         <EnhancedSlider theme={theme} isMobile={isMobile} label="Resolution" value={resolution} onChange={v => updateLiveSetting('resolution', v)} onChangeCommitted={v => commitSetting('resolution', v)} onReset={() => commitSetting('resolution', DEFAULT_SLIDER_VALUE)} disabled={isLoading} />
         <EnhancedSlider theme={theme} isMobile={isMobile} label="Pixel Gap" value={pixelGap} onChange={v => updateLiveSetting('pixelGap', v)} onChangeCommitted={v => commitSetting('pixelGap', v)} onReset={() => commitSetting('pixelGap', DEFAULT_SLIDER_VALUE)} disabled={isLoading} />
-        <EnhancedSlider theme={theme} isMobile={isMobile} label="Lower Limit" value={lowerLimit} onChange={v => updateLiveSetting('lowerLimit', v)} onChangeCommitted={v => commitSetting('lowerLimit', 0)} onReset={() => commitSetting('lowerLimit', 0)} disabled={isLoading} />
+        <EnhancedSlider theme={theme} isMobile={isMobile} label="Lower Limit" value={lowerLimit} onChange={v => updateLiveSetting('lowerLimit', v)} onChangeCommitted={v => commitSetting('lowerLimit', v)} onReset={() => commitSetting('lowerLimit', 0)} disabled={isLoading} />
       </div>
 
       {!isEasterEggActive && (
@@ -1141,7 +1141,7 @@ export const useValueAliasingPanel = ({
                                 <EnhancedSlider theme={theme} isMobile={isMobile} label="Contrast" value={contrast} onChange={v => updateLiveSetting('contrast', v)} onChangeCommitted={v => commitSetting('contrast', v)} onReset={() => commitSetting('contrast', DEFAULT_SLIDER_VALUE)} disabled={isLoading} />
                                 <EnhancedSlider theme={theme} isMobile={isMobile} label="Resolution" value={resolution} onChange={v => updateLiveSetting('resolution', v)} onChangeCommitted={v => commitSetting('resolution', v)} onReset={() => commitSetting('resolution', DEFAULT_SLIDER_VALUE)} disabled={isLoading} />
                                 <EnhancedSlider theme={theme} isMobile={isMobile} label="Pixel Gap" value={pixelGap} onChange={v => updateLiveSetting('pixelGap', v)} onChangeCommitted={v => commitSetting('pixelGap', v)} onReset={() => commitSetting('pixelGap', DEFAULT_SLIDER_VALUE)} disabled={isLoading} />
-                                <EnhancedSlider theme={theme} isMobile={isMobile} label="Lower Limit" value={lowerLimit} onChange={v => updateLiveSetting('lowerLimit', v)} onChangeCommitted={v => commitSetting('lowerLimit', 0)} onReset={() => commitSetting('lowerLimit', 0)} disabled={isLoading} />
+                                <EnhancedSlider theme={theme} isMobile={isMobile} label="Lower Limit" value={lowerLimit} onChange={v => updateLiveSetting('lowerLimit', v)} onChangeCommitted={v => commitSetting('lowerLimit', v)} onReset={() => commitSetting('lowerLimit', 0)} disabled={isLoading} />
                             </div>
                             {!isEasterEggActive && (
                             <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-black/40' : 'bg-white/60'} space-y-4`}>

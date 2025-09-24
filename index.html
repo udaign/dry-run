@@ -6,6 +6,10 @@
     <title>MATRICES FOR NOTHING COMMUNITY</title>
     <meta name="description" content="Create and use dot-matrix styled imagery to show love for Nothing." />
     
+    <!-- PWA -->
+    <link rel="manifest" href="/matrices/manifest.json" />
+    <meta name="theme-color" content="#14151f" />
+    
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://udaign.github.io/matrices/">
@@ -126,5 +130,16 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/matrices/sw.js').then(registration => {
+            console.log('Service Worker registered: ', registration);
+          }).catch(registrationError => {
+            console.log('Service Worker registration failed: ', registrationError);
+          });
+        });
+      }
+    </script>
   </body>
 </html>

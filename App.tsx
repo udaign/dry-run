@@ -33,6 +33,7 @@ const App: React.FC = () => {
   const [isEasterEggHintVisible, setIsEasterEggHintVisible] = useState(false);
   const [showSharePopup, setShowSharePopup] = useState(false);
   const [shareVariant, setShareVariant] = useState<'default' | 'special'>('default');
+  const [installPrompt, setInstallPrompt] = useState<any>(null);
   const activeTabIndex = TABS.indexOf(activeTab);
   const longPressTimer = useRef<number | null>(null);
   const longPressActivated = useRef(false);
@@ -49,6 +50,31 @@ const App: React.FC = () => {
 
   const linkClasses = theme === 'dark' ? 'font-medium text-nothing-light hover:text-white underline' : 'font-medium text-day-text hover:text-black underline';
   
+  useEffect(() => {
+    const handler = (e: Event) => {
+      e.preventDefault();
+      setInstallPrompt(e);
+      trackEvent('pwa_install_available');
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handler);
+    };
+  }, []);
+
+  const handleInstallClick = () => {
+    if (!installPrompt) return;
+    installPrompt.prompt();
+    installPrompt.userChoice.then((choiceResult: { outcome: 'accepted' | 'dismissed' }) => {
+      if (choiceResult.outcome === 'accepted') {
+        trackEvent('pwa_install_accepted');
+      } else {
+        trackEvent('pwa_install_dismissed');
+      }
+      setInstallPrompt(null);
+    });
+  };
+
   const handleShare = async (variant: 'default' | 'special' = 'default') => {
     trackEvent('share_initiated', { variant, source: imageSrc ? 'with_image' : 'no_image' });
 
@@ -494,6 +520,15 @@ const App: React.FC = () => {
                   </>
               )}
             </button>
+            {installPrompt && (
+              <button onClick={handleInstallClick} className={`p-2 transition-colors duration-300 rounded-md ${theme === 'dark' ? 'text-nothing-light bg-nothing-gray-dark hover:bg-nothing-gray-light hover:text-nothing-dark' : 'text-day-text bg-day-gray-light hover:bg-day-gray-dark hover:text-day-bg'}`} aria-label="Install app">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-6 w-6">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="7 10 12 15 17 10"></polyline>
+                  <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+              </button>
+            )}
             <button 
               onClick={handleThemeToggle}
               onMouseDown={() => handleThemeTogglePress(panels.valueAliasing.imageSrc)}
