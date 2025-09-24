@@ -6,6 +6,10 @@
     <title>MATRICES FOR NOTHING COMMUNITY</title>
     <meta name="description" content="Create and use dot-matrix styled imagery to show love for Nothing." />
     
+    <!-- PWA -->
+    <link rel="manifest" href="/matrices/manifest.json" />
+    <meta name="theme-color" content="#14151f" />
+    
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://udaign.github.io/matrices/">
@@ -20,7 +24,7 @@
     <meta property="twitter:description" content="Create and use dot-matrix styled imagery to show love for Nothing.">
     <meta property="twitter:image" content="https://udaign.github.io/matrices/public/images/social-preview.png">
 
-    <link rel="icon" type="image/png" href="/dry-run/assets/favicon-DTW1mLyQ.png">
+    <link rel="icon" type="image/png" href="/dry-run/assets/favicon-ChksOpno.png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&display=swap" rel="stylesheet">
@@ -123,9 +127,20 @@
   }
 }
 </script>
-  <script type="module" crossorigin src="/dry-run/assets/index-Drlgq7rz.js"></script>
+  <script type="module" crossorigin src="/dry-run/assets/index-BYI-Juy6.js"></script>
 </head>
   <body>
     <div id="root"></div>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/matrices/sw.js').then(registration => {
+            console.log('Service Worker registered: ', registration);
+          }).catch(registrationError => {
+            console.log('Service Worker registration failed: ', registrationError);
+          });
+        });
+      }
+    </script>
   </body>
 </html>
