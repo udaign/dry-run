@@ -1,5 +1,5 @@
 {
-  "id": "matrices",
+  "id": "/dry-run/",
   "short_name": "Matrices",
   "name": "Matrices for Nothing Community",
   "description": "Create and use dot-matrix styled imagery to show love for Nothing.",
@@ -21,8 +21,9 @@
       "purpose": "maskable"
     }
   ],
-  "start_url": "/matrices/",
+  "start_url": "/dry-run/",
   "display": "standalone",
   "background_color": "#14151f",
-  "theme_color": "#14151f"
+  "theme_color": "#14151f",
+  "scope": "/dry-run/"
 }
