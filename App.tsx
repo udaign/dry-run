@@ -34,6 +34,7 @@ const App: React.FC = () => {
   const [showSharePopup, setShowSharePopup] = useState(false);
   const [shareVariant, setShareVariant] = useState<'default' | 'special'>('default');
   const [installPrompt, setInstallPrompt] = useState<any>(null);
+  const [isPwaInstalled, setIsPwaInstalled] = useState(false);
   const activeTabIndex = TABS.indexOf(activeTab);
   const longPressTimer = useRef<number | null>(null);
   const longPressActivated = useRef(false);
@@ -62,6 +63,16 @@ const App: React.FC = () => {
     };
   }, []);
 
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(display-mode: standalone)');
+    const updatePwaStatus = () => setIsPwaInstalled(mediaQuery.matches);
+    
+    updatePwaStatus(); // Initial check
+    mediaQuery.addEventListener('change', updatePwaStatus);
+
+    return () => mediaQuery.removeEventListener('change', updatePwaStatus);
+  }, []);
+
   const handleInstallClick = () => {
     if (!installPrompt) return;
     installPrompt.prompt();
@@ -73,6 +84,14 @@ const App: React.FC = () => {
       }
       setInstallPrompt(null);
     });
+  };
+
+  const unlockButtonAction = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setActiveTab('valueAliasing');
+    valueAliasingPanel.activateEasterEgg();
+    setEasterEggPrimed(false);
+    trackEvent('easter_egg_unlocked');
   };
 
   const handleShare = async (variant: 'default' | 'special' = 'default') => {
@@ -493,42 +512,45 @@ const App: React.FC = () => {
         <header className={`flex-shrink-0 sticky top-0 z-30 flex justify-between items-center p-4 border-b ${theme === 'dark' ? 'bg-nothing-dark border-nothing-gray-dark' : 'bg-day-bg border-gray-300'}`}>
           <h1 className="text-2xl sm:text-3xl font-normal page-title">MATRICES FOR NOTHING COMMUNITY</h1>
           <div className="flex items-center space-x-2">
-            <button onClick={(e) => {
-                if (easterEggPrimed) {
-                  e.preventDefault();
-                  setActiveTab('valueAliasing');
-                  valueAliasingPanel.activateEasterEgg();
-                  setEasterEggPrimed(false);
-                  trackEvent('easter_egg_unlocked');
-                } else {
-                  trackEvent('community_thread_header_click');
-                  window.open(NOTHING_COMMUNITY_SHARE_LINK, '_blank', 'noopener,noreferrer');
-                }
-              }} className={shareButtonClasses} aria-label={easterEggPrimed ? "Unlock Secret Theme" : "Visit Community Thread"}>
-              {easterEggPrimed ? (
-                  <>
-                      <span className="hidden md:inline">Unlock Secret</span>
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-6 w-6 md:ml-2">
-                          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-                          <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+            {(() => {
+              if (easterEggPrimed) {
+                return (
+                  <button onClick={unlockButtonAction} className={shareButtonClasses} aria-label="Unlock Secret Theme">
+                    <span className="hidden md:inline">Unlock Secret</span>
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-6 w-6 md:ml-2">
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                        <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                    </svg>
+                  </button>
+                );
+              }
+
+              if (isMobile && !isPwaInstalled) {
+                if (installPrompt) {
+                  return (
+                    <button onClick={handleInstallClick} className={`p-2 transition-colors duration-300 rounded-md ${theme === 'dark' ? 'text-nothing-light bg-nothing-gray-dark hover:bg-nothing-gray-light hover:text-nothing-dark' : 'text-day-text bg-day-gray-light hover:bg-day-gray-dark hover:text-day-bg'}`} aria-label="Install app">
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-6 w-6">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="7 10 12 15 17 10"></polyline>
+                        <line x1="12" y1="15" x2="12" y2="3"></line>
                       </svg>
-                  </>
-              ) : (
-                  <>
-                      <span className="hidden md:inline">Community Thread</span>
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-6 w-6 md:ml-2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
-                  </>
-              )}
-            </button>
-            {installPrompt && (
-              <button onClick={handleInstallClick} className={`p-2 transition-colors duration-300 rounded-md ${theme === 'dark' ? 'text-nothing-light bg-nothing-gray-dark hover:bg-nothing-gray-light hover:text-nothing-dark' : 'text-day-text bg-day-gray-light hover:bg-day-gray-dark hover:text-day-bg'}`} aria-label="Install app">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-6 w-6">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                  <polyline points="7 10 12 15 17 10"></polyline>
-                  <line x1="12" y1="15" x2="12" y2="3"></line>
-                </svg>
-              </button>
-            )}
+                    </button>
+                  );
+                }
+                return null;
+              } else {
+                return (
+                  <button onClick={() => {
+                    trackEvent('community_thread_header_click');
+                    window.open(NOTHING_COMMUNITY_SHARE_LINK, '_blank', 'noopener,noreferrer');
+                  }} className={shareButtonClasses} aria-label="Visit Community Thread">
+                    <span className="hidden md:inline">Community Thread</span>
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-6 w-6 md:ml-2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+                  </button>
+                );
+              }
+            })()}
+
             <button 
               onClick={handleThemeToggle}
               onMouseDown={() => handleThemeTogglePress(panels.valueAliasing.imageSrc)}
