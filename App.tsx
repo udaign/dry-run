@@ -34,7 +34,6 @@ const App: React.FC = () => {
   const [showSharePopup, setShowSharePopup] = useState(false);
   const [shareVariant, setShareVariant] = useState<'default' | 'special'>('default');
   const [installPrompt, setInstallPrompt] = useState<any>(null);
-  const [isPwaInstalled, setIsPwaInstalled] = useState(false);
   const activeTabIndex = TABS.indexOf(activeTab);
   const longPressTimer = useRef<number | null>(null);
   const longPressActivated = useRef(false);
@@ -61,16 +60,6 @@ const App: React.FC = () => {
     return () => {
       window.removeEventListener('beforeinstallprompt', handler);
     };
-  }, []);
-
-  useEffect(() => {
-    const mediaQuery = window.matchMedia('(display-mode: standalone)');
-    const updatePwaStatus = () => setIsPwaInstalled(mediaQuery.matches);
-    
-    updatePwaStatus(); // Initial check
-    mediaQuery.addEventListener('change', updatePwaStatus);
-
-    return () => mediaQuery.removeEventListener('change', updatePwaStatus);
   }, []);
 
   const handleInstallClick = () => {
@@ -525,19 +514,16 @@ const App: React.FC = () => {
                 );
               }
 
-              if (isMobile && !isPwaInstalled) {
-                if (installPrompt) {
-                  return (
-                    <button onClick={handleInstallClick} className={`p-2 transition-colors duration-300 rounded-md ${theme === 'dark' ? 'text-nothing-light bg-nothing-gray-dark hover:bg-nothing-gray-light hover:text-nothing-dark' : 'text-day-text bg-day-gray-light hover:bg-day-gray-dark hover:text-day-bg'}`} aria-label="Install app">
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-6 w-6">
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                        <polyline points="7 10 12 15 17 10"></polyline>
-                        <line x1="12" y1="15" x2="12" y2="3"></line>
-                      </svg>
-                    </button>
-                  );
-                }
-                return null;
+              if (isMobile && installPrompt) {
+                return (
+                  <button onClick={handleInstallClick} className={`p-2 transition-colors duration-300 rounded-md ${theme === 'dark' ? 'text-nothing-light bg-nothing-gray-dark hover:bg-nothing-gray-light hover:text-nothing-dark' : 'text-day-text bg-day-gray-light hover:bg-day-gray-dark hover:text-day-bg'}`} aria-label="Install app">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-6 w-6">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                      <polyline points="7 10 12 15 17 10"></polyline>
+                      <line x1="12" y1="15" x2="12" y2="3"></line>
+                    </svg>
+                  </button>
+                );
               } else {
                 return (
                   <button onClick={() => {
