@@ -7,7 +7,7 @@
     <meta name="description" content="Create and use dot-matrix styled imagery to show love for Nothing." />
     
     <!-- PWA -->
-    <link rel="manifest" href="/dry-run/assets/manifest-BX3hiXKy.json" />
+    <link rel="manifest" href="./manifest.json" />
     <meta name="theme-color" content="#14151f" />
     
     <!-- Open Graph / Facebook -->
@@ -134,7 +134,7 @@
     <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/dry-run/sw.js').then(registration => {
+          navigator.serviceWorker.register('./service-worker.js').then(registration => {
             console.log('Service Worker registered: ', registration);
           }).catch(registrationError => {
             console.log('Service Worker registration failed: ', registrationError);
