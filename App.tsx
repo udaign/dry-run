@@ -15,6 +15,12 @@ const TAB_LABELS: Record<Tab, string> = {
   photoWidget: 'Photo Widget',
   valueAliasing: 'Value Aliasing',
 };
+const TAB_ABBREVIATIONS: Record<Tab, string> = {
+  wallpaper: 'MW',
+  pfp: 'GM',
+  photoWidget: 'PW',
+  valueAliasing: 'VA',
+};
 const NOTHING_COMMUNITY_SHARE_LINK = "https://nothing.community/d/38047-introducing-matrices-a-handy-utility-to-create-matrix-styled-imagery";
 const APP_URL = "https://udaign.github.io/matrices/";
 
@@ -37,6 +43,7 @@ const App: React.FC = () => {
   const activeTabIndex = TABS.indexOf(activeTab);
   const longPressTimer = useRef<number | null>(null);
   const longPressActivated = useRef(false);
+  const installTriggeredByApp = useRef(false);
 
   // Special theme toast state
   const [hasDownloadedSpecialTheme, setHasDownloadedSpecialTheme] = useState(false);
@@ -50,6 +57,15 @@ const App: React.FC = () => {
 
   const linkClasses = theme === 'dark' ? 'font-medium text-nothing-light hover:text-white underline' : 'font-medium text-day-text hover:text-black underline';
   
+  const mobileUnderlineStyle = useMemo(() => {
+    const inactiveTabWidth = 50 / 3;
+    const left = activeTabIndex * inactiveTabWidth;
+    return {
+      width: '50%',
+      left: `${left}%`,
+    };
+  }, [activeTabIndex]);
+
   useEffect(() => {
     const handler = (e: Event) => {
       e.preventDefault();
@@ -61,16 +77,39 @@ const App: React.FC = () => {
       window.removeEventListener('beforeinstallprompt', handler);
     };
   }, []);
+  
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const source = installTriggeredByApp.current ? 'app_button' : 'browser_ui';
+      trackEvent('pwa_install_success', { source });
+      
+      // Hide the app install button.
+      setInstallPrompt(null);
+      // Reset the ref.
+      installTriggeredByApp.current = false;
+    };
+    window.addEventListener('appinstalled', handler);
+    return () => {
+      window.removeEventListener('appinstalled', handler);
+    };
+  }, []);
 
   const handleInstallClick = () => {
     if (!installPrompt) return;
+
+    trackEvent('pwa_install_prompt_click');
+    installTriggeredByApp.current = true;
+
     installPrompt.prompt();
     installPrompt.userChoice.then((choiceResult: { outcome: 'accepted' | 'dismissed' }) => {
       if (choiceResult.outcome === 'accepted') {
         trackEvent('pwa_install_accepted');
       } else {
         trackEvent('pwa_install_dismissed');
+        // If dismissed, reset the flag so a future browser-UI install isn't misattributed
+        installTriggeredByApp.current = false;
       }
+      // The prompt can't be used again, so clear it.
       setInstallPrompt(null);
     });
   };
@@ -410,40 +449,14 @@ const App: React.FC = () => {
       if (valueAliasingFileInputRef.current) valueAliasingFileInputRef.current.value = '';
   };
 
-  const mobileTabRefs = useRef<(HTMLButtonElement | null)[]>([]);
-  const [mobileIndicatorStyle, setMobileIndicatorStyle] = useState({});
-
   useEffect(() => {
-    const calculateIndicator = () => {
-        const activeTabEl = mobileTabRefs.current[activeTabIndex];
-        if (activeTabEl) {
-            setMobileIndicatorStyle({
-                width: activeTabEl.offsetWidth,
-                left: activeTabEl.offsetLeft,
-            });
-        }
-    };
     const handleResize = () => {
-        const mobile = window.innerWidth < 768;
-        setIsMobile(mobile);
-        if (mobile) {
-            calculateIndicator();
-        }
+        setIsMobile(window.innerWidth < 768);
     };
     window.addEventListener('resize', handleResize);
     handleResize();
     return () => window.removeEventListener('resize', handleResize);
-  }, [activeTabIndex]);
-
-  useEffect(() => {
-      if (isMobile) {
-          const activeTabEl = mobileTabRefs.current[activeTabIndex];
-          const timer = setTimeout(() => {
-              activeTabEl?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
-          }, 300);
-          return () => clearTimeout(timer);
-      }
-  }, [activeTabIndex, isMobile]);
+  }, []);
 
   useEffect(() => {
     const initialTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
@@ -557,19 +570,33 @@ const App: React.FC = () => {
 
         <div className="block md:hidden pt-4 sm:pt-6">
           <div className="flex flex-col space-y-4">
-            <div className={`relative flex overflow-x-auto border-b ${theme === 'dark' ? 'border-nothing-gray-dark' : 'border-gray-300'}`}>
-              {TABS.map((tab, i) => (
-                <button 
-                  key={tab} 
-                  // FIX: The ref callback should not return a value. Using a block body to ensure a void return.
-                  ref={el => { mobileTabRefs.current[i] = el; }}
-                  onClick={() => handleTabChange(tab)} 
-                  className={`flex-shrink-0 whitespace-nowrap px-6 py-3 text-base transition-colors duration-300 focus:outline-none ${activeTab === tab ? (theme === 'dark' ? 'text-nothing-light font-bold' : 'text-day-text font-bold') : (theme === 'dark' ? 'text-nothing-gray-light hover:text-nothing-light font-semibold' : 'text-day-gray-dark hover:text-day-text font-semibold')}`} 
-                  aria-pressed={activeTab === tab}>
-                  {TAB_LABELS[tab]}
-                </button>
-              ))}
-              <div className={`absolute bottom-[-1px] h-[1.5px] ${theme === 'dark' ? 'bg-white' : 'bg-black'} transition-all duration-300 ease-in-out`} style={mobileIndicatorStyle} aria-hidden="true" />
+            <div className={`relative flex w-full border-b ${theme === 'dark' ? 'border-nothing-gray-dark' : 'border-gray-300'}`}>
+              {TABS.map((tab) => {
+                const isActive = activeTab === tab;
+                return (
+                  <button
+                    key={tab}
+                    onClick={() => handleTabChange(tab)}
+                    className={`
+                      text-center py-3 text-base transition-all duration-500 ease-in-out focus:outline-none
+                      ${isActive
+                        ? (theme === 'dark' ? 'text-nothing-light font-bold' : 'text-day-text font-bold')
+                        : (theme === 'dark' ? 'text-nothing-gray-light hover:text-nothing-light font-normal' : 'text-day-gray-dark hover:text-day-text font-normal')}
+                    `}
+                    style={{ flex: isActive ? '0 0 50%' : '1 1 0' }}
+                    aria-pressed={isActive}
+                  >
+                    <span className={`truncate px-2 ${!isActive ? 'page-title text-xl' : ''}`}>
+                      {isActive ? TAB_LABELS[tab] : TAB_ABBREVIATIONS[tab]}
+                    </span>
+                  </button>
+                );
+              })}
+              <div
+                className={`absolute bottom-[-1px] h-1 ${theme === 'dark' ? 'bg-white' : 'bg-black'} transition-all duration-500 ease-in-out`}
+                style={mobileUnderlineStyle}
+                aria-hidden="true"
+              />
             </div>
             <p className={`text-center w-full text-sm leading-normal transition-opacity duration-300 px-4 sm:px-6 ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'}`}>{tabDescriptions[activeTab]}</p>
             <hr className={`mt-4 ${theme === 'dark' ? 'border-nothing-gray-dark' : 'border-gray-300'}`} />
