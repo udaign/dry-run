@@ -578,12 +578,12 @@ const App: React.FC = () => {
                     key={tab}
                     onClick={() => handleTabChange(tab)}
                     className={`
-                      text-center py-3 text-base transition-[flex,color,font-weight] duration-500 ease-in-out focus:outline-none focus:ring-0
+                      text-center py-3 text-base transition-[width,color,font-weight] duration-500 ease-in-out focus:outline-none focus:ring-0
                       ${isActive
                         ? (theme === 'dark' ? 'text-nothing-light font-bold' : 'text-day-text font-bold')
                         : (theme === 'dark' ? 'text-nothing-gray-light hover:text-nothing-light font-normal' : 'text-day-gray-dark hover:text-day-text font-normal')}
                     `}
-                    style={{ flex: isActive ? '0 0 50%' : '1 1 0' }}
+                    style={{ width: isActive ? '50%' : 'calc(50% / 3)' }}
                     aria-pressed={isActive}
                   >
                     <span className={`truncate px-2 ${!isActive ? 'page-title text-xl' : ''}`}>
