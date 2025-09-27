@@ -3,6 +3,38 @@ importScripts('https://storage.googleapis.com/workbox-cdn/releases/6.5.4/workbox
 if (workbox) {
   console.log('Workbox is loaded');
 
+  // --- START OF OFFLINE ANALYTICS IMPLEMENTATION ---
+
+  // 1. Initialize the Background Sync plugin for queuing failed analytics requests.
+  const backgroundSyncPlugin = new workbox.backgroundSync.BackgroundSyncPlugin('analytics-queue', {
+    maxRetentionTime: 24 * 60 * 30, // Retry for up to 30 days.
+  });
+
+  // 2. Define the strategy for analytics requests: NetworkOnly with the sync plugin.
+  // This ensures that we always try to send the request to the network.
+  // If it fails (e.g., user is offline), the backgroundSyncPlugin will queue it.
+  const analyticsStrategy = new workbox.strategies.NetworkOnly({
+    plugins: [backgroundSyncPlugin],
+  });
+
+  // 3. Register routes to catch both POST and GET requests to Google Analytics.
+  // gtag.js can use either method depending on the browser and context.
+  const analyticsHost = 'www.google-analytics.com';
+
+  workbox.routing.registerRoute(
+    ({url}) => url.hostname === analyticsHost,
+    analyticsStrategy,
+    'POST'
+  );
+  
+  workbox.routing.registerRoute(
+    ({url}) => url.hostname === analyticsHost,
+    analyticsStrategy,
+    'GET'
+  );
+
+  // --- END OF OFFLINE ANALYTICS IMPLEMENTATION ---
+
   // Stale-while-revalidate for page navigations.
   workbox.routing.registerRoute(
     ({ request }) => request.mode === 'navigate',
