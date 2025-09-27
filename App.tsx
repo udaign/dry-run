@@ -578,7 +578,7 @@ const App: React.FC = () => {
                     key={tab}
                     onClick={() => handleTabChange(tab)}
                     className={`
-                      text-center py-3 text-base transition-all duration-500 ease-in-out focus:outline-none
+                      text-center py-3 text-base transition-[flex,color,font-weight] duration-500 ease-in-out focus:outline-none focus:ring-0
                       ${isActive
                         ? (theme === 'dark' ? 'text-nothing-light font-bold' : 'text-day-text font-bold')
                         : (theme === 'dark' ? 'text-nothing-gray-light hover:text-nothing-light font-normal' : 'text-day-gray-dark hover:text-day-text font-normal')}
@@ -593,7 +593,7 @@ const App: React.FC = () => {
                 );
               })}
               <div
-                className={`absolute bottom-[-1px] h-1 ${theme === 'dark' ? 'bg-white' : 'bg-black'} transition-all duration-500 ease-in-out`}
+                className={`absolute bottom-[-1px] h-1 ${theme === 'dark' ? 'bg-white' : 'bg-black'} transition-[left] duration-500 ease-in-out`}
                 style={mobileUnderlineStyle}
                 aria-hidden="true"
               />
@@ -623,7 +623,7 @@ const App: React.FC = () => {
                       {TAB_LABELS[tab]}
                     </button>
                   ))}
-                  <div className={`absolute bottom-[-1px] h-1 ${theme === 'dark' ? 'bg-white' : 'bg-black'} transition-all duration-300 ease-in-out`} style={{ width: '25%', left: `${activeTabIndex * 25}%` }} aria-hidden="true" />
+                  <div className={`absolute bottom-[-1px] h-1 ${theme === 'dark' ? 'bg-white' : 'bg-black'} transition-[left] duration-300 ease-in-out`} style={{ width: '25%', left: `${activeTabIndex * 25}%` }} aria-hidden="true" />
                 </div>
                 <p className={`text-center w-full text-sm leading-normal transition-opacity duration-300 ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'}`}>{tabDescriptions[activeTab]}</p>
                 <hr className={`mt-2 ${theme === 'dark' ? 'border-nothing-gray-dark' : 'border-gray-300'}`} />

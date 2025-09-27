@@ -62,15 +62,15 @@ export const Dropzone: React.FC<{ onFileSelect: (file: File, method: 'drag_drop'
     const dropTexts = {
         pfp: {
             bold: "Drag & Drop or Click",
-            normal: "to load a profile picture",
+            normal: "to load an image",
         },
         wallpaper: {
             bold: "Drag & Drop or Click",
-            normal: "to load a wallpaper",
+            normal: "to load an image",
         },
         photoWidget: {
             bold: "Drag & Drop or Click",
-            normal: "to load a PNG image",
+            normal: "to load an image",
         },
         valueAliasing: {
             bold: "Drag & Drop or Click",
