@@ -25,5 +25,40 @@
   "display": "standalone",
   "background_color": "#14151f",
   "theme_color": "#14151f",
-  "scope": "/dry-run/"
+  "scope":"/dry-run/",
+  "screenshots": [
+    {
+      "src": "images/screenshots/desktop-1.png",
+      "sizes": "1920x1080",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Desktop - Unloaded"
+    },
+    {
+      "src": "images/screenshots/desktop-2.png",
+      "sizes": "1920x1080",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Desktop - Loaded"
+    },
+    {
+      "src": "images/screenshots/mobile-1.png",
+      "sizes": "1080x1920",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Mobile - Unloaded"
+    },
+    {
+      "src": "images/screenshots/mobile-2.png",
+      "sizes": "1080x1920",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Mobile - Loaded"
+    }
+  ],
+  "url_handlers": [
+    {
+      "origin": "https://udaign.github.io"
+    }
+  ]
 }
