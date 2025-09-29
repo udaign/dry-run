@@ -96,6 +96,22 @@ if (workbox) {
     })
   );
 
+  // Cache-first for local fonts (like Ndot-55).
+  workbox.routing.registerRoute(
+    ({ request }) => request.destination === 'font',
+    new workbox.strategies.CacheFirst({
+      cacheName: 'local-fonts',
+      plugins: [
+        new workbox.cacheableResponse.CacheableResponsePlugin({
+          statuses: [0, 200],
+        }),
+        new workbox.expiration.ExpirationPlugin({
+          maxAgeSeconds: 60 * 60 * 24 * 365, // 1 Year
+        }),
+      ],
+    })
+  );
+
 } else {
   console.log('Workbox did not load, offline support is unavailable.');
 }
