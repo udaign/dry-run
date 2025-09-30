@@ -859,14 +859,14 @@ export const useValueAliasingPanel = ({
             <button 
                 onClick={() => handleThemeChange('dark')}
                 className={`${baseButtonClasses} flex-grow ${!isEasterEggActive && liveActiveState.background === 'black' ? selectedClasses : unselectedClasses}`}
-                aria-pressed={!isEasterEggActive && liveActiveState.background === 'black'}
+                aria-pressed={!isEasterEggActive && liveActiveState.background === 'black' ? 'true' : 'false'}
             >
                 Dark
             </button>
             <button 
                 onClick={() => handleThemeChange('light')}
                 className={`${baseButtonClasses} flex-grow ${!isEasterEggActive && liveActiveState.background === 'white' ? selectedClasses : unselectedClasses}`}
-                aria-pressed={!isEasterEggActive && liveActiveState.background === 'white'}
+                aria-pressed={!isEasterEggActive && liveActiveState.background === 'white' ? 'true' : 'false'}
             >
                 Light
             </button>
@@ -875,7 +875,7 @@ export const useValueAliasingPanel = ({
                     onClick={() => handleThemeChange('community')}
                     className={`${baseButtonClasses} flex-shrink-0 w-10 ${isEasterEggActive ? selectedClasses : unselectedClasses}`}
                     aria-label="Activate Community Theme"
-                    aria-pressed={isEasterEggActive}
+                    aria-pressed={isEasterEggActive ? 'true' : 'false'}
                 >
                     <svg viewBox="0 0 22 22" className="h-5 w-5" aria-hidden="true">
                       <rect x="0" y="0" width="10" height="10" fill="#BD1721" />

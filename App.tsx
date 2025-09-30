@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { usePfpPanel } from './Pfp';
 import { useWallpaperPanel } from './Wallpaper';
@@ -6,7 +5,7 @@ import { usePhotoWidgetPanel } from './PhotoWidget';
 import { useValueAliasingPanel } from './ValueAliasing';
 import { Theme, Tab } from './types';
 import { trackEvent } from './analytics';
-import { ToastNotification, SharePopup } from './components';
+import { ToastNotification, SharePopup, SupportModal } from './components';
 
 const TABS: Tab[] = ['valueAliasing', 'pfp', 'wallpaper', 'photoWidget'];
 const TAB_LABELS: Record<Tab, string> = {
@@ -44,6 +43,7 @@ const App: React.FC = () => {
   const longPressTimer = useRef<number | null>(null);
   const longPressActivated = useRef(false);
   const installTriggeredByApp = useRef(false);
+  const [showSupportModal, setShowSupportModal] = useState(false);
 
   // Special theme toast state
   const [hasDownloadedSpecialTheme, setHasDownloadedSpecialTheme] = useState(false);
@@ -57,13 +57,9 @@ const App: React.FC = () => {
 
   const linkClasses = theme === 'dark' ? 'font-medium text-nothing-light hover:text-white underline' : 'font-medium text-day-text hover:text-black underline';
   
-  const mobileUnderlineStyle = useMemo(() => {
+  const mobileUnderlineLeft = useMemo(() => {
     const inactiveTabWidth = 50 / 3;
-    const left = activeTabIndex * inactiveTabWidth;
-    return {
-      width: '50%',
-      left: `${left}%`,
-    };
+    return activeTabIndex * inactiveTabWidth;
   }, [activeTabIndex]);
 
   useEffect(() => {
@@ -246,16 +242,20 @@ const App: React.FC = () => {
   const footerLinks = (
     <div className={`text-sm ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'} opacity-80 space-y-1`}>
       <p>
-        Made with 🤍❤️🖤 for Nothing Community.
+        Made with love for Nothing Community.
       </p>
       <p>
         <a href="https://nothing.community/d/38047-introducing-matrices-a-handy-utility-to-create-matrix-styled-imagery" target="_blank" rel="noopener noreferrer" className={linkClasses} onClick={() => trackEvent('discussion_visit')}>
-          {isEasterEggHintVisible && !isMobile ? 'Feeling Nothing' : 'Feedback & feature requests'}
+          {isEasterEggHintVisible && !isMobile ? 'Feeling Nothing' : 'Feedback'}
         </a>
         <span className="mx-2">|</span>
         <a href="mailto:udaybhaskar2283@gmail.com" className={linkClasses} onClick={() => trackEvent('email_click')}>
           Email
         </a>
+        <span className="mx-2">|</span>
+        <button onClick={() => { trackEvent('support_modal_opened'); setShowSupportModal(true); }} className={linkClasses}>
+          Support ❤️
+        </button>
         <span className="mx-2">|</span>
         <a href="https://nothing.community/u/Udaign" target="_blank" rel="noopener noreferrer" className={linkClasses} onClick={() => trackEvent('community_profile_visit')}>
           © Uday
@@ -505,10 +505,10 @@ const App: React.FC = () => {
 
   return (
     <>
-      <input type="file" ref={pfpFileInputRef} onChange={(e) => e.target.files?.[0] && handlePfpFileSelect(e.target.files[0])} className="hidden" accept="image/*" />
-      <input type="file" ref={wallpaperFileInputRef} onChange={(e) => e.target.files?.[0] && handleWallpaperFileSelect(e.target.files[0])} className="hidden" accept="image/*" />
-      <input type="file" ref={photoWidgetFileInputRef} onChange={(e) => e.target.files?.[0] && handlePhotoWidgetFileSelect(e.target.files[0])} className="hidden" accept="image/png" />
-      <input type="file" ref={valueAliasingFileInputRef} onChange={(e) => e.target.files?.[0] && handleValueAliasingFileSelect(e.target.files[0])} className="hidden" accept="image/*" />
+      <input type="file" ref={pfpFileInputRef} onChange={(e) => e.target.files?.[0] && handlePfpFileSelect(e.target.files[0])} className="hidden" accept="image/*" title="Upload profile picture" />
+      <input type="file" ref={wallpaperFileInputRef} onChange={(e) => e.target.files?.[0] && handleWallpaperFileSelect(e.target.files[0])} className="hidden" accept="image/*" title="Upload wallpaper image" />
+      <input type="file" ref={photoWidgetFileInputRef} onChange={(e) => e.target.files?.[0] && handlePhotoWidgetFileSelect(e.target.files[0])} className="hidden" accept="image/png" title="Upload photo widget image" />
+      <input type="file" ref={valueAliasingFileInputRef} onChange={(e) => e.target.files?.[0] && handleValueAliasingFileSelect(e.target.files[0])} className="hidden" accept="image/*" title="Upload value aliasing image" />
 
       <div className={`min-h-[100dvh] md:h-screen w-full flex flex-col font-sans ${theme === 'dark' ? 'text-nothing-light bg-nothing-dark' : 'text-day-text bg-day-bg'} select-none`}>
         <header className={`flex-shrink-0 sticky top-0 z-30 flex justify-between items-center p-4 border-b ${theme === 'dark' ? 'bg-nothing-dark border-nothing-gray-dark' : 'bg-day-bg border-gray-300'}`}>
@@ -543,7 +543,7 @@ const App: React.FC = () => {
                     trackEvent('community_thread_header_click');
                     window.open(NOTHING_COMMUNITY_SHARE_LINK, '_blank', 'noopener,noreferrer');
                   }} className={shareButtonClasses} aria-label="Visit Community Thread">
-                    <span className="hidden md:inline">Community Thread</span>
+                    <span className="hidden md:inline">Join Discussion</span>
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-6 w-6 md:ml-2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
                   </button>
                 );
@@ -579,12 +579,12 @@ const App: React.FC = () => {
                     onClick={() => handleTabChange(tab)}
                     className={`
                       text-center py-3 text-base transition-[width,color,font-weight] duration-500 ease-in-out focus:outline-none focus:ring-0
+                      mobile-tab
                       ${isActive
-                        ? (theme === 'dark' ? 'text-nothing-light font-bold' : 'text-day-text font-bold')
+                        ? `active ${theme === 'dark' ? 'text-nothing-light font-bold' : 'text-day-text font-bold'}`
                         : (theme === 'dark' ? 'text-nothing-gray-light hover:text-nothing-light font-normal' : 'text-day-gray-dark hover:text-day-text font-normal')}
                     `}
-                    style={{ width: isActive ? '50%' : 'calc(50% / 3)' }}
-                    aria-pressed={isActive}
+                    aria-pressed={isActive ? 'true' : 'false'}
                   >
                     <span className={`truncate px-2 ${!isActive ? 'page-title text-xl' : ''}`}>
                       {isActive ? TAB_LABELS[tab] : TAB_ABBREVIATIONS[tab]}
@@ -593,8 +593,9 @@ const App: React.FC = () => {
                 );
               })}
               <div
-                className={`absolute bottom-[-1px] h-1 ${theme === 'dark' ? 'bg-white' : 'bg-black'} transition-[left] duration-500 ease-in-out`}
-                style={mobileUnderlineStyle}
+                className={`absolute bottom-[-1px] h-1 ${theme === 'dark' ? 'bg-white' : 'bg-black'} transition-[left] duration-500 ease-in-out mobile-underline`}
+                // FIX: Cast style object to React.CSSProperties to allow for custom properties.
+                style={{ '--underline-left-mobile': `${mobileUnderlineLeft}%` } as React.CSSProperties}
                 aria-hidden="true"
               />
             </div>
@@ -619,11 +620,12 @@ const App: React.FC = () => {
               <div className="flex flex-col space-y-4">
                 <div className="relative flex border-b dark:border-nothing-gray-dark border-gray-300">
                   {TABS.map((tab, i) => (
-                    <button key={tab} onClick={() => handleTabChange(tab)} className={`w-1/4 py-3 text-lg transition-colors duration-300 focus:outline-none ${activeTab === tab ? (theme === 'dark' ? 'text-nothing-light font-extrabold' : 'text-day-text font-extrabold') : (theme === 'dark' ? 'text-nothing-gray-light hover:text-nothing-light font-semibold' : 'text-day-gray-dark hover:text-day-text font-semibold')}`} aria-pressed={activeTab === tab}>
+                    <button key={tab} onClick={() => handleTabChange(tab)} className={`w-1/4 py-3 text-lg transition-colors duration-300 focus:outline-none ${activeTab === tab ? (theme === 'dark' ? 'text-nothing-light font-extrabold' : 'text-day-text font-extrabold') : (theme === 'dark' ? 'text-nothing-gray-light hover:text-nothing-light font-semibold' : 'text-day-gray-dark hover:text-day-text font-semibold')}`} aria-pressed={activeTab === tab ? 'true' : 'false'}>
                       {TAB_LABELS[tab]}
                     </button>
                   ))}
-                  <div className={`absolute bottom-[-1px] h-1 ${theme === 'dark' ? 'bg-white' : 'bg-black'} transition-[left] duration-300 ease-in-out`} style={{ width: '25%', left: `${activeTabIndex * 25}%` }} aria-hidden="true" />
+                  {/* FIX: Cast style object to React.CSSProperties to allow for custom properties. */}
+                  <div className={`absolute bottom-[-1px] h-1 ${theme === 'dark' ? 'bg-white' : 'bg-black'} transition-[left] duration-300 ease-in-out desktop-underline`} style={{ '--underline-left-desktop': `${activeTabIndex * 25}%` } as React.CSSProperties} aria-hidden="true" />
                 </div>
                 <p className={`text-center w-full text-sm leading-normal transition-opacity duration-300 ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'}`}>{tabDescriptions[activeTab]}</p>
                 <hr className={`mt-2 ${theme === 'dark' ? 'border-nothing-gray-dark' : 'border-gray-300'}`} />
@@ -631,7 +633,8 @@ const App: React.FC = () => {
             </div>
             
             <div className="flex-grow md:overflow-y-auto md:relative md:overflow-hidden">
-              <div className="hidden md:flex md:absolute md:top-0 md:left-0 md:w-full md:h-full transition-transform duration-300 ease-in-out" style={{ transform: `translateX(-${activeTabIndex * 100}%)` }}>
+              {/* FIX: Cast style object to React.CSSProperties to allow for custom properties. */}
+              <div className="hidden md:flex md:absolute md:top-0 md:left-0 md:w-full md:h-full transition-transform duration-300 ease-in-out controls-panel-container" style={{ '--panel-translate-x': `-${activeTabIndex * 100}%` } as React.CSSProperties}>
                 {TABS.map(tab => (
                   <div key={tab} className="w-full flex-shrink-0 h-full overflow-y-auto">{panels[tab].controlsPanel}</div>
                 ))}
@@ -728,6 +731,12 @@ const App: React.FC = () => {
             communityLink={NOTHING_COMMUNITY_SHARE_LINK}
             appUrl={APP_URL}
             variant={shareVariant}
+        />
+        
+        <SupportModal 
+            show={showSupportModal}
+            onClose={() => setShowSupportModal(false)}
+            theme={theme}
         />
       </div>
     </>
