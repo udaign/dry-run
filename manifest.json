@@ -3,6 +3,8 @@
   "short_name": "Matrices",
   "name": "Matrices for Nothing Community",
   "description": "Create and use dot-matrix styled imagery to show love for Nothing.",
+  "lang": "en-US",
+  "dir": "ltr",
   "icons": [
     {
       "src": "images/icon-192x192.png",
@@ -18,14 +20,70 @@
       "src": "images/maskable-icon.png",
       "type": "image/png",
       "sizes": "512x512",
-      "purpose": "maskable"
+      "purpose": "maskable",
+      "scope": "/dry-run/"
     }
   ],
+  "shortcuts": [
+    {
+      "name": "Create Value Aliased Image",
+      "short_name": "Value Aliasing",
+      "description": "Create artistic, value-based dot patterns from any image.",
+      "url": "/dry-run/",
+      "icons": [{ "src": "images/icon-192x192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Create Glyph Mirror PFP",
+      "short_name": "Glyph Mirror",
+      "description": "Design unique, mirrored profile pictures in the Nothing glyph style.",
+      "url": "/dry-run/",
+      "icons": [{ "src": "images/icon-192x192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Create Matrix Wallpaper",
+      "short_name": "Wallpaper",
+      "description": "Generate dot-matrix wallpapers for your phone or desktop.",
+      "url": "/dry-run/",
+      "icons": [{ "src": "images/icon-192x192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Create Photo Widget",
+      "short_name": "Photo Widget",
+      "description": "Craft custom, transparent photo widgets for your home screen.",
+      "url": "/dry-run/",
+      "icons": [{ "src": "images/icon-192x192.png", "sizes": "192x192" }]
+    }
+  ],
+  "share_target": {
+    "action": "/matdry-runrices/",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": {
+      "files": [
+        {
+          "name": "image",
+          "accept": ["image/*"]
+        }
+      ]
+    }
+  },
   "start_url": "/dry-run/",
+  "display_override": [
+    "window-controls-overlay",
+    "standalone"
+  ],
   "display": "standalone",
+  "orientation": "portrait-primary",
   "background_color": "#14151f",
   "theme_color": "#14151f",
   "scope":"/dry-run/",
+  "categories": [
+    "personalization",
+    "photo",
+    "utilities"
+  ],
+  "prefer_related_applications": false,
+  "iarc_rating_id": "",
   "screenshots": [
     {
       "src": "images/screenshots/desktop-1.png",
@@ -58,7 +116,7 @@
   ],
   "url_handlers": [
     {
-      "origin": "https://udaign.github.io"
+      "origin": "https://udaign.github.io/dry-run/"
     }
   ]
 }
