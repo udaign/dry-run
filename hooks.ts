@@ -1,4 +1,5 @@
 
+
 // FIX: Import React to use types like React.SetStateAction
 import React, { useState, useCallback } from 'react';
 import { trackEvent } from './analytics';
@@ -73,7 +74,7 @@ export const useImageHandler = ({ featureName, onFileSelectCallback, triggerShar
     const [isDownloading, setIsDownloading] = useState(false);
     const [uploadTimestamp, setUploadTimestamp] = useState<number | null>(null);
 
-    const handleFileSelect = useCallback((file: File, method: 'drag_drop' | 'click' | 'paste') => {
+    const handleFileSelect = useCallback((file: File, method: 'drag_drop' | 'click' | 'paste' | 'share_target') => {
         setIsLoading(true);
         trackEvent('upload_image', { feature: featureName, method });
         const reader = new FileReader();

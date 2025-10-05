@@ -1,3 +1,4 @@
+
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { Theme, PhotoWidgetOutputMode, Tab } from './types';
 import { trackEvent } from './analytics';
@@ -625,7 +626,8 @@ export const SupportModal: React.FC<{ show: boolean; onClose: () => void; theme:
             </svg>
         ),
         paypal: (
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-paypal" viewBox="0 0 16 16">
+            // FIX: Changed 'class' to 'className' for JSX compatibility.
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" className="bi bi-paypal" viewBox="0 0 16 16">
               <path d="M14.06 3.713c.12-1.071-.093-1.832-.702-2.526C12.628.356 11.312 0 9.626 0H4.734a.7.7 0 0 0-.691.59L2.005 13.509a.42.42 0 0 0 .415.486h2.756l-.202 1.28a.628.628 0 0 0 .62.726H8.14c.429 0 .793-.31.862-.731l.025-.13.48-3.043.03-.164.001-.007a.35.35 0 0 1 .348-.297h.38c1.266 0 2.425-.256 3.345-.91q.57-.403.993-1.005a4.94 4.94 0 0 0 .88-2.195c.242-1.246.13-2.356-.57-3.154a2.7 2.7 0 0 0-.76-.59l-.094-.061ZM6.543 8.82a.7.7 0 0 1 .321-.079H8.3c2.82 0 5.027-1.144 5.672-4.456l.003-.016q.326.186.548.438c.546.623.679 1.535.45 2.71-.272 1.397-.866 2.307-1.663 2.874-.802.57-1.842.815-3.043.815h-.38a.87.87 0 0 0-.863.734l-.03.164-.48 3.043-.024.13-.001.004a.35.35 0 0 1-.348.296H5.595a.106.106 0 0 1-.105-.123l.208-1.32z"/>
             </svg>
         )
@@ -703,4 +705,84 @@ export const SupportModal: React.FC<{ show: boolean; onClose: () => void; theme:
             </div>
         </div>
     );
+};
+
+export const ShareTargetModal: React.FC<{
+  show: boolean;
+  onClose: () => void;
+  onSelect: (tab: Tab) => void;
+  theme: Theme;
+}> = ({ show, onClose, onSelect, theme }) => {
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    if (show) {
+      document.body.style.overflow = 'hidden';
+      window.addEventListener('keydown', handleKeyDown);
+    } else {
+      document.body.style.overflow = 'auto';
+    }
+    return () => {
+      document.body.style.overflow = 'auto';
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [show, onClose]);
+
+  if (!show) return null;
+
+  const handleSelect = (tab: Tab) => {
+    trackEvent('share_target_select', { feature: tab });
+    onSelect(tab);
+  };
+  
+  const tabs: { key: Tab, label: string }[] = [
+    { key: 'valueAliasing', label: 'Value Aliasing' },
+    { key: 'pfp', label: 'Glyph Mirror' },
+    { key: 'wallpaper', label: 'Matrix Wallpaper' },
+    { key: 'photoWidget', label: 'Photo Widget' },
+  ];
+
+  const icons = {
+    close: (
+      <svg viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
+        <path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+      </svg>
+    ),
+  };
+
+  return (
+    <div 
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-[2px]"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="share-target-modal-title"
+    >
+      <div 
+        className={`relative w-full max-w-md m-4 p-6 rounded-lg shadow-2xl ${theme === 'dark' ? 'bg-nothing-darker text-nothing-light' : 'bg-white text-day-text'} animate-fade-in`}
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="flex justify-between items-center mb-6">
+          <h2 id="share-target-modal-title" className="text-xl font-bold">Send image to...</h2>
+        </div>
+        
+        <button onClick={onClose} className={`absolute top-3 right-3 p-2 rounded-full ${theme === 'dark' ? 'hover:bg-nothing-gray-dark' : 'hover:bg-day-gray-light'}`} aria-label="Close share dialog">
+          {icons.close}
+        </button>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {tabs.map(({ key, label }) => (
+            <button
+              key={key}
+              onClick={() => handleSelect(key)}
+              className={`p-4 text-center font-semibold rounded-md transition-colors duration-200 ${theme === 'dark' ? 'bg-nothing-gray-dark hover:bg-gray-700' : 'bg-day-gray-light hover:bg-gray-300'}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
 };

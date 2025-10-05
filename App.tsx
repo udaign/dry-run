@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { usePfpPanel } from './Pfp';
 import { useWallpaperPanel } from './Wallpaper';
@@ -5,7 +6,7 @@ import { usePhotoWidgetPanel } from './PhotoWidget';
 import { useValueAliasingPanel } from './ValueAliasing';
 import { Theme, Tab } from './types';
 import { trackEvent } from './analytics';
-import { ToastNotification, SharePopup, SupportModal } from './components';
+import { ToastNotification, SharePopup, SupportModal, ShareTargetModal } from './components';
 
 const TABS: Tab[] = ['valueAliasing', 'pfp', 'wallpaper', 'photoWidget'];
 const TAB_LABELS: Record<Tab, string> = {
@@ -44,6 +45,8 @@ const App: React.FC = () => {
   const longPressActivated = useRef(false);
   const installTriggeredByApp = useRef(false);
   const [showSupportModal, setShowSupportModal] = useState(false);
+  const [sharedFile, setSharedFile] = useState<File | null>(null);
+  const [showShareTargetModal, setShowShareTargetModal] = useState(false);
 
   // Special theme toast state
   const [hasDownloadedSpecialTheme, setHasDownloadedSpecialTheme] = useState(false);
@@ -296,6 +299,26 @@ const App: React.FC = () => {
     valueAliasing: valueAliasingPanel,
   };
 
+  const handleShareTargetSelect = (tab: Tab) => {
+    if (!sharedFile) return;
+
+    const fileToLoad = sharedFile;
+    setActiveTab(tab);
+
+    // Using a timeout to allow the UI to update to the correct tab
+    // before the file is processed, which can be a heavy operation.
+    setTimeout(() => {
+        const panel = panels[tab];
+        if (panel && panel.handleFileSelect) {
+            panel.handleFileSelect(fileToLoad, 'share_target');
+        }
+    }, 100);
+
+    setShowShareTargetModal(false);
+    setSharedFile(null);
+  };
+
+
   const activePanel = panels[activeTab];
   const imageSrc = activePanel.imageSrc;
   
@@ -372,6 +395,31 @@ const App: React.FC = () => {
       window.removeEventListener('paste', handlePaste);
     };
   }, [activeTab, panels]);
+
+  // Effect to handle shared images from the service worker
+  useEffect(() => {
+    const handleSharedImage = (event: MessageEvent) => {
+      if (event.data && event.data.type === 'shared-image' && event.data.file) {
+        const file = event.data.file as File;
+        trackEvent('share_target_received');
+        
+        // Show the modal to let user choose the destination
+        setSharedFile(file);
+        setShowShareTargetModal(true);
+      }
+    };
+
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.addEventListener('message', handleSharedImage);
+    }
+
+    return () => {
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.removeEventListener('message', handleSharedImage);
+      }
+    };
+  }, []);
+
 
   useEffect(() => {
     const shouldShowHint =
@@ -736,6 +784,17 @@ const App: React.FC = () => {
         <SupportModal 
             show={showSupportModal}
             onClose={() => setShowSupportModal(false)}
+            theme={theme}
+        />
+
+        <ShareTargetModal 
+            show={showShareTargetModal}
+            onClose={() => {
+                setShowShareTargetModal(false);
+                setSharedFile(null);
+                trackEvent('share_target_dismissed');
+            }}
+            onSelect={handleShareTargetSelect}
             theme={theme}
         />
       </div>
