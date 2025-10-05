@@ -26,32 +26,32 @@
   ],
   "shortcuts": [
     {
-      "name": "Create Value Aliased Image",
+      "name": "Value Aliasing",
       "short_name": "Value Aliasing",
       "description": "Create artistic, value-based dot patterns from any image.",
       "url": "/dry-run/",
-      "icons": [{ "src": "images/icon-192x192.png", "sizes": "192x192" }]
+      "icons": [{ "src": "images/shortcuts/VA_40px.png", "sizes": "192x192" }]
     },
     {
-      "name": "Create Glyph Mirror PFP",
+      "name": "Glyph Mirror",
       "short_name": "Glyph Mirror",
       "description": "Design unique, mirrored profile pictures in the Nothing glyph style.",
       "url": "/dry-run/",
-      "icons": [{ "src": "images/icon-192x192.png", "sizes": "192x192" }]
+      "icons": [{ "src": "images/shortcuts/GM_40px.png", "sizes": "192x192" }]
     },
     {
-      "name": "Create Matrix Wallpaper",
+      "name": "Matrix Wallpaper",
       "short_name": "Wallpaper",
       "description": "Generate dot-matrix wallpapers for your phone or desktop.",
       "url": "/dry-run/",
-      "icons": [{ "src": "images/icon-192x192.png", "sizes": "192x192" }]
+      "icons": [{ "src": "images/shortcuts/MW_40px.png", "sizes": "192x192" }]
     },
     {
-      "name": "Create Photo Widget",
+      "name": "Photo Widget",
       "short_name": "Photo Widget",
       "description": "Craft custom, transparent photo widgets for your home screen.",
       "url": "/dry-run/",
-      "icons": [{ "src": "images/icon-192x192.png", "sizes": "192x192" }]
+      "icons": [{ "src": "images/shortcuts/PW_40px.png", "sizes": "192x192" }]
     }
   ],
   "share_target": {
