@@ -65,6 +65,12 @@ const App: React.FC = () => {
     return activeTabIndex * inactiveTabWidth;
   }, [activeTabIndex]);
 
+  const desktopInactiveTabWidth = 50 / 3;
+  const desktopActiveTabWidth = 50;
+  const desktopUnderlineLeft = useMemo(() => {
+    return activeTabIndex * desktopInactiveTabWidth;
+  }, [activeTabIndex]);
+
   useEffect(() => {
     const handler = (e: Event) => {
       e.preventDefault();
@@ -653,7 +659,7 @@ const App: React.FC = () => {
         </div>
 
         <main className="flex-grow w-full flex flex-col md:flex-row min-h-0 md:pt-0 md:overflow-hidden">
-          <div className={`md:w-1/3 w-full flex flex-col ${!imageSrc ? 'flex-grow md:flex-grow-0' : ''} border-b md:border-b-0 md:border-r ${theme === 'dark' ? 'border-nothing-gray-dark' : 'border-gray-300'} md:overflow-y-auto`}>
+          <div className={`md:w-2/3 w-full flex flex-col ${!imageSrc ? 'flex-grow md:flex-grow-0' : ''} border-b md:border-b-0 md:border-r ${theme === 'dark' ? 'border-nothing-gray-dark' : 'border-gray-300'} md:overflow-y-auto`}>
             <div className={`flex-grow ${previewContainerPadding} ${!imageSrc ? 'min-h-[50vh] md:min-h-0' : 'min-h-0'} flex flex-col items-center justify-center`}>
               {Object.entries(panels).map(([key, panel]) => (
                 <div key={key} className={`w-full h-full flex-grow flex flex-col items-center justify-center ${activeTab === key ? 'flex' : 'hidden'}`}>
@@ -663,17 +669,33 @@ const App: React.FC = () => {
             </div>
           </div>
 
-          <div className="md:w-2/3 w-full flex flex-col">
+          <div className="md:w-1/3 w-full flex flex-col">
             <div className="hidden md:block flex-shrink-0 py-4 sm:py-6 md:py-8 md:pb-4">
               <div className="flex flex-col space-y-4">
                 <div className="relative flex border-b dark:border-nothing-gray-dark border-gray-300">
-                  {TABS.map((tab, i) => (
-                    <button key={tab} onClick={() => handleTabChange(tab)} className={`w-1/4 py-3 text-lg transition-colors duration-300 focus:outline-none ${activeTab === tab ? (theme === 'dark' ? 'text-nothing-light font-extrabold' : 'text-day-text font-extrabold') : (theme === 'dark' ? 'text-nothing-gray-light hover:text-nothing-light font-semibold' : 'text-day-gray-dark hover:text-day-text font-semibold')}`} aria-pressed={activeTab === tab ? 'true' : 'false'}>
-                      {TAB_LABELS[tab]}
-                    </button>
-                  ))}
+                  {TABS.map((tab) => {
+                    const isActive = activeTab === tab;
+                    return (
+                      <button
+                        key={tab}
+                        onClick={() => handleTabChange(tab)}
+                        className={`
+                          text-center py-3 text-base transition-[width,color,font-weight] duration-500 ease-in-out focus:outline-none focus:ring-0
+                          desktop-tab
+                          ${isActive
+                            ? `active ${theme === 'dark' ? 'text-nothing-light font-bold' : 'text-day-text font-bold'}`
+                            : (theme === 'dark' ? 'text-nothing-gray-light hover:text-nothing-light font-normal' : 'text-day-gray-dark hover:text-day-text font-normal')}
+                        `}
+                        aria-pressed={isActive ? 'true' : 'false'}
+                      >
+                        <span className={`truncate px-2 ${!isActive ? 'page-title text-xl' : ''}`}>
+                          {isActive ? TAB_LABELS[tab] : TAB_ABBREVIATIONS[tab]}
+                        </span>
+                      </button>
+                    );
+                  })}
                   {/* FIX: Cast style object to React.CSSProperties to allow for custom properties. */}
-                  <div className={`absolute bottom-[-1px] h-1 ${theme === 'dark' ? 'bg-white' : 'bg-black'} transition-[left] duration-300 ease-in-out desktop-underline`} style={{ '--underline-left-desktop': `${activeTabIndex * 25}%` } as React.CSSProperties} aria-hidden="true" />
+                  <div className={`absolute bottom-[-1px] h-1 ${theme === 'dark' ? 'bg-white' : 'bg-black'} transition-[left,width] duration-500 ease-in-out desktop-underline`} style={{ '--underline-left-desktop': `${desktopUnderlineLeft}%`, '--underline-width-desktop': `${desktopActiveTabWidth}%` } as React.CSSProperties} aria-hidden="true" />
                 </div>
                 <p className={`text-center w-full text-sm leading-normal transition-opacity duration-300 ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'}`}>{tabDescriptions[activeTab]}</p>
                 <hr className={`mt-2 ${theme === 'dark' ? 'border-nothing-gray-dark' : 'border-gray-300'}`} />
@@ -715,10 +737,10 @@ const App: React.FC = () => {
 
         {imageSrc &&
           <div className={`flex-shrink-0 hidden md:flex flex-col md:flex-row border-t ${theme === 'dark' ? 'border-nothing-gray-dark' : 'border-gray-300'}`}>
-            <div className={`md:w-1/3 w-full p-4 border-b md:border-b-0 md:border-r ${theme === 'dark' ? 'border-nothing-gray-dark' : 'border-gray-300'}`}>
+            <div className={`md:w-2/3 w-full p-4 border-b md:border-b-0 md:border-r ${theme === 'dark' ? 'border-nothing-gray-dark' : 'border-gray-300'}`}>
               {activePanel.replaceButton}
             </div>
-            <div className="md:w-2/3 w-full flex">
+            <div className="md:w-1/3 w-full flex">
               {activePanel.downloadButton}
             </div>
           </div>

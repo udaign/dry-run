@@ -64,9 +64,17 @@ html {
   width: 50%;
 }
 
+.desktop-tab.active {
+  width: 50%;
+}
+
+.desktop-tab {
+  width: calc(50% / 3);
+}
+
 .desktop-underline {
   left: var(--underline-left-desktop);
-  width: 25%;
+  width: var(--underline-width-desktop);
 }
 
 .controls-panel-container {
