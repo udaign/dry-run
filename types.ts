@@ -1,6 +1,6 @@
 export type RawPixel = number | { r: number; g: number; b: number };
 export type Theme = 'light' | 'dark';
-export type Tab = 'pfp' | 'wallpaper' | 'photoWidget' | 'valueAliasing';
+export type Tab = 'pfp' | 'wallpaper' | 'photoWidget' | 'valueAliasing' | 'glassDots';
 
 // PFP
 export type PfpState = {
@@ -76,4 +76,32 @@ export type ValueAliasingSettingsContainer = {
         desktop: ValueAliasingState;
     };
     print: PrintState;
+};
+
+// Glass Dots
+export type GlassDotsState = {
+    resolution: number;
+    pixelGap: number;
+    blurAmount: number;
+    isMonochrome: boolean;
+    cropOffsetX: number;
+    cropOffsetY: number;
+    isGrainEnabled: boolean;
+    grainAmount: number;
+    grainSize: number;
+    grainContrast: number;
+};
+
+export type GlassDotsPrintState = GlassDotsState & {
+    size: string;
+    orientation: 'landscape' | 'portrait';
+};
+
+export type GlassDotsSettingsContainer = {
+    outputType: 'wallpaper' | 'print';
+    wallpaper: {
+        phone: GlassDotsState;
+        desktop: GlassDotsState;
+    };
+    print: GlassDotsPrintState;
 };

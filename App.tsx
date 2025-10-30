@@ -4,22 +4,25 @@ import { usePfpPanel } from './Pfp';
 import { useWallpaperPanel } from './Wallpaper';
 import { usePhotoWidgetPanel } from './PhotoWidget';
 import { useValueAliasingPanel } from './ValueAliasing';
+import { useGlassDotsPanel } from './GlassDots';
 import { Theme, Tab } from './types';
 import { trackEvent } from './analytics';
 import { ToastNotification, SharePopup, SupportModal, ShareTargetModal } from './components';
 
-const TABS: Tab[] = ['valueAliasing', 'pfp', 'wallpaper', 'photoWidget'];
+const TABS: Tab[] = ['valueAliasing', 'pfp', 'glassDots', 'wallpaper', 'photoWidget'];
 const TAB_LABELS: Record<Tab, string> = {
   wallpaper: 'Matrix Wallpaper',
   pfp: 'Glyph Mirror',
   photoWidget: 'Photo Widget',
   valueAliasing: 'Value Aliasing',
+  glassDots: 'Glass Dots',
 };
 const TAB_ABBREVIATIONS: Record<Tab, string> = {
   wallpaper: 'MW',
   pfp: 'GM',
   photoWidget: 'PW',
   valueAliasing: 'VA',
+  glassDots: 'GD',
 };
 const NOTHING_COMMUNITY_SHARE_LINK = "https://nothing.community/d/38047-introducing-matrices-a-handy-utility-to-create-matrix-styled-imagery";
 const APP_URL = "https://udaign.github.io/matrices/";
@@ -57,19 +60,18 @@ const App: React.FC = () => {
   const wallpaperFileInputRef = useRef<HTMLInputElement>(null);
   const photoWidgetFileInputRef = useRef<HTMLInputElement>(null);
   const valueAliasingFileInputRef = useRef<HTMLInputElement>(null);
+  const glassDotsFileInputRef = useRef<HTMLInputElement>(null);
 
   const linkClasses = theme === 'dark' ? 'font-medium text-nothing-light hover:text-white underline' : 'font-medium text-day-text hover:text-black underline';
   
-  const mobileUnderlineLeft = useMemo(() => {
-    const inactiveTabWidth = 50 / 3;
-    return activeTabIndex * inactiveTabWidth;
-  }, [activeTabIndex]);
+  const numTabs = TABS.length;
+  const activeTabWidthPercent = (2 / numTabs) * 100;
+  const inactiveTabWidthPercent = ((numTabs - 2) / numTabs / (numTabs - 1)) * 100;
+  
+  const underlineLeftPercent = useMemo(() => {
+      return activeTabIndex * inactiveTabWidthPercent;
+  }, [activeTabIndex, inactiveTabWidthPercent]);
 
-  const desktopInactiveTabWidth = 50 / 3;
-  const desktopActiveTabWidth = 50;
-  const desktopUnderlineLeft = useMemo(() => {
-    return activeTabIndex * desktopInactiveTabWidth;
-  }, [activeTabIndex]);
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -289,6 +291,7 @@ const App: React.FC = () => {
   const pfpPanel = usePfpPanel(commonProps);
   const wallpaperPanel = useWallpaperPanel(commonProps);
   const photoWidgetPanel = usePhotoWidgetPanel(commonProps);
+  const glassDotsPanel = useGlassDotsPanel(commonProps);
   const valueAliasingPanel = useValueAliasingPanel({ 
     ...commonProps, 
     easterEggPrimed, 
@@ -303,6 +306,7 @@ const App: React.FC = () => {
     wallpaper: wallpaperPanel,
     photoWidget: photoWidgetPanel,
     valueAliasing: valueAliasingPanel,
+    glassDots: glassDotsPanel,
   };
 
   const handleShareTargetSelect = (tab: Tab) => {
@@ -388,6 +392,9 @@ const App: React.FC = () => {
                 break;
               case 'valueAliasing':
                 panels.valueAliasing.handleFileSelect(file, 'paste');
+                break;
+              case 'glassDots':
+                panels.glassDots.handleFileSelect(file, 'paste');
                 break;
             }
             break; // Only handle the first image
@@ -502,6 +509,10 @@ const App: React.FC = () => {
       valueAliasingPanel.handleFileSelect(file, 'click');
       if (valueAliasingFileInputRef.current) valueAliasingFileInputRef.current.value = '';
   };
+  const handleGlassDotsFileSelect = (file: File) => {
+      glassDotsPanel.handleFileSelect(file, 'click');
+      if (glassDotsFileInputRef.current) glassDotsFileInputRef.current.value = '';
+  };
 
   useEffect(() => {
     const handleResize = () => {
@@ -544,6 +555,7 @@ const App: React.FC = () => {
   const tabDescriptions = {
     valueAliasing: <>Create value-aliased imagery. <strong className={`font-bold ${theme === 'dark' ? 'text-nothing-light' : 'text-black'}`}>Drag to crop</strong> into desired area.</>,
     pfp: <>Create glyph mirror styled profile pictures. <strong className={`font-bold ${theme === 'dark' ? 'text-nothing-light' : 'text-black'}`}>Drag to crop</strong> into desired area.</>,
+    glassDots: <>Create imagery with a glossy, glass-like dot effect. <strong className={`font-bold ${theme === 'dark' ? 'text-nothing-light' : 'text-black'}`}>Drag to crop</strong> into desired area.</>,
     wallpaper: <>Create matrix styled wallpapers. <strong className={`font-bold ${theme === 'dark' ? 'text-nothing-light' : 'text-black'}`}>Drag to crop</strong> into desired area.</>,
     photoWidget: "Create matrix styled photo widgets.",
   };
@@ -563,6 +575,8 @@ const App: React.FC = () => {
       <input type="file" ref={wallpaperFileInputRef} onChange={(e) => e.target.files?.[0] && handleWallpaperFileSelect(e.target.files[0])} className="hidden" accept="image/*" title="Upload wallpaper image" />
       <input type="file" ref={photoWidgetFileInputRef} onChange={(e) => e.target.files?.[0] && handlePhotoWidgetFileSelect(e.target.files[0])} className="hidden" accept="image/png" title="Upload photo widget image" />
       <input type="file" ref={valueAliasingFileInputRef} onChange={(e) => e.target.files?.[0] && handleValueAliasingFileSelect(e.target.files[0])} className="hidden" accept="image/*" title="Upload value aliasing image" />
+      <input type="file" ref={glassDotsFileInputRef} onChange={(e) => e.target.files?.[0] && handleGlassDotsFileSelect(e.target.files[0])} className="hidden" accept="image/*" title="Upload glass dots image" />
+
 
       <div className={`min-h-[100dvh] md:h-screen w-full flex flex-col font-sans ${theme === 'dark' ? 'text-nothing-light bg-nothing-dark' : 'text-day-text bg-day-bg'} select-none`}>
         <header className={`flex-shrink-0 sticky top-0 z-30 flex justify-between items-center p-4 border-b ${theme === 'dark' ? 'bg-nothing-dark border-nothing-gray-dark' : 'bg-day-bg border-gray-300'}`}>
@@ -624,7 +638,14 @@ const App: React.FC = () => {
 
         <div className="block md:hidden pt-4 sm:pt-6">
           <div className="flex flex-col space-y-4">
-            <div className={`relative flex w-full border-b ${theme === 'dark' ? 'border-nothing-gray-dark' : 'border-gray-300'}`}>
+            <div 
+              className={`relative flex w-full border-b ${theme === 'dark' ? 'border-nothing-gray-dark' : 'border-gray-300'}`}
+              style={{
+                '--active-tab-width': `${activeTabWidthPercent}%`,
+                '--inactive-tab-width': `${inactiveTabWidthPercent}%`,
+                '--underline-left': `${underlineLeftPercent}%`,
+              } as React.CSSProperties}
+            >
               {TABS.map((tab) => {
                 const isActive = activeTab === tab;
                 return (
@@ -633,7 +654,7 @@ const App: React.FC = () => {
                     onClick={() => handleTabChange(tab)}
                     className={`
                       text-center py-3 text-base transition-[width,color,font-weight] duration-500 ease-in-out focus:outline-none focus:ring-0
-                      mobile-tab
+                      tab
                       ${isActive
                         ? `active ${theme === 'dark' ? 'text-nothing-light font-bold' : 'text-day-text font-bold'}`
                         : (theme === 'dark' ? 'text-nothing-gray-light hover:text-nothing-light font-normal' : 'text-day-gray-dark hover:text-day-text font-normal')}
@@ -647,9 +668,7 @@ const App: React.FC = () => {
                 );
               })}
               <div
-                className={`absolute bottom-[-1px] h-1 ${theme === 'dark' ? 'bg-white' : 'bg-black'} transition-[left] duration-500 ease-in-out mobile-underline`}
-                // FIX: Cast style object to React.CSSProperties to allow for custom properties.
-                style={{ '--underline-left-mobile': `${mobileUnderlineLeft}%` } as React.CSSProperties}
+                className={`absolute bottom-[-1px] h-1 ${theme === 'dark' ? 'bg-white' : 'bg-black'} underline-bar`}
                 aria-hidden="true"
               />
             </div>
@@ -672,7 +691,14 @@ const App: React.FC = () => {
           <div className="md:w-1/3 w-full flex flex-col">
             <div className="hidden md:block flex-shrink-0 py-4 sm:py-6 md:py-8 md:pb-4">
               <div className="flex flex-col space-y-4">
-                <div className="relative flex border-b dark:border-nothing-gray-dark border-gray-300">
+                <div 
+                  className="relative flex border-b dark:border-nothing-gray-dark border-gray-300"
+                  style={{
+                    '--active-tab-width': `${activeTabWidthPercent}%`,
+                    '--inactive-tab-width': `${inactiveTabWidthPercent}%`,
+                    '--underline-left': `${underlineLeftPercent}%`,
+                  } as React.CSSProperties}
+                >
                   {TABS.map((tab) => {
                     const isActive = activeTab === tab;
                     return (
@@ -681,7 +707,7 @@ const App: React.FC = () => {
                         onClick={() => handleTabChange(tab)}
                         className={`
                           text-center py-3 text-base transition-[width,color,font-weight] duration-500 ease-in-out focus:outline-none focus:ring-0
-                          desktop-tab
+                          tab
                           ${isActive
                             ? `active ${theme === 'dark' ? 'text-nothing-light font-bold' : 'text-day-text font-bold'}`
                             : (theme === 'dark' ? 'text-nothing-gray-light hover:text-nothing-light font-normal' : 'text-day-gray-dark hover:text-day-text font-normal')}
@@ -694,8 +720,7 @@ const App: React.FC = () => {
                       </button>
                     );
                   })}
-                  {/* FIX: Cast style object to React.CSSProperties to allow for custom properties. */}
-                  <div className={`absolute bottom-[-1px] h-1 ${theme === 'dark' ? 'bg-white' : 'bg-black'} transition-[left,width] duration-500 ease-in-out desktop-underline`} style={{ '--underline-left-desktop': `${desktopUnderlineLeft}%`, '--underline-width-desktop': `${desktopActiveTabWidth}%` } as React.CSSProperties} aria-hidden="true" />
+                  <div className={`absolute bottom-[-1px] h-1 ${theme === 'dark' ? 'bg-white' : 'bg-black'} underline-bar`} aria-hidden="true" />
                 </div>
                 <p className={`text-center w-full text-sm leading-normal transition-opacity duration-300 ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'}`}>{tabDescriptions[activeTab]}</p>
                 <hr className={`mt-2 ${theme === 'dark' ? 'border-nothing-gray-dark' : 'border-gray-300'}`} />
@@ -703,10 +728,9 @@ const App: React.FC = () => {
             </div>
             
             <div className="flex-grow md:overflow-y-auto md:relative md:overflow-hidden">
-              {/* FIX: Cast style object to React.CSSProperties to allow for custom properties. */}
               <div className="hidden md:flex md:absolute md:top-0 md:left-0 md:w-full md:h-full transition-transform duration-300 ease-in-out controls-panel-container" style={{ '--panel-translate-x': `-${activeTabIndex * 100}%` } as React.CSSProperties}>
                 {TABS.map(tab => (
-                  <div key={tab} className="w-full flex-shrink-0 h-full overflow-y-auto">{panels[tab].controlsPanel}</div>
+                  <div key={tab} className="w-full flex-shrink-0 h-full overflow-y-auto">{panels[tab as Tab].controlsPanel}</div>
                 ))}
               </div>
               <div className="block md:hidden">{activePanel.controlsPanel}</div>
@@ -759,6 +783,7 @@ const App: React.FC = () => {
                     if (activeTab === 'wallpaper') wallpaperFileInputRef.current?.click();
                     if (activeTab === 'photoWidget') photoWidgetFileInputRef.current?.click();
                     if (activeTab === 'valueAliasing') valueAliasingFileInputRef.current?.click();
+                    if (activeTab === 'glassDots') glassDotsFileInputRef.current?.click();
                   }} disabled={activePanel.isLoading} className={`w-full h-full p-4 text-center text-lg font-bold transition-all duration-300 disabled:opacity-50 ${theme === 'dark' ? 'bg-nothing-dark text-nothing-light hover:bg-nothing-gray-dark' : 'bg-day-bg text-day-text hover:bg-day-gray-light'}`}>Replace Image</button>
                 </div>
                 <div className="w-1/2">

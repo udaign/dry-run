@@ -77,6 +77,10 @@ export const Dropzone: React.FC<{ onFileSelect: (file: File, method: 'drag_drop'
             bold: "Drag & Drop or Click",
             normal: "to load an image",
         },
+        glassDots: {
+            bold: "Drag & Drop or Click",
+            normal: "to load an image",
+        }
     };
 
     const currentTexts = context && dropTexts[context] 
@@ -739,6 +743,7 @@ export const ShareTargetModal: React.FC<{
   const tabs: { key: Tab, label: string }[] = [
     { key: 'valueAliasing', label: 'Value Aliasing' },
     { key: 'pfp', label: 'Glyph Mirror' },
+    { key: 'glassDots', label: 'Glass Dots' },
     { key: 'wallpaper', label: 'Matrix Wallpaper' },
     { key: 'photoWidget', label: 'Photo Widget' },
   ];

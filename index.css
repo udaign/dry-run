@@ -50,31 +50,19 @@ html {
   animation: glow 3s ease-in-out infinite;
 }
 
-/* Component-specific overrides for dynamic styles */
-.mobile-tab.active {
-  width: 50%;
+/* Dynamic Tab System */
+.tab {
+  width: var(--inactive-tab-width);
 }
 
-.mobile-tab {
-  width: calc(50% / 3);
+.tab.active {
+  width: var(--active-tab-width);
 }
 
-.mobile-underline {
-  left: var(--underline-left-mobile);
-  width: 50%;
-}
-
-.desktop-tab.active {
-  width: 50%;
-}
-
-.desktop-tab {
-  width: calc(50% / 3);
-}
-
-.desktop-underline {
-  left: var(--underline-left-desktop);
-  width: var(--underline-width-desktop);
+.underline-bar {
+  left: var(--underline-left);
+  width: var(--active-tab-width);
+  transition: left 0.5s ease-in-out, width 0.5s ease-in-out;
 }
 
 .controls-panel-container {
