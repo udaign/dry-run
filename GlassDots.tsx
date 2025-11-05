@@ -30,7 +30,7 @@ const PRINT_SIZE_GROUPS = ['US Standard', 'ISO', 'Ratio'];
 const GLASSDOTS_INITIAL_STATE: GlassDotsState = {
     resolution: DEFAULT_SLIDER_VALUE,
     pixelGap: DEFAULT_SLIDER_VALUE,
-    blurAmount: DEFAULT_SLIDER_VALUE,
+    blurAmount: 50,
     isMonochrome: false,
     cropOffsetX: 0.5,
     cropOffsetY: 0.5,
@@ -38,6 +38,9 @@ const GLASSDOTS_INITIAL_STATE: GlassDotsState = {
     grainAmount: DEFAULT_SLIDER_VALUE,
     grainSize: 0,
     grainContrast: DEFAULT_SLIDER_VALUE,
+    ior: 50,
+    similaritySensitivity: 50,
+    isBackgroundBlurEnabled: false,
 };
 
 const PRINT_INITIAL_STATE: GlassDotsPrintState = {
@@ -55,6 +58,16 @@ const FULL_GLASSDOTS_INITIAL_STATE: GlassDotsSettingsContainer = {
     print: PRINT_INITIAL_STATE,
 };
 
+const colorDistance = (
+    c1: { r: number, g: number, b: number } | null,
+    c2: { r: number, g: number, b: number } | null
+): number => {
+    if (!c1 || !c2) return Infinity;
+    const dr = c1.r - c2.r;
+    const dg = c1.g - c2.g;
+    const db = c1.b - c2.b;
+    return Math.sqrt(dr * dr + dg * dg + db * db);
+};
 
 const drawGlassDots = (ctx: CanvasRenderingContext2D, options: {
     canvasWidth: number;
@@ -63,8 +76,9 @@ const drawGlassDots = (ctx: CanvasRenderingContext2D, options: {
     settings: GlassDotsState;
 }) => {
     const { canvasWidth, canvasHeight, image, settings } = options;
-    const { resolution, pixelGap, blurAmount, isMonochrome, cropOffsetX, cropOffsetY, isGrainEnabled, grainAmount, grainSize, grainContrast } = settings;
+    const { resolution, pixelGap, blurAmount, isMonochrome, cropOffsetX, cropOffsetY, isGrainEnabled, grainAmount, grainSize, grainContrast, ior, similaritySensitivity, isBackgroundBlurEnabled } = settings;
 
+    // 1. Prepare base image canvas (the background)
     const imageCanvas = document.createElement('canvas');
     imageCanvas.width = canvasWidth;
     imageCanvas.height = canvasHeight;
@@ -85,57 +99,269 @@ const drawGlassDots = (ctx: CanvasRenderingContext2D, options: {
     }
     imageCtx.drawImage(image, sx, sy, sWidth, sHeight, 0, 0, canvasWidth, canvasHeight);
     
+    // 2. Prepare blurred canvas (the content inside the dots)
     const blurCanvas = document.createElement('canvas');
     blurCanvas.width = canvasWidth;
     blurCanvas.height = canvasHeight;
     const blurCtx = blurCanvas.getContext('2d');
     if (!blurCtx) return;
     const blurPx = (blurAmount / 100) * Math.max(canvasWidth, canvasHeight) * 0.02;
-    blurCtx.filter = `blur(${blurPx}px)`;
+    if (blurPx > 0) {
+      blurCtx.filter = `blur(${blurPx}px)`;
+    }
     blurCtx.drawImage(imageCanvas, 0, 0);
 
-    const dotsCanvas = document.createElement('canvas');
-    dotsCanvas.width = canvasWidth;
-    dotsCanvas.height = canvasHeight;
-    const dotsCtx = dotsCanvas.getContext('2d');
-    if (!dotsCtx) return;
+    // 2.5 Prepare final background canvas
+    let finalBgCanvas = imageCanvas;
+    if (isBackgroundBlurEnabled) {
+        const bleed = 0.2; // Use a generous 20% bleed to be safe
+        const largeWidth = canvasWidth * (1 + bleed * 2);
+        const largeHeight = canvasHeight * (1 + bleed * 2);
 
-    const gridWidth = Math.floor(10 + (resolution / 100) * 100);
-    const gridHeight = Math.round(gridWidth * (canvasHeight / canvasWidth));
-    if (gridWidth <= 0 || gridHeight <= 0) return;
+        const distortedCanvas = document.createElement('canvas');
+        distortedCanvas.width = largeWidth;
+        distortedCanvas.height = largeHeight;
+        const distortedCtx = distortedCanvas.getContext('2d');
 
-    const cellWidth = canvasWidth / gridWidth;
-    const cellHeight = canvasHeight / gridHeight;
+        if (distortedCtx) {
+            // Create a repeating pattern of the source image to fill the larger canvas
+            // This provides seamless pixel data for the distortion effect to pull from.
+            const pattern = distortedCtx.createPattern(imageCanvas, 'repeat');
+            if (pattern) {
+                distortedCtx.fillStyle = pattern;
+                distortedCtx.fillRect(0, 0, largeWidth, largeHeight);
+            } else { // Fallback just in case
+                distortedCtx.drawImage(imageCanvas, 0, 0, canvasWidth, canvasHeight, canvasWidth * bleed, canvasHeight * bleed, canvasWidth, canvasHeight);
+            }
+            
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = largeWidth;
+            tempCanvas.height = largeHeight;
+            const tempCtx = tempCanvas.getContext('2d');
+            
+            const intensityRatio = 33 / 100;
+            if (tempCtx && intensityRatio > 0) {
+                const passes = 4;
+                const maxInitialDistortion = largeWidth * 0.2; // Base distortion on larger canvas
+                const initialDistortion = maxInitialDistortion * intensityRatio;
+                const scaleFactor = 0.5;
+                let tileSize = Math.max(80, Math.floor(largeWidth / 20));
 
-    // Recalibrate Pixel Gap: new 0-100 maps to old 0-16
-    const recalibratedPixelGap = pixelGap * 16 / 100;
-    const effectiveGapPercent = (recalibratedPixelGap / 100);
-    
-    const gapX = cellWidth * effectiveGapPercent;
-    const gapY = cellHeight * effectiveGapPercent;
-    const dotWidth = cellWidth - gapX;
-    const dotHeight = cellHeight - gapY;
-    const radius = Math.min(dotWidth, dotHeight) / 2;
-    
-    if (radius > 0.1) {
-        dotsCtx.save();
-        dotsCtx.beginPath();
-        for (let y = 0; y < gridHeight; y++) {
-            for (let x = 0; x < gridWidth; x++) {
-                const centerX = x * cellWidth + cellWidth / 2;
-                const centerY = y * cellHeight + cellHeight / 2;
-                dotsCtx.moveTo(centerX + radius, centerY);
-                dotsCtx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
+                for (let i = 0; i < passes; i++) {
+                    const passDistortion = initialDistortion * Math.pow(scaleFactor, i);
+                    
+                    tempCtx.clearRect(0, 0, largeWidth, largeHeight);
+                    tempCtx.drawImage(distortedCanvas, 0, 0);
+                    distortedCtx.clearRect(0, 0, largeWidth, largeHeight);
+                    
+                    for (let y = 0; y < largeHeight; y += tileSize) {
+                        for (let x = 0; x < largeWidth; x += tileSize) {
+                            const offsetX = (Math.random() - 0.5) * passDistortion * 2;
+                            const offsetY = (Math.random() - 0.5) * passDistortion * 2;
+
+                            let srcX = x + offsetX;
+                            let srcY = y + offsetY;
+
+                            // Clamp to the bounds of the larger canvas
+                            srcX = Math.max(0, Math.min(largeWidth - tileSize, srcX));
+                            srcY = Math.max(0, Math.min(largeHeight - tileSize, srcY));
+
+                            distortedCtx.drawImage(
+                                tempCanvas,
+                                srcX, srcY, tileSize, tileSize,
+                                x, y, tileSize, tileSize
+                            );
+                        }
+                    }
+                    tileSize = Math.max(5, Math.floor(tileSize * scaleFactor));
+                }
+                
+                const maxFinalBlurAmount = largeWidth * 0.04; // Base blur on larger canvas
+                const finalBlurAmount = maxFinalBlurAmount * intensityRatio;
+                if (finalBlurAmount > 0) {
+                    distortedCtx.filter = `blur(${finalBlurAmount}px)`;
+                    distortedCtx.drawImage(distortedCanvas, 0, 0);
+                    distortedCtx.drawImage(distortedCanvas, 0, 0);
+                    distortedCtx.filter = 'none';
+                }
+            }
+            
+            // Crop the clean, fully-distorted center from the larger canvas
+            const croppedBgCanvas = document.createElement('canvas');
+            croppedBgCanvas.width = canvasWidth;
+            croppedBgCanvas.height = canvasHeight;
+            const croppedBgCtx = croppedBgCanvas.getContext('2d');
+            if (croppedBgCtx) {
+                croppedBgCtx.drawImage(
+                    distortedCanvas,
+                    canvasWidth * bleed, canvasHeight * bleed, canvasWidth, canvasHeight,
+                    0, 0, canvasWidth, canvasHeight
+                );
+                finalBgCanvas = croppedBgCanvas;
+            } else {
+                 finalBgCanvas = distortedCanvas; // Fallback
             }
         }
-        dotsCtx.clip();
-        dotsCtx.drawImage(blurCanvas, 0, 0);
+    }
+
+
+    // 3. Downsample image to grid for blob detection
+    const gridWidth = Math.floor(10 + (resolution / 100) * 100);
+    const gridHeight = Math.round(gridWidth * (canvasHeight / canvasWidth));
+    if (gridWidth <= 0 || gridHeight <= 0) {
+        ctx.drawImage(finalBgCanvas, 0, 0); // Draw background if grid is invalid
+        return;
+    };
+    
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = gridWidth;
+    tempCanvas.height = gridHeight;
+    const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
+    if (!tempCtx) return;
+
+    // We draw from imageCanvas (which has monochrome filter applied if needed)
+    tempCtx.drawImage(imageCanvas, 0, 0, canvasWidth, canvasHeight, 0, 0, gridWidth, gridHeight);
+    const imageData = tempCtx.getImageData(0, 0, gridWidth, gridHeight).data;
+
+    const colorGrid: ({ r: number; g: number; b: number; } | null)[][] = Array.from({ length: gridHeight }, (_, y) =>
+        Array.from({ length: gridWidth }, (_, x) => {
+            const i = (y * gridWidth + x) * 4;
+            return { r: imageData[i], g: imageData[i + 1], b: imageData[i + 2] };
+        })
+    );
+    
+    // 4. Blob detection
+    const visited = Array.from({ length: gridHeight }, () => Array(gridWidth).fill(false));
+    const blobs: { x: number, y: number, size: number }[] = [];
+    const similarityThreshold = (similaritySensitivity / 100) * 120; // Map [0,100] to a color distance up to 120
+
+    for (let y = 0; y < gridHeight; y++) {
+        for (let x = 0; x < gridWidth; x++) {
+            if (visited[y][x]) continue;
+
+            const anchorColor = colorGrid[y][x];
+            let currentSize = 1;
+
+            while (true) {
+                const nextSize = currentSize + 1;
+                if (y + nextSize > gridHeight || x + nextSize > gridWidth) break;
+
+                let canExpand = true;
+                // Check new column on the right
+                for (let i = 0; i < nextSize; i++) {
+                    if (visited[y + i][x + currentSize] || colorDistance(anchorColor, colorGrid[y + i][x + currentSize]) > similarityThreshold) {
+                        canExpand = false;
+                        break;
+                    }
+                }
+                if (!canExpand) break;
+
+                // Check new row on the bottom
+                for (let i = 0; i < currentSize; i++) { // 'currentSize' avoids double-checking the corner
+                    if (visited[y + currentSize][x + i] || colorDistance(anchorColor, colorGrid[y + currentSize][x + i]) > similarityThreshold) {
+                        canExpand = false;
+                        break;
+                    }
+                }
+
+                if (canExpand) {
+                    currentSize = nextSize;
+                } else {
+                    break;
+                }
+            }
+
+            blobs.push({ x, y, size: currentSize });
+            for (let j = 0; j < currentSize; j++) {
+                for (let i = 0; i < currentSize; i++) {
+                    visited[y + j][x + i] = true;
+                }
+            }
+        }
+    }
+
+    // 4.5 Find the largest blob on the edge to calculate dynamic padding
+    let maxEdgeBlobSize = 1;
+    for (const blob of blobs) {
+        const { x, y, size } = blob;
+        const isAtEdge = x === 0 || y === 0 || (x + size) >= gridWidth || (y + size) >= gridHeight;
+        if (isAtEdge) {
+            maxEdgeBlobSize = Math.max(maxEdgeBlobSize, size);
+        }
+    }
+    
+    // 5. Draw final image with blobs
+    ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+    ctx.drawImage(finalBgCanvas, 0, 0);
+
+    const refractScale = 1 + (ior / 100) * 0.4;
+    const scaleFactor = refractScale - 1;
+
+    // Calculate provisional cell size to estimate padding
+    const provisionalCellWidth = canvasWidth / gridWidth;
+    const provisionalCellHeight = canvasHeight / gridHeight;
+
+    // Calculate the pixel size of the largest blob that could cause clipping
+    const maxEdgeBlobPixelWidth = maxEdgeBlobSize * provisionalCellWidth;
+    const maxEdgeBlobPixelHeight = maxEdgeBlobSize * provisionalCellHeight;
+
+    // Calculate padding based on the refraction needs of that largest edge blob
+    const paddingX = (maxEdgeBlobPixelWidth * scaleFactor) / 2;
+    const paddingY = (maxEdgeBlobPixelHeight * scaleFactor) / 2;
+
+    // Now, calculate final dimensions using the dynamic padding
+    const drawableWidth = canvasWidth - 2 * paddingX;
+    const drawableHeight = canvasHeight - 2 * paddingY;
+    
+    if (drawableWidth <= 0 || drawableHeight <= 0) {
+      return; // Not enough space to draw, return to prevent errors
+    }
+
+    const cellWidth = drawableWidth / gridWidth;
+    const cellHeight = drawableHeight / gridHeight;
+    const recalibratedPixelGap = pixelGap * 16 / 100;
+    const effectiveGapPercent = (recalibratedPixelGap / 100);
+    const gapX = cellWidth * effectiveGapPercent;
+    const gapY = cellHeight * effectiveGapPercent;
+    
+    const maskItems: { centerX: number, centerY: number, radius: number }[] = [];
+
+    for (const blob of blobs) {
+        const { x, y, size } = blob;
+        const blobPixelWidth = cellWidth * size;
+        const blobPixelHeight = cellHeight * size;
+
+        const centerX = paddingX + x * cellWidth + blobPixelWidth / 2;
+        const centerY = paddingY + y * cellHeight + blobPixelHeight / 2;
         
-        if (isGrainEnabled && grainAmount > 0) {
-            // Recalibrate Grain Size: new 0-100 maps to old 0-18
+        const dotWidth = blobPixelWidth - gapX;
+        const dotHeight = blobPixelHeight - gapY;
+        const radius = Math.min(dotWidth, dotHeight) / 2;
+        
+        if (radius <= 0.1) continue;
+
+        maskItems.push({ centerX, centerY, radius });
+
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
+        ctx.clip();
+        
+        const refractedW = radius * 2 * refractScale;
+        const refractedH = radius * 2 * refractScale;
+        ctx.drawImage(blurCanvas, centerX - refractedW / 2, centerY - refractedH / 2, refractedW, refractedH, centerX - radius, centerY - radius, radius * 2, radius * 2);
+        ctx.restore();
+    }
+
+    // 6. Add grain if enabled
+    if (isGrainEnabled && grainAmount > 0 && (maskItems.length > 0 || isBackgroundBlurEnabled)) {
+        const grainCanvas = document.createElement('canvas');
+        grainCanvas.width = canvasWidth;
+        grainCanvas.height = canvasHeight;
+        const grainCtx = grainCanvas.getContext('2d');
+        if (grainCtx) {
             const recalibratedGrainSize = grainSize * 18 / 100;
             const scale = 1 + (recalibratedGrainSize / 100) * 7;
-            
             const noiseW = Math.ceil(canvasWidth / scale);
             const noiseH = Math.ceil(canvasHeight / scale);
             const noiseCanvas = document.createElement('canvas');
@@ -152,25 +378,36 @@ const drawGlassDots = (ctx: CanvasRenderingContext2D, options: {
                     data[i + 3] = 255;
                 }
                 noiseCtx.putImageData(imageData, 0, 0);
-                dotsCtx.save();
-
-                // Recalibrate Grain Amount: new 0-100 maps to old 0-35
-                const recalibratedGrainAmount = grainAmount * 35 / 100;
-                dotsCtx.globalAlpha = recalibratedGrainAmount / 100;
+                grainCtx.imageSmoothingEnabled = false;
+                grainCtx.drawImage(noiseCanvas, 0, 0, noiseW, noiseH, 0, 0, canvasWidth, canvasHeight);
                 
-                dotsCtx.globalCompositeOperation = 'overlay';
-                dotsCtx.imageSmoothingEnabled = false;
-                dotsCtx.drawImage(noiseCanvas, 0, 0, noiseW, noiseH, 0, 0, canvasWidth, canvasHeight);
-                dotsCtx.restore();
+                if (!isBackgroundBlurEnabled) {
+                    const dotsMaskCanvas = document.createElement('canvas');
+                    dotsMaskCanvas.width = canvasWidth;
+                    dotsMaskCanvas.height = canvasHeight;
+                    const maskCtx = dotsMaskCanvas.getContext('2d');
+                    if (maskCtx) {
+                        maskCtx.fillStyle = 'white';
+                        maskCtx.beginPath();
+                        for (const item of maskItems) {
+                            maskCtx.moveTo(item.centerX + item.radius, item.centerY);
+                            maskCtx.arc(item.centerX, item.centerY, item.radius, 0, 2 * Math.PI);
+                        }
+                        maskCtx.fill();
+                        grainCtx.globalCompositeOperation = 'destination-in';
+                        grainCtx.drawImage(dotsMaskCanvas, 0, 0);
+                    }
+                }
+
+                ctx.save();
+                const recalibratedGrainAmount = grainAmount * 35 / 100;
+                ctx.globalAlpha = recalibratedGrainAmount / 100;
+                ctx.globalCompositeOperation = 'overlay';
+                ctx.drawImage(grainCanvas, 0, 0);
+                ctx.restore();
             }
         }
-
-        dotsCtx.restore();
     }
-
-    ctx.clearRect(0, 0, canvasWidth, canvasHeight);
-    ctx.drawImage(imageCanvas, 0, 0);
-    ctx.drawImage(dotsCanvas, 0, 0);
 };
 
 export const useGlassDotsPanel = ({
@@ -503,10 +740,18 @@ export const useGlassDotsPanel = ({
       <div className={`p-4 rounded-lg space-y-4 ${theme === 'dark' ? 'bg-black/40' : 'bg-white/60'}`}>
         <EnhancedSlider theme={theme} isMobile={isMobile} label="Resolution" value={liveActiveState.resolution} onChange={v => updateLiveSetting('resolution', v)} onChangeCommitted={v => commitSetting('resolution', v)} onReset={() => commitSetting('resolution', DEFAULT_SLIDER_VALUE)} disabled={isLoading} />
         <EnhancedSlider theme={theme} isMobile={isMobile} label="Pixel Gap" value={liveActiveState.pixelGap} onChange={v => updateLiveSetting('pixelGap', v)} onChangeCommitted={v => commitSetting('pixelGap', v)} onReset={() => commitSetting('pixelGap', 50)} disabled={isLoading} />
-        <EnhancedSlider theme={theme} isMobile={isMobile} label="Blur Amount" value={liveActiveState.blurAmount} onChange={v => updateLiveSetting('blurAmount', v)} onChangeCommitted={v => commitSetting('blurAmount', v)} onReset={() => commitSetting('blurAmount', DEFAULT_SLIDER_VALUE)} disabled={isLoading} />
+        <EnhancedSlider theme={theme} isMobile={isMobile} label="Blur Amount" value={liveActiveState.blurAmount} onChange={v => updateLiveSetting('blurAmount', v)} onChangeCommitted={v => commitSetting('blurAmount', v)} onReset={() => commitSetting('blurAmount', 50)} disabled={isLoading} />
+        <EnhancedSlider theme={theme} isMobile={isMobile} label="Similarity Sensitivity" value={liveActiveState.similaritySensitivity} onChange={v => updateLiveSetting('similaritySensitivity', v)} onChangeCommitted={v => commitSetting('similaritySensitivity', v)} onReset={() => commitSetting('similaritySensitivity', 50)} disabled={isLoading} />
       </div>
+
+      <div className={`p-4 rounded-lg space-y-4 ${theme === 'dark' ? 'bg-black/40' : 'bg-white/60'}`}>
+        <h3 className={`text-sm font-bold ${theme === 'dark' ? 'text-white' : 'text-black'}`}>Glass Effect</h3>
+        <EnhancedSlider theme={theme} isMobile={isMobile} label="Index of Refraction" value={liveActiveState.ior} onChange={v => updateLiveSetting('ior', v)} onChangeCommitted={v => commitSetting('ior', v)} onReset={() => commitSetting('ior', 50)} disabled={isLoading} />
+      </div>
+
       <div className={`p-4 rounded-lg space-y-4 ${theme === 'dark' ? 'bg-black/40' : 'bg-white/60'}`}>
         <div className={`flex items-center justify-between ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'}`}><label htmlFor={`mono-toggle-${isFullScreen}`} className="text-sm">Monochrome</label><button id={`mono-toggle-${isFullScreen}`} role="switch" aria-checked={liveActiveState.isMonochrome} onClick={() => commitSetting('isMonochrome', !liveActiveState.isMonochrome)} disabled={isLoading} className={`relative inline-flex items-center h-6 w-11 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 rounded-full ${theme === 'dark' ? 'focus:ring-offset-nothing-dark' : 'focus:ring-offset-day-bg'} ${liveActiveState.isMonochrome ? 'bg-nothing-red' : (theme === 'dark' ? 'bg-nothing-gray-dark' : 'bg-day-gray-light')}`}><span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform duration-300 ${liveActiveState.isMonochrome ? 'translate-x-6' : 'translate-x-1'}`} /></button></div>
+        <div className={`flex items-center justify-between ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'}`}><label htmlFor={`bg-blur-toggle-${isFullScreen}`} className="text-sm">Background Blur</label><button id={`bg-blur-toggle-${isFullScreen}`} role="switch" aria-checked={liveActiveState.isBackgroundBlurEnabled} onClick={() => commitSetting('isBackgroundBlurEnabled', !liveActiveState.isBackgroundBlurEnabled)} disabled={isLoading} className={`relative inline-flex items-center h-6 w-11 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 rounded-full ${theme === 'dark' ? 'focus:ring-offset-nothing-dark' : 'focus:ring-offset-day-bg'} ${liveActiveState.isBackgroundBlurEnabled ? 'bg-nothing-red' : (theme === 'dark' ? 'bg-nothing-gray-dark' : 'bg-day-gray-light')}`}><span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform duration-300 ${liveActiveState.isBackgroundBlurEnabled ? 'translate-x-6' : 'translate-x-1'}`} /></button></div>
         <div className={`flex items-center justify-between ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'}`}><label htmlFor={`grain-toggle-${isFullScreen}`} className="text-sm">Grain</label><button id={`grain-toggle-${isFullScreen}`} role="switch" aria-checked={liveActiveState.isGrainEnabled} onClick={() => commitSetting('isGrainEnabled', !liveActiveState.isGrainEnabled)} disabled={isLoading} className={`relative inline-flex items-center h-6 w-11 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 rounded-full ${theme === 'dark' ? 'focus:ring-offset-nothing-dark' : 'focus:ring-offset-day-bg'} ${liveActiveState.isGrainEnabled ? 'bg-nothing-red' : (theme === 'dark' ? 'bg-nothing-gray-dark' : 'bg-day-gray-light')}`}><span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform duration-300 ${liveActiveState.isGrainEnabled ? 'translate-x-6' : 'translate-x-1'}`} /></button></div>
       </div>
       <div className={`transition-all duration-300 ease-in-out overflow-hidden ${liveActiveState.isGrainEnabled ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'}`}>

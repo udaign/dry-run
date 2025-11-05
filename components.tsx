@@ -1,4 +1,3 @@
-
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { Theme, PhotoWidgetOutputMode, Tab } from './types';
 import { trackEvent } from './analytics';
@@ -123,15 +122,18 @@ export const EnhancedSlider: React.FC<{
   label: string;
   labelPrefix?: React.ReactNode;
   value: number;
+  min?: number;
+  max?: number;
+  step?: number;
   onChange: (value: number) => void;
   onChangeCommitted: (value: number) => void;
   onReset: () => void;
   disabled?: boolean;
   theme: Theme;
   isMobile: boolean;
-}> = ({ label, labelPrefix, value, onChange, onChangeCommitted, onReset, disabled, theme, isMobile }) => {
+}> = ({ label, labelPrefix, value, min = 0, max = 100, step = 1, onChange, onChangeCommitted, onReset, disabled, theme, isMobile }) => {
     const handleCommit = (val: number) => {
-        const clampedValue = Math.max(0, Math.min(100, val));
+        const clampedValue = Math.max(min, Math.min(max, val));
         onChange(clampedValue);
         onChangeCommitted(clampedValue);
     };
@@ -145,8 +147,9 @@ export const EnhancedSlider: React.FC<{
                 <input
                     id={inputId}
                     type="range"
-                    min="0"
-                    max="100"
+                    min={min}
+                    max={max}
+                    step={step}
                     value={value}
                     onChange={(e) => onChange(Number(e.target.value))}
                     onMouseUp={() => handleCommit(value)}
