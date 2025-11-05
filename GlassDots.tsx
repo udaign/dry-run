@@ -14,15 +14,38 @@ const GLASSDOTS_DESKTOP_HEIGHT = 2160;
 const PRINT_DPI = 300;
 
 const PRINT_SIZES: Record<string, { label: string, w: number, h: number, group: string, isRatio?: boolean }> = {
-    'original': { label: 'Original Ratio', w: 1, h: 1, group: 'Ratio', isRatio: true },
+    // US Standard
     'us_8x10': { label: '8 x 10 in', w: 8, h: 10, group: 'US Standard' },
+    'us_8.5x11': { label: '8.5 x 11 in', w: 8.5, h: 11, group: 'US Standard' },
     'us_11x14': { label: '11 x 14 in', w: 11, h: 14, group: 'US Standard' },
+    'us_11x17': { label: '11 x 17 in', w: 11, h: 17, group: 'US Standard' },
+    'us_12x16': { label: '12 x 16 in', w: 12, h: 16, group: 'US Standard' },
+    'us_12x18': { label: '12 x 18 in', w: 12, h: 18, group: 'US Standard' },
+    'us_16x20': { label: '16 x 20 in', w: 16, h: 20, group: 'US Standard' },
+    'us_18x24': { label: '18 x 24 in', w: 18, h: 24, group: 'US Standard' },
+    'us_20x30': { label: '20 x 30 in', w: 20, h: 30, group: 'US Standard' },
+    'us_24x36': { label: '24 x 36 in', w: 24, h: 36, group: 'US Standard' },
+    'us_27x40': { label: '27 x 40 in', w: 27, h: 40, group: 'US Standard' },
+    'us_36x48': { label: '36 x 48 in', w: 36, h: 48, group: 'US Standard' },
+    // ISO
+    'iso_a5': { label: 'A5', w: 5.83, h: 8.27, group: 'ISO' },
     'iso_a4': { label: 'A4', w: 8.27, h: 11.69, group: 'ISO' },
     'iso_a3': { label: 'A3', w: 11.69, h: 16.54, group: 'ISO' },
+    'iso_a2': { label: 'A2', w: 16.54, h: 23.39, group: 'ISO' },
+    'iso_a1': { label: 'A1', w: 23.39, h: 33.11, group: 'ISO' },
+    'iso_a0': { label: 'A0', w: 33.11, h: 46.81, group: 'ISO' },
+    // Ratio (base size of 12 inches for the smaller side)
+    'original': { label: 'Original Ratio', w: 1, h: 1, group: 'Ratio', isRatio: true },
     'ratio_1:1': { label: '1:1', w: 12, h: 12, group: 'Ratio', isRatio: true },
+    'ratio_5:4': { label: '5:4', w: 15, h: 12, group: 'Ratio', isRatio: true },
     'ratio_4:3': { label: '4:3', w: 16, h: 12, group: 'Ratio', isRatio: true },
     'ratio_3:2': { label: '3:2', w: 18, h: 12, group: 'Ratio', isRatio: true },
     'ratio_16:9': { label: '16:9', w: 21.33, h: 12, group: 'Ratio', isRatio: true },
+    'ratio_1.85:1': { label: '1.85:1', w: 22.2, h: 12, group: 'Ratio', isRatio: true },
+    'ratio_2:1': { label: '2:1', w: 24, h: 12, group: 'Ratio', isRatio: true },
+    'ratio_2.35:1': { label: '2.35:1', w: 28.2, h: 12, group: 'Ratio', isRatio: true },
+    'ratio_21:9': { label: '21:9', w: 28, h: 12, group: 'Ratio', isRatio: true },
+    'ratio_3:1': { label: '3:1', w: 36, h: 12, group: 'Ratio', isRatio: true },
 };
 const PRINT_SIZE_GROUPS = ['US Standard', 'ISO', 'Ratio'];
 
@@ -34,13 +57,15 @@ const GLASSDOTS_INITIAL_STATE: GlassDotsState = {
     isMonochrome: false,
     cropOffsetX: 0.5,
     cropOffsetY: 0.5,
-    isGrainEnabled: false,
+    isGrainEnabled: true,
     grainAmount: DEFAULT_SLIDER_VALUE,
     grainSize: 0,
     grainContrast: DEFAULT_SLIDER_VALUE,
-    ior: 50,
+    ior: 0,
     similaritySensitivity: 50,
     isBackgroundBlurEnabled: false,
+    lowerLimit: 0,
+    isMarkerEnabled: false,
 };
 
 const PRINT_INITIAL_STATE: GlassDotsPrintState = {
@@ -76,13 +101,13 @@ const drawGlassDots = (ctx: CanvasRenderingContext2D, options: {
     settings: GlassDotsState;
 }) => {
     const { canvasWidth, canvasHeight, image, settings } = options;
-    const { resolution, pixelGap, blurAmount, isMonochrome, cropOffsetX, cropOffsetY, isGrainEnabled, grainAmount, grainSize, grainContrast, ior, similaritySensitivity, isBackgroundBlurEnabled } = settings;
+    const { resolution, pixelGap, blurAmount, isMonochrome, cropOffsetX, cropOffsetY, isGrainEnabled, grainAmount, grainSize, grainContrast, ior, similaritySensitivity, isBackgroundBlurEnabled, lowerLimit, isMarkerEnabled } = settings;
 
     // 1. Prepare base image canvas (the background)
     const imageCanvas = document.createElement('canvas');
     imageCanvas.width = canvasWidth;
     imageCanvas.height = canvasHeight;
-    const imageCtx = imageCanvas.getContext('2d');
+    const imageCtx = imageCanvas.getContext('2d', { willReadFrequently: true });
     if (!imageCtx) return;
 
     if (isMonochrome) imageCtx.filter = 'grayscale(100%)';
@@ -105,7 +130,8 @@ const drawGlassDots = (ctx: CanvasRenderingContext2D, options: {
     blurCanvas.height = canvasHeight;
     const blurCtx = blurCanvas.getContext('2d');
     if (!blurCtx) return;
-    const blurPx = (blurAmount / 100) * Math.max(canvasWidth, canvasHeight) * 0.02;
+    const effectiveBlurAmount = 12 + (blurAmount * 0.88);
+    const blurPx = (effectiveBlurAmount / 100) * Math.max(canvasWidth, canvasHeight) * 0.02;
     if (blurPx > 0) {
       blurCtx.filter = `blur(${blurPx}px)`;
     }
@@ -279,6 +305,11 @@ const drawGlassDots = (ctx: CanvasRenderingContext2D, options: {
             }
         }
     }
+    
+    // 4.1 Identify top blobs for markers before any filtering
+    const sortedAllBlobs = [...blobs].sort((a, b) => b.size - a.size);
+    const top4PercentIndex = Math.ceil(sortedAllBlobs.length * 0.04);
+    const topBlobsForMarkers = new Set(sortedAllBlobs.slice(0, top4PercentIndex));
 
     // 4.5 Find the largest blob on the edge to calculate dynamic padding
     let maxEdgeBlobSize = 1;
@@ -325,21 +356,25 @@ const drawGlassDots = (ctx: CanvasRenderingContext2D, options: {
     const gapY = cellHeight * effectiveGapPercent;
     
     const maskItems: { centerX: number, centerY: number, radius: number }[] = [];
+    
+    const maxBlobSize = blobs.reduce((max, b) => Math.max(max, b.size), 1);
+    const sizeThreshold = (lowerLimit / 100) * maxBlobSize;
+    const filteredBlobs = blobs.filter(b => b.size >= sizeThreshold);
 
-    for (const blob of blobs) {
+    const drawableBlobs = filteredBlobs.map(blob => {
         const { x, y, size } = blob;
         const blobPixelWidth = cellWidth * size;
         const blobPixelHeight = cellHeight * size;
-
         const centerX = paddingX + x * cellWidth + blobPixelWidth / 2;
         const centerY = paddingY + y * cellHeight + blobPixelHeight / 2;
-        
         const dotWidth = blobPixelWidth - gapX;
         const dotHeight = blobPixelHeight - gapY;
         const radius = Math.min(dotWidth, dotHeight) / 2;
-        
-        if (radius <= 0.1) continue;
+        return { centerX, centerY, radius, size, originalBlob: blob };
+    }).filter(b => b.radius > 0.1);
 
+    for (const blob of drawableBlobs) {
+        const { centerX, centerY, radius } = blob;
         maskItems.push({ centerX, centerY, radius });
 
         ctx.save();
@@ -352,6 +387,37 @@ const drawGlassDots = (ctx: CanvasRenderingContext2D, options: {
         ctx.drawImage(blurCanvas, centerX - refractedW / 2, centerY - refractedH / 2, refractedW, refractedH, centerX - radius, centerY - radius, radius * 2, radius * 2);
         ctx.restore();
     }
+
+    // 5.5 Draw plus signs on largest dots
+    if (isMarkerEnabled && topBlobsForMarkers.size > 0) {
+        ctx.save();
+        ctx.globalCompositeOperation = 'overlay';
+
+        for (const blob of drawableBlobs) {
+            if (topBlobsForMarkers.has(blob.originalBlob)) {
+                const { centerX, centerY, radius } = blob;
+                const pixelData = imageCtx.getImageData(Math.round(centerX), Math.round(centerY), 1, 1).data;
+                const brightness = 0.299 * pixelData[0] + 0.587 * pixelData[1] + 0.114 * pixelData[2];
+                ctx.strokeStyle = brightness > 128 ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.5)';
+                
+                const hardcodedPlusSignSize = 50;
+                const hardcodedPlusSignStroke = 36;
+                const stroke = (hardcodedPlusSignStroke / 100) * (radius * 0.05) + 1;
+                ctx.lineWidth = Math.max(1, stroke);
+                
+                const size = (hardcodedPlusSignSize / 100) * radius * 0.5;
+                
+                ctx.beginPath();
+                ctx.moveTo(centerX - size, centerY);
+                ctx.lineTo(centerX + size, centerY);
+                ctx.moveTo(centerX, centerY - size);
+                ctx.lineTo(centerX, centerY + size);
+                ctx.stroke();
+            }
+        }
+        ctx.restore();
+    }
+
 
     // 6. Add grain if enabled
     if (isGrainEnabled && grainAmount > 0 && (maskItems.length > 0 || isBackgroundBlurEnabled)) {
@@ -692,13 +758,23 @@ export const useGlassDotsPanel = ({
         return { ...s, print: { ...s.print, [key]: value }};
     });
   };
-  const commitSetting = (key: keyof GlassDotsState, value: any) => {
+
+  const commitSetting = useCallback((key: keyof GlassDotsState, value: any) => {
     setGlassDotsSettings(s => {
-        if (s.outputType === 'wallpaper') return { ...s, wallpaper: { ...s.wallpaper, [wallpaperType]: { ...s.wallpaper[wallpaperType], [key]: value }}};
+        if (s.outputType === 'wallpaper') {
+            return { ...s, wallpaper: { ...s.wallpaper, [wallpaperType]: { ...s.wallpaper[wallpaperType], [key]: value }}};
+        }
         return { ...s, print: { ...s.print, [key]: value }};
     });
     trackEvent('glass_dots_slider_change', { slider_name: key, value, output_mode: outputType === 'wallpaper' ? wallpaperType : 'print' });
-  };
+  }, [setGlassDotsSettings, outputType, wallpaperType]);
+
+  useEffect(() => {
+    if (liveActiveState.blurAmount < 20 && liveActiveState.isMarkerEnabled) {
+        commitSetting('isMarkerEnabled', false);
+    }
+  }, [liveActiveState.blurAmount, liveActiveState.isMarkerEnabled, commitSetting]);
+
   const handleOutputTypeSelect = (type: 'wallpaper' | 'print') => {
     trackEvent('glass_dots_output_type_select', { type });
     setGlassDotsSettings(s => ({ ...s, outputType: type }));
@@ -707,6 +783,7 @@ export const useGlassDotsPanel = ({
   const wallpaperTypeOptions = [ { key: 'phone', label: 'Phone' }, { key: 'desktop', label: 'Desktop' } ];
   const outputTypeOptions = [ { key: 'wallpaper', label: 'Wallpaper' }, { key: 'print', label: 'Print' } ];
   const orientationOptions = [ { key: 'landscape', label: 'Landscape' }, { key: 'portrait', label: 'Portrait' } ];
+  const isMarkerToggleDisabled = liveActiveState.blurAmount < 20;
 
   const AllControls = ({ isFullScreen = false }: { isFullScreen?: boolean }) => (
     <>
@@ -740,26 +817,28 @@ export const useGlassDotsPanel = ({
       <div className={`p-4 rounded-lg space-y-4 ${theme === 'dark' ? 'bg-black/40' : 'bg-white/60'}`}>
         <EnhancedSlider theme={theme} isMobile={isMobile} label="Resolution" value={liveActiveState.resolution} onChange={v => updateLiveSetting('resolution', v)} onChangeCommitted={v => commitSetting('resolution', v)} onReset={() => commitSetting('resolution', DEFAULT_SLIDER_VALUE)} disabled={isLoading} />
         <EnhancedSlider theme={theme} isMobile={isMobile} label="Pixel Gap" value={liveActiveState.pixelGap} onChange={v => updateLiveSetting('pixelGap', v)} onChangeCommitted={v => commitSetting('pixelGap', v)} onReset={() => commitSetting('pixelGap', 50)} disabled={isLoading} />
-        <EnhancedSlider theme={theme} isMobile={isMobile} label="Blur Amount" value={liveActiveState.blurAmount} onChange={v => updateLiveSetting('blurAmount', v)} onChangeCommitted={v => commitSetting('blurAmount', v)} onReset={() => commitSetting('blurAmount', 50)} disabled={isLoading} />
-        <EnhancedSlider theme={theme} isMobile={isMobile} label="Similarity Sensitivity" value={liveActiveState.similaritySensitivity} onChange={v => updateLiveSetting('similaritySensitivity', v)} onChangeCommitted={v => commitSetting('similaritySensitivity', v)} onReset={() => commitSetting('similaritySensitivity', 50)} disabled={isLoading} />
+        <EnhancedSlider theme={theme} isMobile={isMobile} label="Lower Limit" value={liveActiveState.lowerLimit} onChange={v => updateLiveSetting('lowerLimit', v)} onChangeCommitted={v => commitSetting('lowerLimit', v)} onReset={() => commitSetting('lowerLimit', 0)} disabled={isLoading} />
+        <EnhancedSlider theme={theme} isMobile={isMobile} label="Size Variance" value={liveActiveState.similaritySensitivity} onChange={v => updateLiveSetting('similaritySensitivity', v)} onChangeCommitted={v => commitSetting('similaritySensitivity', v)} onReset={() => commitSetting('similaritySensitivity', 50)} disabled={isLoading} />
       </div>
 
       <div className={`p-4 rounded-lg space-y-4 ${theme === 'dark' ? 'bg-black/40' : 'bg-white/60'}`}>
-        <h3 className={`text-sm font-bold ${theme === 'dark' ? 'text-white' : 'text-black'}`}>Glass Effect</h3>
-        <EnhancedSlider theme={theme} isMobile={isMobile} label="Index of Refraction" value={liveActiveState.ior} onChange={v => updateLiveSetting('ior', v)} onChangeCommitted={v => commitSetting('ior', v)} onReset={() => commitSetting('ior', 50)} disabled={isLoading} />
+        <EnhancedSlider theme={theme} isMobile={isMobile} label="Glass Blur Amount" value={liveActiveState.blurAmount} onChange={v => updateLiveSetting('blurAmount', v)} onChangeCommitted={v => commitSetting('blurAmount', v)} onReset={() => commitSetting('blurAmount', 50)} disabled={isLoading} />
+        <EnhancedSlider theme={theme} isMobile={isMobile} label="Index of Refraction" value={liveActiveState.ior} onChange={v => updateLiveSetting('ior', v)} onChangeCommitted={v => commitSetting('ior', v)} onReset={() => commitSetting('ior', 0)} disabled={isLoading} />
       </div>
-
+      
       <div className={`p-4 rounded-lg space-y-4 ${theme === 'dark' ? 'bg-black/40' : 'bg-white/60'}`}>
-        <div className={`flex items-center justify-between ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'}`}><label htmlFor={`mono-toggle-${isFullScreen}`} className="text-sm">Monochrome</label><button id={`mono-toggle-${isFullScreen}`} role="switch" aria-checked={liveActiveState.isMonochrome} onClick={() => commitSetting('isMonochrome', !liveActiveState.isMonochrome)} disabled={isLoading} className={`relative inline-flex items-center h-6 w-11 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 rounded-full ${theme === 'dark' ? 'focus:ring-offset-nothing-dark' : 'focus:ring-offset-day-bg'} ${liveActiveState.isMonochrome ? 'bg-nothing-red' : (theme === 'dark' ? 'bg-nothing-gray-dark' : 'bg-day-gray-light')}`}><span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform duration-300 ${liveActiveState.isMonochrome ? 'translate-x-6' : 'translate-x-1'}`} /></button></div>
-        <div className={`flex items-center justify-between ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'}`}><label htmlFor={`bg-blur-toggle-${isFullScreen}`} className="text-sm">Background Blur</label><button id={`bg-blur-toggle-${isFullScreen}`} role="switch" aria-checked={liveActiveState.isBackgroundBlurEnabled} onClick={() => commitSetting('isBackgroundBlurEnabled', !liveActiveState.isBackgroundBlurEnabled)} disabled={isLoading} className={`relative inline-flex items-center h-6 w-11 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 rounded-full ${theme === 'dark' ? 'focus:ring-offset-nothing-dark' : 'focus:ring-offset-day-bg'} ${liveActiveState.isBackgroundBlurEnabled ? 'bg-nothing-red' : (theme === 'dark' ? 'bg-nothing-gray-dark' : 'bg-day-gray-light')}`}><span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform duration-300 ${liveActiveState.isBackgroundBlurEnabled ? 'translate-x-6' : 'translate-x-1'}`} /></button></div>
         <div className={`flex items-center justify-between ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'}`}><label htmlFor={`grain-toggle-${isFullScreen}`} className="text-sm">Grain</label><button id={`grain-toggle-${isFullScreen}`} role="switch" aria-checked={liveActiveState.isGrainEnabled} onClick={() => commitSetting('isGrainEnabled', !liveActiveState.isGrainEnabled)} disabled={isLoading} className={`relative inline-flex items-center h-6 w-11 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 rounded-full ${theme === 'dark' ? 'focus:ring-offset-nothing-dark' : 'focus:ring-offset-day-bg'} ${liveActiveState.isGrainEnabled ? 'bg-nothing-red' : (theme === 'dark' ? 'bg-nothing-gray-dark' : 'bg-day-gray-light')}`}><span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform duration-300 ${liveActiveState.isGrainEnabled ? 'translate-x-6' : 'translate-x-1'}`} /></button></div>
-      </div>
-      <div className={`transition-all duration-300 ease-in-out overflow-hidden ${liveActiveState.isGrainEnabled ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'}`}>
-        {liveActiveState.isGrainEnabled && <div className={`p-4 rounded-lg space-y-4 ${theme === 'dark' ? 'bg-black/40' : 'bg-white/60'}`}>
+         <div className={`transition-all duration-300 ease-in-out overflow-hidden ${liveActiveState.isGrainEnabled ? 'max-h-96 opacity-100 pt-4 space-y-4' : 'max-h-0 opacity-0'}`}>
             <EnhancedSlider theme={theme} isMobile={isMobile} label="Grain Amount" value={liveActiveState.grainAmount} onChange={v => updateLiveSetting('grainAmount', v)} onChangeCommitted={v => commitSetting('grainAmount', v)} onReset={() => commitSetting('grainAmount', DEFAULT_SLIDER_VALUE)} disabled={isLoading} />
             <EnhancedSlider theme={theme} isMobile={isMobile} label="Grain Size" value={liveActiveState.grainSize} onChange={v => updateLiveSetting('grainSize', v)} onChangeCommitted={v => commitSetting('grainSize', v)} onReset={() => commitSetting('grainSize', 0)} disabled={isLoading} />
             <EnhancedSlider theme={theme} isMobile={isMobile} label="Grain Contrast" value={liveActiveState.grainContrast} onChange={v => updateLiveSetting('grainContrast', v)} onChangeCommitted={v => commitSetting('grainContrast', v)} onReset={() => commitSetting('grainContrast', DEFAULT_SLIDER_VALUE)} disabled={isLoading} />
-        </div>}
+        </div>
+      </div>
+
+      <div className={`p-4 rounded-lg space-y-4 ${theme === 'dark' ? 'bg-black/40' : 'bg-white/60'}`}>
+        <div className={`flex items-center justify-between ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'}`}><label htmlFor={`marker-toggle-${isFullScreen}`} className={`text-sm ${isMarkerToggleDisabled ? 'opacity-50' : ''}`}>Markers</label><button id={`marker-toggle-${isFullScreen}`} role="switch" aria-checked={liveActiveState.isMarkerEnabled} onClick={() => commitSetting('isMarkerEnabled', !liveActiveState.isMarkerEnabled)} disabled={isLoading || isMarkerToggleDisabled} className={`relative inline-flex items-center h-6 w-11 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 rounded-full ${isMarkerToggleDisabled ? 'opacity-50 cursor-not-allowed' : ''} ${theme === 'dark' ? 'focus:ring-offset-nothing-dark' : 'focus:ring-offset-day-bg'} ${liveActiveState.isMarkerEnabled && !isMarkerToggleDisabled ? 'bg-nothing-red' : (theme === 'dark' ? 'bg-nothing-gray-dark' : 'bg-day-gray-light')}`}><span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform duration-300 ${liveActiveState.isMarkerEnabled && !isMarkerToggleDisabled ? 'translate-x-6' : 'translate-x-1'}`} /></button></div>
+        <div className={`flex items-center justify-between ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'}`}><label htmlFor={`bg-blur-toggle-${isFullScreen}`} className="text-sm">Background Blur</label><button id={`bg-blur-toggle-${isFullScreen}`} role="switch" aria-checked={liveActiveState.isBackgroundBlurEnabled} onClick={() => commitSetting('isBackgroundBlurEnabled', !liveActiveState.isBackgroundBlurEnabled)} disabled={isLoading} className={`relative inline-flex items-center h-6 w-11 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 rounded-full ${theme === 'dark' ? 'focus:ring-offset-nothing-dark' : 'focus:ring-offset-day-bg'} ${liveActiveState.isBackgroundBlurEnabled ? 'bg-nothing-red' : (theme === 'dark' ? 'bg-nothing-gray-dark' : 'bg-day-gray-light')}`}><span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform duration-300 ${liveActiveState.isBackgroundBlurEnabled ? 'translate-x-6' : 'translate-x-1'}`} /></button></div>
+        <div className={`flex items-center justify-between ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'}`}><label htmlFor={`mono-toggle-${isFullScreen}`} className="text-sm">Monochrome</label><button id={`mono-toggle-${isFullScreen}`} role="switch" aria-checked={liveActiveState.isMonochrome} onClick={() => commitSetting('isMonochrome', !liveActiveState.isMonochrome)} disabled={isLoading} className={`relative inline-flex items-center h-6 w-11 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 rounded-full ${theme === 'dark' ? 'focus:ring-offset-nothing-dark' : 'focus:ring-offset-day-bg'} ${liveActiveState.isMonochrome ? 'bg-nothing-red' : (theme === 'dark' ? 'bg-nothing-gray-dark' : 'bg-day-gray-light')}`}><span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform duration-300 ${liveActiveState.isMonochrome ? 'translate-x-6' : 'translate-x-1'}`} /></button></div>
       </div>
     </>
   );
@@ -793,7 +872,14 @@ export const useGlassDotsPanel = ({
             {!isMobile && <div className="fixed bottom-4 left-4 z-[51] w-80 flex flex-col items-start space-y-2">
                 {isFullScreenControlsOpen ? <div className={`w-full ${theme === 'dark' ? 'bg-nothing-dark/80' : 'bg-day-bg/90 border border-gray-300/50'} backdrop-blur-sm rounded-lg p-4 max-h-[calc(100vh-10rem)] flex flex-col space-y-4 shadow-2xl`}>
                     <div className="flex justify-between items-center flex-shrink-0"><h3 className={`font-bold text-lg ${theme === 'dark' ? 'text-white' : 'text-day-text'}`}>Controls</h3><button onClick={() => setIsFullScreenControlsOpen(false)} className={`p-2 ${theme === 'dark' ? 'text-white hover:bg-white/20' : 'text-day-text hover:bg-black/10'} rounded-full transition-colors`} aria-label="Collapse controls"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6"><path d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/></svg></button></div>
-                    <div className="overflow-y-auto space-y-4 pr-2 -mr-2"><AllControls isFullScreen /></div>
+                    <div className="overflow-y-auto space-y-4 pr-2 -mr-2">
+                        <AllControls isFullScreen />
+                         <div>
+                            <button onClick={handleResetCurrent} disabled={isLoading} className={`w-full font-semibold py-2 px-4 transition-all duration-300 disabled:opacity-50 rounded-md ${theme === 'dark' ? 'border border-gray-600 text-gray-300 hover:bg-gray-700' : 'border border-gray-300 text-day-gray-dark hover:bg-gray-200'}`} aria-label="Reset controls to their default values">
+                                Reset Controls
+                            </button>
+                        </div>
+                    </div>
                 </div> : <button onClick={() => setIsFullScreenControlsOpen(true)} className={`w-full ${theme === 'dark' ? 'bg-nothing-dark/80 text-white hover:bg-nothing-dark' : 'bg-day-bg/90 text-day-text hover:bg-day-gray-light border border-gray-300/50'} backdrop-blur-sm font-semibold py-3 px-4 rounded-lg flex items-center justify-between shadow-lg transition-colors`} aria-label="Expand controls"><span>Controls</span><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6"><path d="M7.41 15.41 12 10.83l4.59 4.58L18 14l-6-6-6 6 1.41 1.41z"/></svg></button>}
                 <div className={`w-full ${theme === 'dark' ? 'bg-nothing-dark/80' : 'bg-day-bg/90 border border-gray-300/50'} backdrop-blur-sm rounded-lg p-2 flex flex-col items-stretch space-y-2 shadow-lg`}>
                     <button onClick={handleFullScreenReplaceClick} disabled={isLoading} className={`w-full font-semibold py-2 px-4 transition-all duration-300 disabled:opacity-50 rounded-md ${theme === 'dark' ? 'border border-gray-600 text-gray-300 hover:bg-gray-700' : 'border border-gray-300 text-day-gray-dark hover:bg-gray-200'}`} aria-label="Replace image">Replace Image</button>

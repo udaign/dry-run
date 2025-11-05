@@ -93,6 +93,8 @@ export type GlassDotsState = {
     ior: number;
     similaritySensitivity: number;
     isBackgroundBlurEnabled: boolean;
+    lowerLimit: number;
+    isMarkerEnabled: boolean;
 };
 
 export type GlassDotsPrintState = GlassDotsState & {
