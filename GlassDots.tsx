@@ -61,8 +61,8 @@ const GLASSDOTS_INITIAL_STATE: GlassDotsState = {
     grainAmount: DEFAULT_SLIDER_VALUE,
     grainSize: 0,
     grainContrast: DEFAULT_SLIDER_VALUE,
-    ior: 0,
-    similaritySensitivity: 50,
+    ior: 25,
+    similaritySensitivity: 100,
     isBackgroundBlurEnabled: false,
     lowerLimit: 0,
     isMarkerEnabled: false,
@@ -103,139 +103,124 @@ const drawGlassDots = (ctx: CanvasRenderingContext2D, options: {
     const { canvasWidth, canvasHeight, image, settings } = options;
     const { resolution, pixelGap, blurAmount, isMonochrome, cropOffsetX, cropOffsetY, isGrainEnabled, grainAmount, grainSize, grainContrast, ior, similaritySensitivity, isBackgroundBlurEnabled, lowerLimit, isMarkerEnabled } = settings;
 
-    // 1. Prepare base image canvas (the background)
+    // 1. Calculate dynamic bleed based on IOR
+    const refractScale = 1 + (ior / 100) * 0.4;
+    const scaleFactor = refractScale - 1;
+    // The maximum possible displacement for a dot is half the canvas width/height times the scale factor.
+    // This defines the necessary bleed area to sample from.
+    const bleedX = (canvasWidth / 2) * scaleFactor;
+    const bleedY = (canvasHeight / 2) * scaleFactor;
+    const bleedCanvasWidth = canvasWidth + 2 * bleedX;
+    const bleedCanvasHeight = canvasHeight + 2 * bleedY;
+
+    // 2. Prepare oversized canvases to hold the "zoomed-in" image data
     const imageCanvas = document.createElement('canvas');
-    imageCanvas.width = canvasWidth;
-    imageCanvas.height = canvasHeight;
+    imageCanvas.width = bleedCanvasWidth;
+    imageCanvas.height = bleedCanvasHeight;
     const imageCtx = imageCanvas.getContext('2d', { willReadFrequently: true });
     if (!imageCtx) return;
 
     if (isMonochrome) imageCtx.filter = 'grayscale(100%)';
     
+    // Fit the source image into the oversized canvas, applying user crop. This creates the zoom effect.
     const imgAspect = image.width / image.height;
-    const canvasAspect = canvasWidth / canvasHeight;
+    const bleedCanvasAspect = bleedCanvasWidth / bleedCanvasHeight;
     let sx = 0, sy = 0, sWidth = image.width, sHeight = image.height;
-    if (imgAspect > canvasAspect) {
-        sWidth = image.height * canvasAspect;
+    if (imgAspect > bleedCanvasAspect) {
+        sWidth = image.height * bleedCanvasAspect;
         sx = (image.width - sWidth) * cropOffsetX;
-    } else if (imgAspect < canvasAspect) {
-        sHeight = image.width / canvasAspect;
+    } else if (imgAspect < bleedCanvasAspect) {
+        sHeight = image.width / bleedCanvasAspect;
         sy = (image.height - sHeight) * cropOffsetY;
     }
-    imageCtx.drawImage(image, sx, sy, sWidth, sHeight, 0, 0, canvasWidth, canvasHeight);
+    imageCtx.drawImage(image, sx, sy, sWidth, sHeight, 0, 0, bleedCanvasWidth, bleedCanvasHeight);
     
-    // 2. Prepare blurred canvas (the content inside the dots)
+    // Create an oversized blurred canvas for refraction sampling
     const blurCanvas = document.createElement('canvas');
-    blurCanvas.width = canvasWidth;
-    blurCanvas.height = canvasHeight;
+    blurCanvas.width = bleedCanvasWidth;
+    blurCanvas.height = bleedCanvasHeight;
     const blurCtx = blurCanvas.getContext('2d');
     if (!blurCtx) return;
     const effectiveBlurAmount = 12 + (blurAmount * 0.88);
-    const blurPx = (effectiveBlurAmount / 100) * Math.max(canvasWidth, canvasHeight) * 0.02;
+    const blurPx = (effectiveBlurAmount / 100) * Math.max(bleedCanvasWidth, bleedCanvasHeight) * 0.02;
     if (blurPx > 0) {
       blurCtx.filter = `blur(${blurPx}px)`;
     }
     blurCtx.drawImage(imageCanvas, 0, 0);
 
-    // 2.5 Prepare final background canvas
-    let finalBgCanvas = imageCanvas;
+    // 3. Prepare the final background canvas by cropping the center from the oversized source
+    let finalBgCanvas: HTMLCanvasElement;
     if (isBackgroundBlurEnabled) {
-        const bleed = 0.2; // Use a generous 20% bleed to be safe
-        const largeWidth = canvasWidth * (1 + bleed * 2);
-        const largeHeight = canvasHeight * (1 + bleed * 2);
-
         const distortedCanvas = document.createElement('canvas');
-        distortedCanvas.width = largeWidth;
-        distortedCanvas.height = largeHeight;
+        distortedCanvas.width = bleedCanvasWidth;
+        distortedCanvas.height = bleedCanvasHeight;
         const distortedCtx = distortedCanvas.getContext('2d');
 
         if (distortedCtx) {
-            // Create a repeating pattern of the source image to fill the larger canvas
-            // This provides seamless pixel data for the distortion effect to pull from.
-            const pattern = distortedCtx.createPattern(imageCanvas, 'repeat');
-            if (pattern) {
-                distortedCtx.fillStyle = pattern;
-                distortedCtx.fillRect(0, 0, largeWidth, largeHeight);
-            } else { // Fallback just in case
-                distortedCtx.drawImage(imageCanvas, 0, 0, canvasWidth, canvasHeight, canvasWidth * bleed, canvasHeight * bleed, canvasWidth, canvasHeight);
-            }
+            distortedCtx.drawImage(imageCanvas, 0, 0);
             
             const tempCanvas = document.createElement('canvas');
-            tempCanvas.width = largeWidth;
-            tempCanvas.height = largeHeight;
+            tempCanvas.width = bleedCanvasWidth;
+            tempCanvas.height = bleedCanvasHeight;
             const tempCtx = tempCanvas.getContext('2d');
             
             const intensityRatio = 33 / 100;
             if (tempCtx && intensityRatio > 0) {
                 const passes = 4;
-                const maxInitialDistortion = largeWidth * 0.2; // Base distortion on larger canvas
+                const maxInitialDistortion = bleedCanvasWidth * 0.2;
                 const initialDistortion = maxInitialDistortion * intensityRatio;
                 const scaleFactor = 0.5;
-                let tileSize = Math.max(80, Math.floor(largeWidth / 20));
+                let tileSize = Math.max(80, Math.floor(bleedCanvasWidth / 20));
 
                 for (let i = 0; i < passes; i++) {
                     const passDistortion = initialDistortion * Math.pow(scaleFactor, i);
-                    
-                    tempCtx.clearRect(0, 0, largeWidth, largeHeight);
+                    tempCtx.clearRect(0, 0, bleedCanvasWidth, bleedCanvasHeight);
                     tempCtx.drawImage(distortedCanvas, 0, 0);
-                    distortedCtx.clearRect(0, 0, largeWidth, largeHeight);
+                    distortedCtx.clearRect(0, 0, bleedCanvasWidth, bleedCanvasHeight);
                     
-                    for (let y = 0; y < largeHeight; y += tileSize) {
-                        for (let x = 0; x < largeWidth; x += tileSize) {
+                    for (let y = 0; y < bleedCanvasHeight; y += tileSize) {
+                        for (let x = 0; x < bleedCanvasWidth; x += tileSize) {
                             const offsetX = (Math.random() - 0.5) * passDistortion * 2;
                             const offsetY = (Math.random() - 0.5) * passDistortion * 2;
-
-                            let srcX = x + offsetX;
-                            let srcY = y + offsetY;
-
-                            // Clamp to the bounds of the larger canvas
-                            srcX = Math.max(0, Math.min(largeWidth - tileSize, srcX));
-                            srcY = Math.max(0, Math.min(largeHeight - tileSize, srcY));
-
-                            distortedCtx.drawImage(
-                                tempCanvas,
-                                srcX, srcY, tileSize, tileSize,
-                                x, y, tileSize, tileSize
-                            );
+                            const srcX = Math.max(0, Math.min(bleedCanvasWidth - tileSize, x + offsetX));
+                            const srcY = Math.max(0, Math.min(bleedCanvasHeight - tileSize, y + offsetY));
+                            distortedCtx.drawImage(tempCanvas, srcX, srcY, tileSize, tileSize, x, y, tileSize, tileSize);
                         }
                     }
                     tileSize = Math.max(5, Math.floor(tileSize * scaleFactor));
                 }
                 
-                const maxFinalBlurAmount = largeWidth * 0.04; // Base blur on larger canvas
+                const maxFinalBlurAmount = bleedCanvasWidth * 0.04;
                 const finalBlurAmount = maxFinalBlurAmount * intensityRatio;
                 if (finalBlurAmount > 0) {
                     distortedCtx.filter = `blur(${finalBlurAmount}px)`;
-                    distortedCtx.drawImage(distortedCanvas, 0, 0);
+                    distortedCtx.drawImage(distortedCanvas, 0, 0); // Apply blur twice for stronger effect
                     distortedCtx.drawImage(distortedCanvas, 0, 0);
                     distortedCtx.filter = 'none';
                 }
             }
-            
-            // Crop the clean, fully-distorted center from the larger canvas
-            const croppedBgCanvas = document.createElement('canvas');
-            croppedBgCanvas.width = canvasWidth;
-            croppedBgCanvas.height = canvasHeight;
-            const croppedBgCtx = croppedBgCanvas.getContext('2d');
-            if (croppedBgCtx) {
-                croppedBgCtx.drawImage(
-                    distortedCanvas,
-                    canvasWidth * bleed, canvasHeight * bleed, canvasWidth, canvasHeight,
-                    0, 0, canvasWidth, canvasHeight
-                );
-                finalBgCanvas = croppedBgCanvas;
-            } else {
-                 finalBgCanvas = distortedCanvas; // Fallback
-            }
+            finalBgCanvas = distortedCanvas;
+        } else {
+            finalBgCanvas = imageCanvas;
         }
+    } else {
+        finalBgCanvas = imageCanvas;
     }
 
+    const croppedFinalBg = document.createElement('canvas');
+    croppedFinalBg.width = canvasWidth;
+    croppedFinalBg.height = canvasHeight;
+    const croppedFinalBgCtx = croppedFinalBg.getContext('2d');
+    if (croppedFinalBgCtx) {
+        croppedFinalBgCtx.drawImage(finalBgCanvas, bleedX, bleedY, canvasWidth, canvasHeight, 0, 0, canvasWidth, canvasHeight);
+        finalBgCanvas = croppedFinalBg;
+    }
 
-    // 3. Downsample image to grid for blob detection
+    // 4. Downsample image to grid for blob detection
     const gridWidth = Math.floor(10 + (resolution / 100) * 100);
     const gridHeight = Math.round(gridWidth * (canvasHeight / canvasWidth));
     if (gridWidth <= 0 || gridHeight <= 0) {
-        ctx.drawImage(finalBgCanvas, 0, 0); // Draw background if grid is invalid
+        ctx.drawImage(finalBgCanvas, 0, 0);
         return;
     };
     
@@ -244,9 +229,9 @@ const drawGlassDots = (ctx: CanvasRenderingContext2D, options: {
     tempCanvas.height = gridHeight;
     const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
     if (!tempCtx) return;
-
-    // We draw from imageCanvas (which has monochrome filter applied if needed)
-    tempCtx.drawImage(imageCanvas, 0, 0, canvasWidth, canvasHeight, 0, 0, gridWidth, gridHeight);
+    
+    // Downsample from the central, un-bled part of the imageCanvas
+    tempCtx.drawImage(imageCanvas, bleedX, bleedY, canvasWidth, canvasHeight, 0, 0, gridWidth, gridHeight);
     const imageData = tempCtx.getImageData(0, 0, gridWidth, gridHeight).data;
 
     const colorGrid: ({ r: number; g: number; b: number; } | null)[][] = Array.from({ length: gridHeight }, (_, y) =>
@@ -256,10 +241,10 @@ const drawGlassDots = (ctx: CanvasRenderingContext2D, options: {
         })
     );
     
-    // 4. Blob detection
+    // 5. Blob detection
     const visited = Array.from({ length: gridHeight }, () => Array(gridWidth).fill(false));
     const blobs: { x: number, y: number, size: number }[] = [];
-    const similarityThreshold = (similaritySensitivity / 100) * 120; // Map [0,100] to a color distance up to 120
+    const similarityThreshold = (similaritySensitivity / 100) * 160;
 
     for (let y = 0; y < gridHeight; y++) {
         for (let x = 0; x < gridWidth; x++) {
@@ -273,7 +258,6 @@ const drawGlassDots = (ctx: CanvasRenderingContext2D, options: {
                 if (y + nextSize > gridHeight || x + nextSize > gridWidth) break;
 
                 let canExpand = true;
-                // Check new column on the right
                 for (let i = 0; i < nextSize; i++) {
                     if (visited[y + i][x + currentSize] || colorDistance(anchorColor, colorGrid[y + i][x + currentSize]) > similarityThreshold) {
                         canExpand = false;
@@ -282,19 +266,15 @@ const drawGlassDots = (ctx: CanvasRenderingContext2D, options: {
                 }
                 if (!canExpand) break;
 
-                // Check new row on the bottom
-                for (let i = 0; i < currentSize; i++) { // 'currentSize' avoids double-checking the corner
+                for (let i = 0; i < currentSize; i++) {
                     if (visited[y + currentSize][x + i] || colorDistance(anchorColor, colorGrid[y + currentSize][x + i]) > similarityThreshold) {
                         canExpand = false;
                         break;
                     }
                 }
 
-                if (canExpand) {
-                    currentSize = nextSize;
-                } else {
-                    break;
-                }
+                if (canExpand) currentSize = nextSize;
+                else break;
             }
 
             blobs.push({ x, y, size: currentSize });
@@ -306,50 +286,16 @@ const drawGlassDots = (ctx: CanvasRenderingContext2D, options: {
         }
     }
     
-    // 4.1 Identify top blobs for markers before any filtering
     const sortedAllBlobs = [...blobs].sort((a, b) => b.size - a.size);
     const top4PercentIndex = Math.ceil(sortedAllBlobs.length * 0.04);
     const topBlobsForMarkers = new Set(sortedAllBlobs.slice(0, top4PercentIndex));
 
-    // 4.5 Find the largest blob on the edge to calculate dynamic padding
-    let maxEdgeBlobSize = 1;
-    for (const blob of blobs) {
-        const { x, y, size } = blob;
-        const isAtEdge = x === 0 || y === 0 || (x + size) >= gridWidth || (y + size) >= gridHeight;
-        if (isAtEdge) {
-            maxEdgeBlobSize = Math.max(maxEdgeBlobSize, size);
-        }
-    }
-    
-    // 5. Draw final image with blobs
+    // 6. Draw final image with blobs
     ctx.clearRect(0, 0, canvasWidth, canvasHeight);
     ctx.drawImage(finalBgCanvas, 0, 0);
 
-    const refractScale = 1 + (ior / 100) * 0.4;
-    const scaleFactor = refractScale - 1;
-
-    // Calculate provisional cell size to estimate padding
-    const provisionalCellWidth = canvasWidth / gridWidth;
-    const provisionalCellHeight = canvasHeight / gridHeight;
-
-    // Calculate the pixel size of the largest blob that could cause clipping
-    const maxEdgeBlobPixelWidth = maxEdgeBlobSize * provisionalCellWidth;
-    const maxEdgeBlobPixelHeight = maxEdgeBlobSize * provisionalCellHeight;
-
-    // Calculate padding based on the refraction needs of that largest edge blob
-    const paddingX = (maxEdgeBlobPixelWidth * scaleFactor) / 2;
-    const paddingY = (maxEdgeBlobPixelHeight * scaleFactor) / 2;
-
-    // Now, calculate final dimensions using the dynamic padding
-    const drawableWidth = canvasWidth - 2 * paddingX;
-    const drawableHeight = canvasHeight - 2 * paddingY;
-    
-    if (drawableWidth <= 0 || drawableHeight <= 0) {
-      return; // Not enough space to draw, return to prevent errors
-    }
-
-    const cellWidth = drawableWidth / gridWidth;
-    const cellHeight = drawableHeight / gridHeight;
+    const cellWidth = canvasWidth / gridWidth;
+    const cellHeight = canvasHeight / gridHeight;
     const recalibratedPixelGap = pixelGap * 16 / 100;
     const effectiveGapPercent = (recalibratedPixelGap / 100);
     const gapX = cellWidth * effectiveGapPercent;
@@ -365,8 +311,8 @@ const drawGlassDots = (ctx: CanvasRenderingContext2D, options: {
         const { x, y, size } = blob;
         const blobPixelWidth = cellWidth * size;
         const blobPixelHeight = cellHeight * size;
-        const centerX = paddingX + x * cellWidth + blobPixelWidth / 2;
-        const centerY = paddingY + y * cellHeight + blobPixelHeight / 2;
+        const centerX = x * cellWidth + blobPixelWidth / 2;
+        const centerY = y * cellHeight + blobPixelHeight / 2;
         const dotWidth = blobPixelWidth - gapX;
         const dotHeight = blobPixelHeight - gapY;
         const radius = Math.min(dotWidth, dotHeight) / 2;
@@ -384,29 +330,27 @@ const drawGlassDots = (ctx: CanvasRenderingContext2D, options: {
         
         const refractedW = radius * 2 * refractScale;
         const refractedH = radius * 2 * refractScale;
-        ctx.drawImage(blurCanvas, centerX - refractedW / 2, centerY - refractedH / 2, refractedW, refractedH, centerX - radius, centerY - radius, radius * 2, radius * 2);
+        
+        // Sample from the oversized blur canvas, using coordinates relative to the bleed area
+        const sourceCenterX = centerX + bleedX;
+        const sourceCenterY = centerY + bleedY;
+        
+        ctx.drawImage(blurCanvas, sourceCenterX - refractedW / 2, sourceCenterY - refractedH / 2, refractedW, refractedH, centerX - radius, centerY - radius, radius * 2, radius * 2);
         ctx.restore();
     }
 
-    // 5.5 Draw plus signs on largest dots
     if (isMarkerEnabled && topBlobsForMarkers.size > 0) {
         ctx.save();
         ctx.globalCompositeOperation = 'overlay';
-
         for (const blob of drawableBlobs) {
             if (topBlobsForMarkers.has(blob.originalBlob)) {
                 const { centerX, centerY, radius } = blob;
-                const pixelData = imageCtx.getImageData(Math.round(centerX), Math.round(centerY), 1, 1).data;
+                const pixelData = croppedFinalBgCtx!.getImageData(Math.round(centerX), Math.round(centerY), 1, 1).data;
                 const brightness = 0.299 * pixelData[0] + 0.587 * pixelData[1] + 0.114 * pixelData[2];
                 ctx.strokeStyle = brightness > 128 ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.5)';
-                
-                const hardcodedPlusSignSize = 50;
-                const hardcodedPlusSignStroke = 36;
-                const stroke = (hardcodedPlusSignStroke / 100) * (radius * 0.05) + 1;
-                ctx.lineWidth = Math.max(1, stroke);
-                
-                const size = (hardcodedPlusSignSize / 100) * radius * 0.5;
-                
+                const stroke = Math.max(1, (36 / 100) * (radius * 0.05) + 1);
+                ctx.lineWidth = stroke;
+                const size = (50 / 100) * radius * 0.5;
                 ctx.beginPath();
                 ctx.moveTo(centerX - size, centerY);
                 ctx.lineTo(centerX + size, centerY);
@@ -418,16 +362,13 @@ const drawGlassDots = (ctx: CanvasRenderingContext2D, options: {
         ctx.restore();
     }
 
-
-    // 6. Add grain if enabled
     if (isGrainEnabled && grainAmount > 0 && (maskItems.length > 0 || isBackgroundBlurEnabled)) {
         const grainCanvas = document.createElement('canvas');
         grainCanvas.width = canvasWidth;
         grainCanvas.height = canvasHeight;
         const grainCtx = grainCanvas.getContext('2d');
         if (grainCtx) {
-            const recalibratedGrainSize = grainSize * 18 / 100;
-            const scale = 1 + (recalibratedGrainSize / 100) * 7;
+            const scale = 1 + ((grainSize * 18 / 100) / 100) * 7;
             const noiseW = Math.ceil(canvasWidth / scale);
             const noiseH = Math.ceil(canvasHeight / scale);
             const noiseCanvas = document.createElement('canvas');
@@ -466,8 +407,7 @@ const drawGlassDots = (ctx: CanvasRenderingContext2D, options: {
                 }
 
                 ctx.save();
-                const recalibratedGrainAmount = grainAmount * 35 / 100;
-                ctx.globalAlpha = recalibratedGrainAmount / 100;
+                ctx.globalAlpha = (grainAmount * 35 / 100) / 100;
                 ctx.globalCompositeOperation = 'overlay';
                 ctx.drawImage(grainCanvas, 0, 0);
                 ctx.restore();
@@ -624,7 +564,20 @@ export const useGlassDotsPanel = ({
     return [Math.round(MAX_PREVIEW_DIMENSION * aspectRatio), MAX_PREVIEW_DIMENSION];
   }, [outputType, fullCanvasWidth, fullCanvasHeight]);
 
-  const glassDotsCropIsNeeded = useMemo(() => image ? Math.abs((image.width / image.height) - (fullCanvasWidth / fullCanvasHeight)) > 0.01 : false, [image, fullCanvasWidth, fullCanvasHeight]);
+  const glassDotsCropIsNeeded = useMemo(() => {
+    if (!image) return false;
+    const { ior } = liveActiveState;
+    const refractScale = 1 + (ior / 100) * 0.4;
+    const scaleFactor = refractScale - 1;
+    const bleedX = (fullCanvasWidth / 2) * scaleFactor;
+    const bleedY = (fullCanvasHeight / 2) * scaleFactor;
+    const bleedCanvasWidth = fullCanvasWidth + 2 * bleedX;
+    const bleedCanvasHeight = fullCanvasHeight + 2 * bleedY;
+    const bleedCanvasAspect = bleedCanvasWidth / bleedCanvasHeight;
+    const imgAspect = image.width / image.height;
+    return Math.abs(imgAspect - bleedCanvasAspect) > 0.01;
+  }, [image, fullCanvasWidth, fullCanvasHeight, liveActiveState.ior]);
+
 
   useEffect(() => {
     if (!image) return;
@@ -697,21 +650,40 @@ export const useGlassDotsPanel = ({
       if (!dragState.current.isDragging || !image) return;
       dragState.current.hasMoved = true;
       const point = 'touches' in e ? e.touches[0] : e;
-      let deltaX = point.clientX - dragState.current.startX, deltaY = point.clientY - dragState.current.startY;
-      
+
+      const { ior } = liveActiveState;
+      const refractScale = 1 + (ior / 100) * 0.4;
+      const scaleFactor = refractScale - 1;
+      const bleedX = (fullCanvasWidth / 2) * scaleFactor;
+      const bleedY = (fullCanvasHeight / 2) * scaleFactor;
+      const bleedCanvasWidth = fullCanvasWidth + 2 * bleedX;
+      const bleedCanvasHeight = fullCanvasHeight + 2 * bleedY;
+      const bleedCanvasAspect = bleedCanvasWidth / bleedCanvasHeight;
+      const imgAspect = image.width / image.height;
+
+      let panRangeX = 0, panRangeY = 0;
+      // FIX: Declare sWidth and sHeight in a broader scope to be accessible later.
+      let sWidth = image.width, sHeight = image.height;
+      if (imgAspect > bleedCanvasAspect) {
+          sWidth = image.height * bleedCanvasAspect;
+          panRangeX = image.width - sWidth;
+      } else if (imgAspect < bleedCanvasAspect) {
+          sHeight = image.width / bleedCanvasAspect;
+          panRangeY = image.height - sHeight;
+      }
+
       const activeCanvas = isFullScreenPreview ? fullScreenCanvasRef.current : canvasRef.current;
+      let deltaX = point.clientX - dragState.current.startX;
+      let deltaY = point.clientY - dragState.current.startY;
+      
       if (activeCanvas) {
           const rect = activeCanvas.getBoundingClientRect();
           if (rect.width > 0 && rect.height > 0) {
-              deltaX *= previewCanvasWidth / rect.width;
-              deltaY *= previewCanvasHeight / rect.height;
+              // Scale mouse delta to reflect panning on the source image
+              if (panRangeX > 0) deltaX *= sWidth / rect.width;
+              if (panRangeY > 0) deltaY *= sHeight / rect.height;
           }
       }
-      
-      const imgAspect = image.width / image.height, canvasAspect = fullCanvasWidth / fullCanvasHeight;
-      let panRangeX = 0, panRangeY = 0;
-      if (imgAspect > canvasAspect) panRangeX = (fullCanvasHeight * imgAspect) - fullCanvasWidth;
-      else if (imgAspect < canvasAspect) panRangeY = (fullCanvasWidth / imgAspect) - fullCanvasHeight;
       
       const newOffsetX = panRangeX > 0 ? dragState.current.initialOffsetX - (deltaX / panRangeX) : dragState.current.initialOffsetX;
       const newOffsetY = panRangeY > 0 ? dragState.current.initialOffsetY - (deltaY / panRangeY) : dragState.current.initialOffsetY;
@@ -722,7 +694,7 @@ export const useGlassDotsPanel = ({
           if (s.outputType === 'wallpaper') return { ...s, wallpaper: { ...s.wallpaper, [wallpaperType]: { ...s.wallpaper[wallpaperType], ...newCropState }}};
           return { ...s, print: { ...s.print, ...newCropState }};
       });
-  }, [image, fullCanvasWidth, fullCanvasHeight, previewCanvasWidth, previewCanvasHeight, wallpaperType, isFullScreenPreview]);
+  }, [image, fullCanvasWidth, fullCanvasHeight, wallpaperType, isFullScreenPreview, liveActiveState.ior]);
 
   const handleDragEnd = useCallback(() => {
       if (dragState.current.isDragging) {
@@ -744,6 +716,7 @@ export const useGlassDotsPanel = ({
       document.addEventListener('mouseup', onEnd);
       document.addEventListener('touchmove', onMove);
       document.addEventListener('touchend', onEnd);
+      document.addEventListener('touchcancel', onEnd);
       return () => {
           document.removeEventListener('mousemove', onMove);
           document.removeEventListener('mouseup', onEnd);
@@ -769,12 +742,6 @@ export const useGlassDotsPanel = ({
     trackEvent('glass_dots_slider_change', { slider_name: key, value, output_mode: outputType === 'wallpaper' ? wallpaperType : 'print' });
   }, [setGlassDotsSettings, outputType, wallpaperType]);
 
-  useEffect(() => {
-    if (liveActiveState.blurAmount < 20 && liveActiveState.isMarkerEnabled) {
-        commitSetting('isMarkerEnabled', false);
-    }
-  }, [liveActiveState.blurAmount, liveActiveState.isMarkerEnabled, commitSetting]);
-
   const handleOutputTypeSelect = (type: 'wallpaper' | 'print') => {
     trackEvent('glass_dots_output_type_select', { type });
     setGlassDotsSettings(s => ({ ...s, outputType: type }));
@@ -783,7 +750,6 @@ export const useGlassDotsPanel = ({
   const wallpaperTypeOptions = [ { key: 'phone', label: 'Phone' }, { key: 'desktop', label: 'Desktop' } ];
   const outputTypeOptions = [ { key: 'wallpaper', label: 'Wallpaper' }, { key: 'print', label: 'Print' } ];
   const orientationOptions = [ { key: 'landscape', label: 'Landscape' }, { key: 'portrait', label: 'Portrait' } ];
-  const isMarkerToggleDisabled = liveActiveState.blurAmount < 20;
 
   const AllControls = ({ isFullScreen = false }: { isFullScreen?: boolean }) => (
     <>
@@ -818,12 +784,12 @@ export const useGlassDotsPanel = ({
         <EnhancedSlider theme={theme} isMobile={isMobile} label="Resolution" value={liveActiveState.resolution} onChange={v => updateLiveSetting('resolution', v)} onChangeCommitted={v => commitSetting('resolution', v)} onReset={() => commitSetting('resolution', DEFAULT_SLIDER_VALUE)} disabled={isLoading} />
         <EnhancedSlider theme={theme} isMobile={isMobile} label="Pixel Gap" value={liveActiveState.pixelGap} onChange={v => updateLiveSetting('pixelGap', v)} onChangeCommitted={v => commitSetting('pixelGap', v)} onReset={() => commitSetting('pixelGap', 50)} disabled={isLoading} />
         <EnhancedSlider theme={theme} isMobile={isMobile} label="Lower Limit" value={liveActiveState.lowerLimit} onChange={v => updateLiveSetting('lowerLimit', v)} onChangeCommitted={v => commitSetting('lowerLimit', v)} onReset={() => commitSetting('lowerLimit', 0)} disabled={isLoading} />
-        <EnhancedSlider theme={theme} isMobile={isMobile} label="Size Variance" value={liveActiveState.similaritySensitivity} onChange={v => updateLiveSetting('similaritySensitivity', v)} onChangeCommitted={v => commitSetting('similaritySensitivity', v)} onReset={() => commitSetting('similaritySensitivity', 50)} disabled={isLoading} />
+        <EnhancedSlider theme={theme} isMobile={isMobile} label="Size Variance" value={liveActiveState.similaritySensitivity} onChange={v => updateLiveSetting('similaritySensitivity', v)} onChangeCommitted={v => commitSetting('similaritySensitivity', v)} onReset={() => commitSetting('similaritySensitivity', 100)} disabled={isLoading} />
       </div>
 
       <div className={`p-4 rounded-lg space-y-4 ${theme === 'dark' ? 'bg-black/40' : 'bg-white/60'}`}>
         <EnhancedSlider theme={theme} isMobile={isMobile} label="Glass Blur Amount" value={liveActiveState.blurAmount} onChange={v => updateLiveSetting('blurAmount', v)} onChangeCommitted={v => commitSetting('blurAmount', v)} onReset={() => commitSetting('blurAmount', 50)} disabled={isLoading} />
-        <EnhancedSlider theme={theme} isMobile={isMobile} label="Index of Refraction" value={liveActiveState.ior} onChange={v => updateLiveSetting('ior', v)} onChangeCommitted={v => commitSetting('ior', v)} onReset={() => commitSetting('ior', 0)} disabled={isLoading} />
+        <EnhancedSlider theme={theme} isMobile={isMobile} label="Index of Refraction" value={liveActiveState.ior} onChange={v => updateLiveSetting('ior', v)} onChangeCommitted={v => commitSetting('ior', v)} onReset={() => commitSetting('ior', 25)} disabled={isLoading} />
       </div>
       
       <div className={`p-4 rounded-lg space-y-4 ${theme === 'dark' ? 'bg-black/40' : 'bg-white/60'}`}>
@@ -836,7 +802,7 @@ export const useGlassDotsPanel = ({
       </div>
 
       <div className={`p-4 rounded-lg space-y-4 ${theme === 'dark' ? 'bg-black/40' : 'bg-white/60'}`}>
-        <div className={`flex items-center justify-between ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'}`}><label htmlFor={`marker-toggle-${isFullScreen}`} className={`text-sm ${isMarkerToggleDisabled ? 'opacity-50' : ''}`}>Markers</label><button id={`marker-toggle-${isFullScreen}`} role="switch" aria-checked={liveActiveState.isMarkerEnabled} onClick={() => commitSetting('isMarkerEnabled', !liveActiveState.isMarkerEnabled)} disabled={isLoading || isMarkerToggleDisabled} className={`relative inline-flex items-center h-6 w-11 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 rounded-full ${isMarkerToggleDisabled ? 'opacity-50 cursor-not-allowed' : ''} ${theme === 'dark' ? 'focus:ring-offset-nothing-dark' : 'focus:ring-offset-day-bg'} ${liveActiveState.isMarkerEnabled && !isMarkerToggleDisabled ? 'bg-nothing-red' : (theme === 'dark' ? 'bg-nothing-gray-dark' : 'bg-day-gray-light')}`}><span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform duration-300 ${liveActiveState.isMarkerEnabled && !isMarkerToggleDisabled ? 'translate-x-6' : 'translate-x-1'}`} /></button></div>
+        <div className={`flex items-center justify-between ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'}`}><label htmlFor={`marker-toggle-${isFullScreen}`} className="text-sm">Markers</label><button id={`marker-toggle-${isFullScreen}`} role="switch" aria-checked={liveActiveState.isMarkerEnabled} onClick={() => commitSetting('isMarkerEnabled', !liveActiveState.isMarkerEnabled)} disabled={isLoading} className={`relative inline-flex items-center h-6 w-11 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 rounded-full ${theme === 'dark' ? 'focus:ring-offset-nothing-dark' : 'focus:ring-offset-day-bg'} ${liveActiveState.isMarkerEnabled ? 'bg-nothing-red' : (theme === 'dark' ? 'bg-nothing-gray-dark' : 'bg-day-gray-light')}`}><span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform duration-300 ${liveActiveState.isMarkerEnabled ? 'translate-x-6' : 'translate-x-1'}`} /></button></div>
         <div className={`flex items-center justify-between ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'}`}><label htmlFor={`bg-blur-toggle-${isFullScreen}`} className="text-sm">Background Blur</label><button id={`bg-blur-toggle-${isFullScreen}`} role="switch" aria-checked={liveActiveState.isBackgroundBlurEnabled} onClick={() => commitSetting('isBackgroundBlurEnabled', !liveActiveState.isBackgroundBlurEnabled)} disabled={isLoading} className={`relative inline-flex items-center h-6 w-11 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 rounded-full ${theme === 'dark' ? 'focus:ring-offset-nothing-dark' : 'focus:ring-offset-day-bg'} ${liveActiveState.isBackgroundBlurEnabled ? 'bg-nothing-red' : (theme === 'dark' ? 'bg-nothing-gray-dark' : 'bg-day-gray-light')}`}><span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform duration-300 ${liveActiveState.isBackgroundBlurEnabled ? 'translate-x-6' : 'translate-x-1'}`} /></button></div>
         <div className={`flex items-center justify-between ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'}`}><label htmlFor={`mono-toggle-${isFullScreen}`} className="text-sm">Monochrome</label><button id={`mono-toggle-${isFullScreen}`} role="switch" aria-checked={liveActiveState.isMonochrome} onClick={() => commitSetting('isMonochrome', !liveActiveState.isMonochrome)} disabled={isLoading} className={`relative inline-flex items-center h-6 w-11 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 rounded-full ${theme === 'dark' ? 'focus:ring-offset-nothing-dark' : 'focus:ring-offset-day-bg'} ${liveActiveState.isMonochrome ? 'bg-nothing-red' : (theme === 'dark' ? 'bg-nothing-gray-dark' : 'bg-day-gray-light')}`}><span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform duration-300 ${liveActiveState.isMonochrome ? 'translate-x-6' : 'translate-x-1'}`} /></button></div>
       </div>
