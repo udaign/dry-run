@@ -89,7 +89,6 @@ export type GlassDotsState = {
     isGrainEnabled: boolean;
     grainAmount: number;
     grainSize: number;
-    grainContrast: number;
     ior: number;
     similaritySensitivity: number;
     isBackgroundBlurEnabled: boolean;
