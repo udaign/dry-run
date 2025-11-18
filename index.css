@@ -11,6 +11,10 @@
   font-family: 'Ndot-55', sans-serif;
 }
 
+.font-ndot {
+  font-family: 'Ndot-55', sans-serif;
+}
+
 /* Global Styles */
 html {
   /* Scale down UI to match appearance at 75% browser zoom, as requested. */
