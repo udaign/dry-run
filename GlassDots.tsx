@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { createPortal, flushSync } from 'react-dom';
 import { useHistory, useImageHandler } from './hooks';
@@ -82,6 +83,8 @@ const FULL_GLASSDOTS_INITIAL_STATE: GlassDotsSettingsContainer = {
     print: PRINT_INITIAL_STATE,
 };
 
+// --- Utilities ---
+
 const colorDistance = (
     c1: { r: number, g: number, b: number } | null,
     c2: { r: number, g: number, b: number } | null
@@ -93,45 +96,106 @@ const colorDistance = (
     return Math.sqrt(dr * dr + dg * dg + db * db);
 };
 
-const drawGlassDots = (ctx: CanvasRenderingContext2D, options: {
-    canvasWidth: number;
-    canvasHeight: number;
+// Helper to manage canvas buffer reuse
+const getBuffer = (ref: React.MutableRefObject<HTMLCanvasElement | null>, width: number, height: number): HTMLCanvasElement => {
+    if (!ref.current) {
+        ref.current = document.createElement('canvas');
+    }
+    if (ref.current.width !== width || ref.current.height !== height) {
+        ref.current.width = width;
+        ref.current.height = height;
+    }
+    return ref.current;
+};
+
+// --- Core Logic ---
+
+interface AnalyzedScene {
     sourceBleedCanvas: HTMLCanvasElement;
-    blurBleedCanvas: HTMLCanvasElement;
-    finalBgCanvas: HTMLCanvasElement;
+    blobs: { x: number; y: number; size: number }[];
+    gridWidth: number;
+    gridHeight: number;
     bleedX: number;
     bleedY: number;
-    settings: GlassDotsState;
-}) => {
-    const { canvasWidth, canvasHeight, sourceBleedCanvas, blurBleedCanvas, finalBgCanvas, bleedX, bleedY, settings } = options;
-    const { resolution, pixelGap, ior, similaritySensitivity, isGrainEnabled, grainAmount, grainSize, lowerLimit, isMarkerEnabled, isBackgroundBlurEnabled } = settings;
+}
 
-    // 1. Downsample image to grid for blob detection
+// Phase 1: Scene Analysis (Heavy - Blob Detection)
+const analyzeScene = (
+    image: HTMLImageElement,
+    settings: GlassDotsState,
+    targetWidth: number,
+    targetHeight: number,
+    buffers: {
+        sourceBleed: HTMLCanvasElement;
+        temp: HTMLCanvasElement;
+    }
+): AnalyzedScene => {
+    const { resolution, ior, cropOffsetX, cropOffsetY, isMonochrome, similaritySensitivity } = settings;
+
+    // 1. Calculate Dimensions & Bleed
     const gridWidth = Math.floor(10 + (resolution / 100) * 100);
-    const gridHeight = Math.round(gridWidth * (canvasHeight / canvasWidth));
-    if (gridWidth <= 0 || gridHeight <= 0) {
-        ctx.drawImage(finalBgCanvas, 0, 0); // Draw background if grid is invalid
-        return;
-    };
+    const maxBlobSizeFactor = 0.5;
+    const maxBlobPixelWidth = (targetWidth / gridWidth) * (gridWidth * maxBlobSizeFactor);
+    const refractScale = 1 + (ior / 100) * 0.4;
+    const scaleFactor = refractScale - 1;
+    const bleed = (maxBlobPixelWidth / 2) * scaleFactor;
+
+    const bleedX = bleed;
+    const bleedY = bleed * (targetHeight / targetWidth);
+    const bleedCanvasWidth = targetWidth + 2 * bleedX;
+    const bleedCanvasHeight = targetHeight + 2 * bleedY;
+
+    // 2. Prepare Source Image (with Bleed)
+    const sourceBleedCanvas = buffers.sourceBleed;
+    if (sourceBleedCanvas.width !== bleedCanvasWidth || sourceBleedCanvas.height !== bleedCanvasHeight) {
+        sourceBleedCanvas.width = bleedCanvasWidth;
+        sourceBleedCanvas.height = bleedCanvasHeight;
+    }
+    const sourceCtx = sourceBleedCanvas.getContext('2d', { willReadFrequently: true })!;
     
-    const tempCanvas = document.createElement('canvas');
-    tempCanvas.width = gridWidth;
-    tempCanvas.height = gridHeight;
-    const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
-    if (!tempCtx) return;
+    if (isMonochrome) sourceCtx.filter = 'grayscale(100%)';
+    else sourceCtx.filter = 'none';
 
-    // We draw from sourceBleedCanvas (which has monochrome filter applied if needed)
-    tempCtx.drawImage(sourceBleedCanvas, 0, 0, sourceBleedCanvas.width, sourceBleedCanvas.height, 0, 0, gridWidth, gridHeight);
+    const imgAspect = image.width / image.height;
+    const bleedCanvasAspect = bleedCanvasWidth / bleedCanvasHeight;
+    let sx = 0, sy = 0, sWidth = image.width, sHeight = image.height;
+
+    if (imgAspect > bleedCanvasAspect) {
+        sHeight = image.height;
+        sWidth = sHeight * bleedCanvasAspect;
+        sx = (image.width - sWidth) * cropOffsetX;
+    } else {
+        sWidth = image.width;
+        sHeight = sWidth / bleedCanvasAspect;
+        sy = (image.height - sHeight) * cropOffsetY;
+    }
+    sourceCtx.drawImage(image, sx, sy, sWidth, sHeight, 0, 0, bleedCanvasWidth, bleedCanvasHeight);
+    sourceCtx.filter = 'none'; // Reset filter
+
+    // 3. Downsample for Detection
+    const gridHeight = Math.round(gridWidth * (targetHeight / targetWidth));
+    // Guard against invalid grid size
+    if (gridWidth <= 0 || gridHeight <= 0) {
+        return { sourceBleedCanvas, blobs: [], gridWidth, gridHeight, bleedX, bleedY };
+    }
+
+    const tempCanvas = buffers.temp;
+    if (tempCanvas.width !== gridWidth || tempCanvas.height !== gridHeight) {
+        tempCanvas.width = gridWidth;
+        tempCanvas.height = gridHeight;
+    }
+    const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true })!;
+    tempCtx.drawImage(sourceBleedCanvas, 0, 0, bleedCanvasWidth, bleedCanvasHeight, 0, 0, gridWidth, gridHeight);
+    
     const imageData = tempCtx.getImageData(0, 0, gridWidth, gridHeight).data;
-
     const colorGrid: ({ r: number; g: number; b: number; } | null)[][] = Array.from({ length: gridHeight }, (_, y) =>
         Array.from({ length: gridWidth }, (_, x) => {
             const i = (y * gridWidth + x) * 4;
             return { r: imageData[i], g: imageData[i + 1], b: imageData[i + 2] };
         })
     );
-    
-    // 2. Blob detection
+
+    // 4. Blob Detection Algorithm
     const visited = Array.from({ length: gridHeight }, () => Array(gridWidth).fill(false));
     const blobs: { x: number, y: number, size: number }[] = [];
     const similarityThreshold = (similaritySensitivity / 100) * 160;
@@ -148,7 +212,7 @@ const drawGlassDots = (ctx: CanvasRenderingContext2D, options: {
                 if (y + nextSize > gridHeight || x + nextSize > gridWidth) break;
 
                 let canExpand = true;
-                // Check new column on the right
+                // Check right column
                 for (let i = 0; i < nextSize; i++) {
                     if (visited[y + i][x + currentSize] || colorDistance(anchorColor, colorGrid[y + i][x + currentSize]) > similarityThreshold) {
                         canExpand = false;
@@ -156,8 +220,7 @@ const drawGlassDots = (ctx: CanvasRenderingContext2D, options: {
                     }
                 }
                 if (!canExpand) break;
-
-                // Check new row on the bottom
+                // Check bottom row
                 for (let i = 0; i < currentSize; i++) {
                     if (visited[y + currentSize][x + i] || colorDistance(anchorColor, colorGrid[y + currentSize][x + i]) > similarityThreshold) {
                         canExpand = false;
@@ -165,11 +228,8 @@ const drawGlassDots = (ctx: CanvasRenderingContext2D, options: {
                     }
                 }
 
-                if (canExpand) {
-                    currentSize = nextSize;
-                } else {
-                    break;
-                }
+                if (canExpand) currentSize = nextSize;
+                else break;
             }
 
             blobs.push({ x, y, size: currentSize });
@@ -180,45 +240,99 @@ const drawGlassDots = (ctx: CanvasRenderingContext2D, options: {
             }
         }
     }
-    
-    // 3. Identify top blobs for markers before any filtering
-    const sortedAllBlobs = [...blobs].sort((a, b) => b.size - a.size);
-    const top4PercentIndex = Math.ceil(sortedAllBlobs.length * 0.04);
-    const topBlobsForMarkers = new Set(sortedAllBlobs.slice(0, top4PercentIndex));
 
-    // 4. Draw final image with blobs
-    ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+    return { sourceBleedCanvas, blobs, gridWidth, gridHeight, bleedX, bleedY };
+};
+
+// Phase 2: Rendering (Lighter - Drawing the Blobs)
+const renderScene = (
+    ctx: CanvasRenderingContext2D,
+    analyzed: AnalyzedScene,
+    settings: GlassDotsState,
+    targetWidth: number,
+    targetHeight: number,
+    buffers: {
+        blurBleed: HTMLCanvasElement;
+        finalBg: HTMLCanvasElement;
+        grain: HTMLCanvasElement;
+        noise: HTMLCanvasElement;
+        dotsMask: HTMLCanvasElement;
+    }
+) => {
+    const { blobs, sourceBleedCanvas, gridWidth, gridHeight, bleedX, bleedY } = analyzed;
+    const { pixelGap, ior, blurAmount, isGrainEnabled, grainAmount, grainSize, lowerLimit, isMarkerEnabled, isBackgroundBlurEnabled } = settings;
+
+    const bleedCanvasWidth = sourceBleedCanvas.width;
+    const bleedCanvasHeight = sourceBleedCanvas.height;
+
+    // 1. Prepare Blurred Canvas
+    const blurBleedCanvas = buffers.blurBleed;
+    if (blurBleedCanvas.width !== bleedCanvasWidth || blurBleedCanvas.height !== bleedCanvasHeight) {
+        blurBleedCanvas.width = bleedCanvasWidth;
+        blurBleedCanvas.height = bleedCanvasHeight;
+    }
+    const blurBleedCtx = blurBleedCanvas.getContext('2d')!;
+    
+    const effectiveBlurAmount = 12 + (blurAmount * 0.88);
+    const blurPx = (effectiveBlurAmount / 100) * Math.max(bleedCanvasWidth, bleedCanvasHeight) * 0.02;
+    
+    // Use simple box blur approximation or canvas filter if supported (standard now)
+    blurBleedCtx.filter = blurPx > 0 ? `blur(${blurPx}px)` : 'none';
+    blurBleedCtx.drawImage(sourceBleedCanvas, 0, 0);
+    blurBleedCtx.filter = 'none';
+
+    // 2. Prepare Background
+    const finalBgCanvas = buffers.finalBg;
+    if (finalBgCanvas.width !== targetWidth || finalBgCanvas.height !== targetHeight) {
+        finalBgCanvas.width = targetWidth;
+        finalBgCanvas.height = targetHeight;
+    }
+    const finalBgCtx = finalBgCanvas.getContext('2d')!;
+    
+    // If bg blur is enabled, use the blurred source, else use sharp source
+    const bgSource = isBackgroundBlurEnabled ? blurBleedCanvas : sourceBleedCanvas;
+    finalBgCtx.drawImage(bgSource, bleedX, bleedY, targetWidth, targetHeight, 0, 0, targetWidth, targetHeight);
+
+    // 3. Draw Background to Main Context
+    ctx.clearRect(0, 0, targetWidth, targetHeight);
     ctx.drawImage(finalBgCanvas, 0, 0);
 
-    const refractScale = 1 + (ior / 100) * 0.4;
-    
-    const cellWidth = canvasWidth / gridWidth;
-    const cellHeight = canvasHeight / gridHeight;
+    // 4. Draw Glass Dots
+    const cellWidth = targetWidth / gridWidth;
+    const cellHeight = targetHeight / gridHeight;
     const recalibratedPixelGap = pixelGap * 16 / 100;
     const effectiveGapPercent = (recalibratedPixelGap / 100);
     const gapX = cellWidth * effectiveGapPercent;
     const gapY = cellHeight * effectiveGapPercent;
-    
-    const maskItems: { centerX: number, centerY: number, radius: number }[] = [];
-    
+    const refractScale = 1 + (ior / 100) * 0.4;
+
     const maxBlobSize = blobs.reduce((max, b) => Math.max(max, b.size), 1);
     const sizeThreshold = (lowerLimit / 100) * maxBlobSize;
     const filteredBlobs = blobs.filter(b => b.size >= sizeThreshold);
 
-    const drawableBlobs = filteredBlobs.map(blob => {
+    // Identify top blobs for markers if needed
+    let topBlobsForMarkers: Set<any> | null = null;
+    if (isMarkerEnabled) {
+        const sortedBlobs = [...blobs].sort((a, b) => b.size - a.size); // Sort ALL blobs, not just filtered
+        const topCount = Math.ceil(sortedBlobs.length * 0.04);
+        topBlobsForMarkers = new Set(sortedBlobs.slice(0, topCount));
+    }
+
+    const maskItems: { centerX: number, centerY: number, radius: number }[] = [];
+
+    for (const blob of filteredBlobs) {
         const { x, y, size } = blob;
         const blobPixelWidth = cellWidth * size;
         const blobPixelHeight = cellHeight * size;
         const centerX = x * cellWidth + blobPixelWidth / 2;
         const centerY = y * cellHeight + blobPixelHeight / 2;
+        
         const dotWidth = blobPixelWidth - gapX;
         const dotHeight = blobPixelHeight - gapY;
         const radius = Math.min(dotWidth, dotHeight) / 2;
-        return { centerX, centerY, radius, size, originalBlob: blob };
-    }).filter(b => b.radius > 0.1);
 
-    for (const blob of drawableBlobs) {
-        const { centerX, centerY, radius } = blob;
+        if (radius <= 0.1) continue;
+
         maskItems.push({ centerX, centerY, radius });
 
         ctx.save();
@@ -229,105 +343,104 @@ const drawGlassDots = (ctx: CanvasRenderingContext2D, options: {
         const refractedW = radius * 2 * refractScale;
         const refractedH = radius * 2 * refractScale;
         
+        // Source coordinates in the bleed canvas
         const sourceX = (centerX + bleedX) - refractedW / 2;
         const sourceY = (centerY + bleedY) - refractedH / 2;
 
         ctx.drawImage(blurBleedCanvas, sourceX, sourceY, refractedW, refractedH, centerX - radius, centerY - radius, radius * 2, radius * 2);
         ctx.restore();
-    }
 
-    // 5. Draw plus signs on largest dots
-    if (isMarkerEnabled && topBlobsForMarkers.size > 0) {
-        const tempImageCtx = sourceBleedCanvas.getContext('2d', { willReadFrequently: true });
-        if (tempImageCtx) {
-            ctx.save();
-            ctx.globalCompositeOperation = 'overlay';
+        // Markers
+        if (isMarkerEnabled && topBlobsForMarkers && topBlobsForMarkers.has(blob)) {
+             ctx.save();
+             ctx.globalCompositeOperation = 'overlay';
+             
+             // Sample brightness from center to determine stroke color
+             // We can sample from the blurred source for simplicity
+             const sampleData = blurBleedCtx.getImageData(centerX + bleedX, centerY + bleedY, 1, 1).data;
+             const brightness = 0.299 * sampleData[0] + 0.587 * sampleData[1] + 0.114 * sampleData[2];
+             ctx.strokeStyle = brightness > 128 ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.5)';
 
-            for (const blob of drawableBlobs) {
-                if (topBlobsForMarkers.has(blob.originalBlob)) {
-                    const { centerX, centerY, radius } = blob;
-                    const sampleX = Math.round(centerX + bleedX);
-                    const sampleY = Math.round(centerY + bleedY);
-                    const pixelData = tempImageCtx.getImageData(sampleX, sampleY, 1, 1).data;
-                    const brightness = 0.299 * pixelData[0] + 0.587 * pixelData[1] + 0.114 * pixelData[2];
-                    ctx.strokeStyle = brightness > 128 ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.5)';
-                    
-                    const hardcodedPlusSignSize = 50;
-                    const hardcodedPlusSignStroke = 36;
-                    const stroke = (hardcodedPlusSignStroke / 100) * (radius * 0.05) + 1;
-                    ctx.lineWidth = Math.max(1, stroke);
-                    
-                    const size = (hardcodedPlusSignSize / 100) * radius * 0.5;
-                    
-                    ctx.beginPath();
-                    ctx.moveTo(centerX - size, centerY);
-                    ctx.lineTo(centerX + size, centerY);
-                    ctx.moveTo(centerX, centerY - size);
-                    ctx.lineTo(centerX, centerY + size);
-                    ctx.stroke();
-                }
-            }
-            ctx.restore();
+             const stroke = (36 / 100) * (radius * 0.05) + 1;
+             ctx.lineWidth = Math.max(1, stroke);
+             const markerSize = (50 / 100) * radius * 0.5;
+
+             ctx.beginPath();
+             ctx.moveTo(centerX - markerSize, centerY);
+             ctx.lineTo(centerX + markerSize, centerY);
+             ctx.moveTo(centerX, centerY - markerSize);
+             ctx.lineTo(centerX, centerY + markerSize);
+             ctx.stroke();
+             ctx.restore();
         }
     }
 
-
-    // 6. Add grain if enabled
+    // 5. Grain (applied over everything if dots exist or bg blur is on)
     if (isGrainEnabled && grainAmount > 0 && (maskItems.length > 0 || isBackgroundBlurEnabled)) {
-        const grainCanvas = document.createElement('canvas');
-        grainCanvas.width = canvasWidth;
-        grainCanvas.height = canvasHeight;
-        const grainCtx = grainCanvas.getContext('2d');
-        if (grainCtx) {
-            const recalibratedGrainSize = grainSize * 18 / 100;
-            const scale = 1 + (recalibratedGrainSize / 100) * 7;
-            const noiseW = Math.ceil(canvasWidth / scale);
-            const noiseH = Math.ceil(canvasHeight / scale);
-            const noiseCanvas = document.createElement('canvas');
+        const grainCanvas = buffers.grain;
+        if (grainCanvas.width !== targetWidth || grainCanvas.height !== targetHeight) {
+            grainCanvas.width = targetWidth;
+            grainCanvas.height = targetHeight;
+        }
+        const grainCtx = grainCanvas.getContext('2d')!;
+        
+        const recalibratedGrainSize = grainSize * 18 / 100;
+        const scale = 1 + (recalibratedGrainSize / 100) * 7;
+        const noiseW = Math.ceil(targetWidth / scale);
+        const noiseH = Math.ceil(targetHeight / scale);
+        
+        const noiseCanvas = buffers.noise;
+        if (noiseCanvas.width !== noiseW || noiseCanvas.height !== noiseH) {
             noiseCanvas.width = noiseW;
             noiseCanvas.height = noiseH;
-            const noiseCtx = noiseCanvas.getContext('2d');
-            if (noiseCtx) {
-                const imageData = noiseCtx.createImageData(noiseW, noiseH);
-                const data = imageData.data;
-                const contrastFactor = 128 + (DEFAULT_SLIDER_VALUE / 100) * 127;
-                for (let i = 0; i < data.length; i += 4) {
-                    const val = 128 + (Math.random() - 0.5) * contrastFactor;
-                    data[i] = data[i + 1] = data[i + 2] = val;
-                    data[i + 3] = 255;
-                }
-                noiseCtx.putImageData(imageData, 0, 0);
-                grainCtx.imageSmoothingEnabled = false;
-                grainCtx.drawImage(noiseCanvas, 0, 0, noiseW, noiseH, 0, 0, canvasWidth, canvasHeight);
-                
-                if (!isBackgroundBlurEnabled) {
-                    const dotsMaskCanvas = document.createElement('canvas');
-                    dotsMaskCanvas.width = canvasWidth;
-                    dotsMaskCanvas.height = canvasHeight;
-                    const maskCtx = dotsMaskCanvas.getContext('2d');
-                    if (maskCtx) {
-                        maskCtx.fillStyle = 'white';
-                        maskCtx.beginPath();
-                        for (const item of maskItems) {
-                            maskCtx.moveTo(item.centerX + item.radius, item.centerY);
-                            maskCtx.arc(item.centerX, item.centerY, item.radius, 0, 2 * Math.PI);
-                        }
-                        maskCtx.fill();
-                        grainCtx.globalCompositeOperation = 'destination-in';
-                        grainCtx.drawImage(dotsMaskCanvas, 0, 0);
-                    }
-                }
-
-                ctx.save();
-                const recalibratedGrainAmount = grainAmount * 35 / 100;
-                ctx.globalAlpha = recalibratedGrainAmount / 100;
-                ctx.globalCompositeOperation = 'overlay';
-                ctx.drawImage(grainCanvas, 0, 0);
-                ctx.restore();
-            }
         }
+        const noiseCtx = noiseCanvas.getContext('2d')!;
+        
+        const imageData = noiseCtx.createImageData(noiseW, noiseH);
+        const data = imageData.data;
+        const contrastFactor = 128 + (DEFAULT_SLIDER_VALUE / 100) * 127;
+        
+        // Generate noise
+        for (let i = 0; i < data.length; i += 4) {
+            const val = 128 + (Math.random() - 0.5) * contrastFactor;
+            data[i] = data[i + 1] = data[i + 2] = val;
+            data[i + 3] = 255;
+        }
+        noiseCtx.putImageData(imageData, 0, 0);
+        
+        grainCtx.imageSmoothingEnabled = false;
+        grainCtx.drawImage(noiseCanvas, 0, 0, noiseW, noiseH, 0, 0, targetWidth, targetHeight);
+        
+        // Mask grain if background is sharp (only apply to dots)
+        if (!isBackgroundBlurEnabled) {
+            const dotsMaskCanvas = buffers.dotsMask;
+            if (dotsMaskCanvas.width !== targetWidth || dotsMaskCanvas.height !== targetHeight) {
+                dotsMaskCanvas.width = targetWidth;
+                dotsMaskCanvas.height = targetHeight;
+            }
+            const maskCtx = dotsMaskCanvas.getContext('2d')!;
+            maskCtx.clearRect(0, 0, targetWidth, targetHeight);
+            maskCtx.fillStyle = 'white';
+            maskCtx.beginPath();
+            for (const item of maskItems) {
+                maskCtx.moveTo(item.centerX + item.radius, item.centerY);
+                maskCtx.arc(item.centerX, item.centerY, item.radius, 0, 2 * Math.PI);
+            }
+            maskCtx.fill();
+            grainCtx.globalCompositeOperation = 'destination-in';
+            grainCtx.drawImage(dotsMaskCanvas, 0, 0);
+            grainCtx.globalCompositeOperation = 'source-over'; // Reset
+        }
+
+        ctx.save();
+        const recalibratedGrainAmount = grainAmount * 35 / 100;
+        ctx.globalAlpha = recalibratedGrainAmount / 100;
+        ctx.globalCompositeOperation = 'overlay';
+        ctx.drawImage(grainCanvas, 0, 0);
+        ctx.restore();
     }
 };
+
 
 export const useGlassDotsPanel = ({
   theme,
@@ -366,12 +479,25 @@ export const useGlassDotsPanel = ({
   const [wallpaperType, setWallpaperType] = useState<'phone' | 'desktop'>(isMobile ? 'phone' : 'desktop');
   const [isFullScreenPreview, setIsFullScreenPreview] = useState(false);
   const [showFsToast, setShowFsToast] = useState(false);
+  const [isFullScreenControlsOpen, setIsFullScreenControlsOpen] = useState(false);
+  
+  // Refs for canvases
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fullScreenCanvasRef = useRef<HTMLCanvasElement>(null);
   const fullScreenContainerRef = useRef<HTMLDivElement>(null);
   const fullScreenFileInputRef = useRef<HTMLInputElement>(null);
-  const [isFullScreenControlsOpen, setIsFullScreenControlsOpen] = useState(false);
   
+  // Refs for buffers (Memory Optimization)
+  const bufferRefs = {
+      sourceBleed: useRef<HTMLCanvasElement>(null),
+      temp: useRef<HTMLCanvasElement>(null),
+      blurBleed: useRef<HTMLCanvasElement>(null),
+      finalBg: useRef<HTMLCanvasElement>(null),
+      grain: useRef<HTMLCanvasElement>(null),
+      noise: useRef<HTMLCanvasElement>(null),
+      dotsMask: useRef<HTMLCanvasElement>(null)
+  };
+
   const { outputType } = liveGlassDotsSettings;
 
   const liveActiveState = useMemo(() => {
@@ -479,97 +605,48 @@ export const useGlassDotsPanel = ({
 
   const glassDotsCropIsNeeded = useMemo(() => image ? Math.abs((image.width / image.height) - (fullCanvasWidth / fullCanvasHeight)) > 0.01 : false, [image, fullCanvasWidth, fullCanvasHeight]);
 
-  useEffect(() => {
-    if (!image) return;
-    const canvas = isFullScreenPreview ? fullScreenCanvasRef.current : canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    
-    // --- START: New bleed and oversized canvas logic ---
-    const { resolution, ior, cropOffsetX, cropOffsetY, isMonochrome, blurAmount, isBackgroundBlurEnabled } = liveActiveState;
-
-    // 1. Calculate required bleed based on IOR and a safe assumption of max blob size
-    const gridWidth = Math.floor(10 + (resolution / 100) * 100);
-    const maxBlobSizeFactor = 0.5; // Assume a blob can be up to 50% of the grid width
-    const maxBlobPixelWidth = (previewCanvasWidth / gridWidth) * (gridWidth * maxBlobSizeFactor);
-    const refractScale = 1 + (ior / 100) * 0.4;
-    const scaleFactor = refractScale - 1;
-    const bleed = (maxBlobPixelWidth / 2) * scaleFactor;
-
-    const bleedX = bleed;
-    const bleedY = bleed * (previewCanvasHeight / previewCanvasWidth);
-
-    const bleedCanvasWidth = previewCanvasWidth + 2 * bleedX;
-    const bleedCanvasHeight = previewCanvasHeight + 2 * bleedY;
-    
-    // 2. Prepare oversized source canvas
-    const sourceBleedCanvas = document.createElement('canvas');
-    sourceBleedCanvas.width = bleedCanvasWidth;
-    sourceBleedCanvas.height = bleedCanvasHeight;
-    const sourceBleedCtx = sourceBleedCanvas.getContext('2d', { willReadFrequently: true });
-    if (!sourceBleedCtx) return;
-
-    if (isMonochrome) sourceBleedCtx.filter = 'grayscale(100%)';
-    
-    const imgAspect = image.width / image.height;
-    const bleedCanvasAspect = bleedCanvasWidth / bleedCanvasHeight;
-    let sx = 0, sy = 0, sWidth = image.width, sHeight = image.height;
-
-    if (imgAspect > bleedCanvasAspect) {
-        sHeight = image.height;
-        sWidth = sHeight * bleedCanvasAspect;
-        sx = (image.width - sWidth) * cropOffsetX;
-    } else {
-        sWidth = image.width;
-        sHeight = sWidth / bleedCanvasAspect;
-        sy = (image.height - sHeight) * cropOffsetY;
-    }
-    sourceBleedCtx.drawImage(image, sx, sy, sWidth, sHeight, 0, 0, bleedCanvasWidth, bleedCanvasHeight);
-
-    // 3. Prepare oversized blurred canvas
-    const blurBleedCanvas = document.createElement('canvas');
-    blurBleedCanvas.width = bleedCanvasWidth;
-    blurBleedCanvas.height = bleedCanvasHeight;
-    const blurBleedCtx = blurBleedCanvas.getContext('2d');
-    if (!blurBleedCtx) return;
-
-    const effectiveBlurAmount = 12 + (blurAmount * 0.88);
-    const blurPx = (effectiveBlurAmount / 100) * Math.max(bleedCanvasWidth, bleedCanvasHeight) * 0.02;
-    if (blurPx > 0) {
-      blurBleedCtx.filter = `blur(${blurPx}px)`;
-    }
-    blurBleedCtx.drawImage(sourceBleedCanvas, 0, 0);
-
-    // 4. Prepare final background canvas
-    const finalBgCanvas = document.createElement('canvas');
-    finalBgCanvas.width = previewCanvasWidth;
-    finalBgCanvas.height = previewCanvasHeight;
-    const finalBgCtx = finalBgCanvas.getContext('2d');
-    if (!finalBgCtx) return;
-
-    if (isBackgroundBlurEnabled) {
-        // This is a simplified version of the old distortion logic, applied to the oversized canvas
-        // A more complex implementation would be needed for a perfect 1:1 match
-        const distortedCtx = blurBleedCtx; // Use the blurred canvas for a distorted effect
-        finalBgCtx.drawImage(distortedCtx.canvas, bleedX, bleedY, previewCanvasWidth, previewCanvasHeight, 0, 0, previewCanvasWidth, previewCanvasHeight);
-    } else {
-        finalBgCtx.drawImage(sourceBleedCanvas, bleedX, bleedY, previewCanvasWidth, previewCanvasHeight, 0, 0, previewCanvasWidth, previewCanvasHeight);
-    }
-    // --- END: New bleed and oversized canvas logic ---
-
-    drawGlassDots(ctx, { 
-        canvasWidth: previewCanvasWidth, 
-        canvasHeight: previewCanvasHeight, 
-        sourceBleedCanvas,
-        blurBleedCanvas,
-        finalBgCanvas,
-        bleedX,
-        bleedY,
-        settings: liveActiveState 
-    });
-  }, [image, isFullScreenPreview, previewCanvasWidth, previewCanvasHeight, liveActiveState]);
+  // --- Optimized Rendering ---
   
+  // Memoize the heavy blob detection
+  // This ensures we don't re-run detection when changing visual sliders like blur or pixel gap
+  const analyzedScene = useMemo(() => {
+      if (!image) return null;
+      
+      // For analysis, we use the preview dimensions. 
+      // The relative grid positions will be consistent for high-res export later.
+      
+      // Get reusable buffers for analysis
+      const analysisBuffers = {
+          sourceBleed: getBuffer(bufferRefs.sourceBleed, 1, 1), // Size will be set in analyzeScene
+          temp: getBuffer(bufferRefs.temp, 1, 1)
+      };
+
+      return analyzeScene(image, liveActiveState, previewCanvasWidth, previewCanvasHeight, analysisBuffers);
+  }, [image, liveActiveState.resolution, liveActiveState.ior, liveActiveState.cropOffsetX, liveActiveState.cropOffsetY, liveActiveState.isMonochrome, liveActiveState.similaritySensitivity, previewCanvasWidth, previewCanvasHeight]);
+
+  // Effect to handle actual drawing
+  useEffect(() => {
+      if (!analyzedScene) return;
+      
+      const canvas = isFullScreenPreview ? fullScreenCanvasRef.current : canvasRef.current;
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      // Get reusable buffers for rendering
+      const renderBuffers = {
+          blurBleed: getBuffer(bufferRefs.blurBleed, 1, 1),
+          finalBg: getBuffer(bufferRefs.finalBg, 1, 1),
+          grain: getBuffer(bufferRefs.grain, 1, 1),
+          noise: getBuffer(bufferRefs.noise, 1, 1),
+          dotsMask: getBuffer(bufferRefs.dotsMask, 1, 1)
+      };
+
+      renderScene(ctx, analyzedScene, liveActiveState, previewCanvasWidth, previewCanvasHeight, renderBuffers);
+
+  }, [analyzedScene, liveActiveState, previewCanvasWidth, previewCanvasHeight, isFullScreenPreview]);
+
+
   const getCanvasBlob = useCallback(async (options: { highQuality?: boolean } = {}): Promise<Blob | null> => {
     const { highQuality = false } = options;
     if (!image) return null;
@@ -586,56 +663,24 @@ export const useGlassDotsPanel = ({
 
         const settingsToDraw = outputType === 'print' ? glassDotsSettings.print : glassDotsSettings.wallpaper[wallpaperType];
         
-        // --- Re-run the full pipeline for high quality export ---
-        const { resolution, ior, cropOffsetX, cropOffsetY, isMonochrome, blurAmount, isBackgroundBlurEnabled } = settingsToDraw;
-        const gridWidth = Math.floor(10 + (resolution / 100) * 100);
-        const maxBlobSizeFactor = 0.5;
-        const maxBlobPixelWidth = (targetWidth / gridWidth) * (gridWidth * maxBlobSizeFactor);
-        const refractScale = 1 + (ior / 100) * 0.4;
-        const scaleFactor = refractScale - 1;
-        const bleed = (maxBlobPixelWidth / 2) * scaleFactor;
-        const bleedX = bleed;
-        const bleedY = bleed * (targetHeight / targetWidth);
-        const bleedCanvasWidth = targetWidth + 2 * bleedX;
-        const bleedCanvasHeight = targetHeight + 2 * bleedY;
+        // For download/high-quality, we must create FRESH buffers to avoid messing with the live preview state 
+        // or running into size conflicts if the preview render happens concurrently.
+        // Also, high-res needs bigger buffers.
         
-        const sourceBleedCanvas = document.createElement('canvas');
-        sourceBleedCanvas.width = bleedCanvasWidth;
-        sourceBleedCanvas.height = bleedCanvasHeight;
-        const sourceBleedCtx = sourceBleedCanvas.getContext('2d', { willReadFrequently: true });
-        if (!sourceBleedCtx) return resolve(null);
-        if (isMonochrome) sourceBleedCtx.filter = 'grayscale(100%)';
-        const imgAspect = image.width / image.height, bleedCanvasAspect = bleedCanvasWidth / bleedCanvasHeight;
-        let sx = 0, sy = 0, sWidth = image.width, sHeight = image.height;
-        if (imgAspect > bleedCanvasAspect) { sHeight = image.height; sWidth = sHeight * bleedCanvasAspect; sx = (image.width - sWidth) * cropOffsetX; }
-        else { sWidth = image.width; sHeight = sWidth / bleedCanvasAspect; sy = (image.height - sHeight) * cropOffsetY; }
-        sourceBleedCtx.drawImage(image, sx, sy, sWidth, sHeight, 0, 0, bleedCanvasWidth, bleedCanvasHeight);
+        const freshBuffers = {
+            sourceBleed: document.createElement('canvas'),
+            temp: document.createElement('canvas'),
+            blurBleed: document.createElement('canvas'),
+            finalBg: document.createElement('canvas'),
+            grain: document.createElement('canvas'),
+            noise: document.createElement('canvas'),
+            dotsMask: document.createElement('canvas')
+        };
 
-        const blurBleedCanvas = document.createElement('canvas');
-        blurBleedCanvas.width = bleedCanvasWidth;
-        blurBleedCanvas.height = bleedCanvasHeight;
-        const blurBleedCtx = blurBleedCanvas.getContext('2d');
-        if (!blurBleedCtx) return resolve(null);
-        const effectiveBlurAmount = 12 + (blurAmount * 0.88);
-        const blurPx = (effectiveBlurAmount / 100) * Math.max(bleedCanvasWidth, bleedCanvasHeight) * 0.02;
-        if (blurPx > 0) blurBleedCtx.filter = `blur(${blurPx}px)`;
-        blurBleedCtx.drawImage(sourceBleedCanvas, 0, 0);
+        // Run the full pipeline from scratch
+        const scene = analyzeScene(image, settingsToDraw, targetWidth, targetHeight, freshBuffers);
+        renderScene(ctx, scene, settingsToDraw, targetWidth, targetHeight, freshBuffers);
 
-        const finalBgCanvas = document.createElement('canvas');
-        finalBgCanvas.width = targetWidth;
-        finalBgCanvas.height = targetHeight;
-        const finalBgCtx = finalBgCanvas.getContext('2d');
-        if (!finalBgCtx) return resolve(null);
-        if (isBackgroundBlurEnabled) { finalBgCtx.drawImage(blurBleedCtx.canvas, bleedX, bleedY, targetWidth, targetHeight, 0, 0, targetWidth, targetHeight); }
-        else { finalBgCtx.drawImage(sourceBleedCanvas, bleedX, bleedY, targetWidth, targetHeight, 0, 0, targetWidth, targetHeight); }
-        // --- End re-run ---
-
-        drawGlassDots(ctx, { 
-            canvasWidth: targetWidth, 
-            canvasHeight: targetHeight, 
-            sourceBleedCanvas, blurBleedCanvas, finalBgCanvas, bleedX, bleedY,
-            settings: settingsToDraw
-        });
         offscreenCanvas.toBlob(blob => resolve(blob), 'image/png');
     });
   }, [image, fullCanvasWidth, fullCanvasHeight, previewCanvasWidth, previewCanvasHeight, glassDotsSettings, wallpaperType, outputType]);
