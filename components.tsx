@@ -1,8 +1,9 @@
+
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { Theme, PhotoWidgetOutputMode, Tab } from './types';
 import { trackEvent } from './analytics';
 
-export const Dropzone: React.FC<{ onFileSelect: (file: File, method: 'drag_drop' | 'click') => void; isLoading: boolean; compact?: boolean; theme: Theme; accept?: string; context?: Tab; }> = ({ onFileSelect, isLoading, compact = false, theme, accept = "image/*", context }) => {
+export const Dropzone: React.FC<{ onFileSelect: (file: File, method: 'drag_drop' | 'click') => void; isLoading: boolean; compact?: boolean; theme: Theme; accept?: string; context?: Tab; isMobile?: boolean; }> = ({ onFileSelect, isLoading, compact = false, theme, accept = "image/*", context, isMobile = false }) => {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [isDragging, setIsDragging] = useState(false);
 
@@ -59,25 +60,27 @@ export const Dropzone: React.FC<{ onFileSelect: (file: File, method: 'drag_drop'
         ? (theme === 'dark' ? 'border-white bg-nothing-gray-dark' : 'border-black bg-day-gray-light')
         : (theme === 'dark' ? 'border-gray-600 bg-transparent hover:border-gray-400' : 'border-gray-400 bg-transparent hover:border-gray-600');
 
+    const boldText = isMobile ? "Drag & Drop or Click" : "Drag & Drop | Click | Ctrl+V";
+
     const dropTexts = {
         pfp: {
-            bold: "Drag & Drop or Click",
+            bold: boldText,
             normal: "to load an image",
         },
         wallpaper: {
-            bold: "Drag & Drop or Click",
+            bold: boldText,
             normal: "to load an image",
         },
         photoWidget: {
-            bold: "Drag & Drop or Click",
+            bold: boldText,
             normal: "to load an image",
         },
         valueAliasing: {
-            bold: "Drag & Drop or Click",
+            bold: boldText,
             normal: "to load an image",
         },
         glassDots: {
-            bold: "Drag & Drop or Click",
+            bold: boldText,
             normal: "to load an image",
         }
     };
@@ -110,7 +113,7 @@ export const Dropzone: React.FC<{ onFileSelect: (file: File, method: 'drag_drop'
                         <span className="text-6xl" role="img" aria-label="Folder icon">📁</span>
                         <p className={`text-xl font-semibold ${theme === 'dark' ? 'text-nothing-light' : 'text-day-text'}`}>{currentTexts.bold}</p>
                         <p className="text-sm">{currentTexts.normal}</p>
-                        <p className="text-xs mt-1">(all image processing happens locally)</p>
+                        <p className="text-sm mt-1">(all image processing happens locally)</p>
                     </>
                 )}
             </div>

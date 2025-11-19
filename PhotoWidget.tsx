@@ -355,7 +355,7 @@ export const usePhotoWidgetPanel = ({ theme, isMobile, footerLinks, triggerShare
   ) : null;
   
   const previewPanel = !imageSrc ? (
-    <Dropzone onFileSelect={handleFileSelect} isLoading={isLoading} theme={theme} accept="image/png" context="photoWidget" />
+    <Dropzone onFileSelect={handleFileSelect} isLoading={isLoading} theme={theme} accept="image/png" context="photoWidget" isMobile={isMobile} />
   ) : (
     <div className="relative w-full h-full flex items-center justify-center">
         <div className="w-full max-w-2xl">
@@ -382,7 +382,7 @@ export const usePhotoWidgetPanel = ({ theme, isMobile, footerLinks, triggerShare
 
   const downloadButton = <button onClick={handleDownload} disabled={isLoading || isDownloading || !colorMatrix} className={`w-full h-full p-4 text-center text-lg font-bold transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed ${theme === 'dark' ? 'bg-nothing-red text-nothing-light hover:bg-opacity-80' : 'bg-day-accent text-white hover:bg-opacity-80'}`} aria-label="Download the current widget"> Download </button>;
   
-  const replaceButton = <Dropzone onFileSelect={handleFileSelect} isLoading={isLoading} compact={true} theme={theme} accept="image/png" />;
+  const replaceButton = <Dropzone onFileSelect={handleFileSelect} isLoading={isLoading} compact={true} theme={theme} accept="image/png" isMobile={isMobile} />;
 
   return { previewPanel, controlsPanel, imageSrc, isLoading, handleFileSelect, handleDownload, downloadButton, replaceButton, getCanvasBlob, undo: undoPhotoWidget, redo: redoPhotoWidget, canUndo: canUndoPhotoWidget, canRedo: canRedoPhotoWidget };
 };

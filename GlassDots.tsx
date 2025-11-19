@@ -1,8 +1,9 @@
+
 import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { createPortal, flushSync } from 'react-dom';
 import { useHistory, useImageHandler } from './hooks';
 import { getTimestamp } from './utils';
-import { GlassDotsState, Theme, GlassDotsSettingsContainer, GlassDotsPrintState } from './types';
+import { GlassDotsState, Theme, GlassDotsSettingsContainer } from './types';
 import { Dropzone, EnhancedSlider, UndoRedoControls, SegmentedControl, ToastNotification, SharePopup } from './components';
 import { trackEvent } from './analytics';
 
@@ -11,44 +12,6 @@ const GLASSDOTS_PHONE_WIDTH = 1260;
 const GLASSDOTS_PHONE_HEIGHT = 2800;
 const GLASSDOTS_DESKTOP_WIDTH = 3840;
 const GLASSDOTS_DESKTOP_HEIGHT = 2160;
-const PRINT_DPI = 300;
-
-const PRINT_SIZES: Record<string, { label: string, w: number, h: number, group: string, isRatio?: boolean }> = {
-    // US Standard
-    'us_8x10': { label: '8 x 10 in', w: 8, h: 10, group: 'US Standard' },
-    'us_8.5x11': { label: '8.5 x 11 in', w: 8.5, h: 11, group: 'US Standard' },
-    'us_11x14': { label: '11 x 14 in', w: 11, h: 14, group: 'US Standard' },
-    'us_11x17': { label: '11 x 17 in', w: 11, h: 17, group: 'US Standard' },
-    'us_12x16': { label: '12 x 16 in', w: 12, h: 16, group: 'US Standard' },
-    'us_12x18': { label: '12 x 18 in', w: 12, h: 18, group: 'US Standard' },
-    'us_16x20': { label: '16 x 20 in', w: 16, h: 20, group: 'US Standard' },
-    'us_18x24': { label: '18 x 24 in', w: 18, h: 24, group: 'US Standard' },
-    'us_20x30': { label: '20 x 30 in', w: 20, h: 30, group: 'US Standard' },
-    'us_24x36': { label: '24 x 36 in', w: 24, h: 36, group: 'US Standard' },
-    'us_27x40': { label: '27 x 40 in', w: 27, h: 40, group: 'US Standard' },
-    'us_36x48': { label: '36 x 48 in', w: 36, h: 48, group: 'US Standard' },
-    // ISO
-    'iso_a5': { label: 'A5', w: 5.83, h: 8.27, group: 'ISO' },
-    'iso_a4': { label: 'A4', w: 8.27, h: 11.69, group: 'ISO' },
-    'iso_a3': { label: 'A3', w: 11.69, h: 16.54, group: 'ISO' },
-    'iso_a2': { label: 'A2', w: 16.54, h: 23.39, group: 'ISO' },
-    'iso_a1': { label: 'A1', w: 23.39, h: 33.11, group: 'ISO' },
-    'iso_a0': { label: 'A0', w: 33.11, h: 46.81, group: 'ISO' },
-    // Ratio (base size of 12 inches for the smaller side)
-    'original': { label: 'Original Ratio', w: 1, h: 1, group: 'Ratio', isRatio: true },
-    'ratio_1:1': { label: '1:1', w: 12, h: 12, group: 'Ratio', isRatio: true },
-    'ratio_5:4': { label: '5:4', w: 15, h: 12, group: 'Ratio', isRatio: true },
-    'ratio_4:3': { label: '4:3', w: 16, h: 12, group: 'Ratio', isRatio: true },
-    'ratio_3:2': { label: '3:2', w: 18, h: 12, group: 'Ratio', isRatio: true },
-    'ratio_16:9': { label: '16:9', w: 21.33, h: 12, group: 'Ratio', isRatio: true },
-    'ratio_1.85:1': { label: '1.85:1', w: 22.2, h: 12, group: 'Ratio', isRatio: true },
-    'ratio_2:1': { label: '2:1', w: 24, h: 12, group: 'Ratio', isRatio: true },
-    'ratio_2.35:1': { label: '2.35:1', w: 28.2, h: 12, group: 'Ratio', isRatio: true },
-    'ratio_21:9': { label: '21:9', w: 28, h: 12, group: 'Ratio', isRatio: true },
-    'ratio_3:1': { label: '3:1', w: 36, h: 12, group: 'Ratio', isRatio: true },
-};
-const PRINT_SIZE_GROUPS = ['US Standard', 'ISO', 'Ratio'];
-
 
 const GLASSDOTS_INITIAL_STATE: GlassDotsState = {
     resolution: DEFAULT_SLIDER_VALUE,
@@ -60,27 +23,69 @@ const GLASSDOTS_INITIAL_STATE: GlassDotsState = {
     isGrainEnabled: true,
     grainAmount: DEFAULT_SLIDER_VALUE,
     grainSize: 0,
-    ior: 25,
+    ior: 50,
     similaritySensitivity: 50,
     isBackgroundBlurEnabled: false,
     lowerLimit: 0,
     isMarkerEnabled: false,
 };
 
-const PRINT_INITIAL_STATE: GlassDotsPrintState = {
-    ...GLASSDOTS_INITIAL_STATE,
-    size: 'original',
-    orientation: 'portrait',
+const FULL_GLASSDOTS_INITIAL_STATE: GlassDotsSettingsContainer = {
+    phone: { ...GLASSDOTS_INITIAL_STATE },
+    desktop: { ...GLASSDOTS_INITIAL_STATE },
 };
 
-const FULL_GLASSDOTS_INITIAL_STATE: GlassDotsSettingsContainer = {
-    outputType: 'wallpaper',
-    wallpaper: {
-        phone: { ...GLASSDOTS_INITIAL_STATE },
-        desktop: { ...GLASSDOTS_INITIAL_STATE },
-    },
-    print: PRINT_INITIAL_STATE,
+type PresetDefinition = {
+    id: number;
+    code: string;
+    label: string;
+    desktop: Partial<GlassDotsState>;
+    phone: Partial<GlassDotsState>;
 };
+
+const PRESETS_DATA: PresetDefinition[] = [
+    {
+        id: 1, code: 'UNI', label: 'UNIFORM',
+        desktop: { resolution: 96, pixelGap: 64, lowerLimit: 0, similaritySensitivity: 0, blurAmount: 20, ior: 0, grainSize: 0, grainAmount: 42, isMarkerEnabled: false, isBackgroundBlurEnabled: false, isMonochrome: false },
+        phone:   { resolution: 52, pixelGap: 64, lowerLimit: 0, similaritySensitivity: 0, blurAmount: 20, ior: 0, grainSize: 0, grainAmount: 28, isMarkerEnabled: false, isBackgroundBlurEnabled: false, isMonochrome: false }
+    },
+    {
+        id: 2, code: 'UBL', label: 'UNIFORM BLURRED',
+        desktop: { resolution: 96, pixelGap: 64, lowerLimit: 0, similaritySensitivity: 0, blurAmount: 6, ior: 100, grainSize: 0, grainAmount: 36, isMarkerEnabled: false, isBackgroundBlurEnabled: true, isMonochrome: false },
+        phone:   { resolution: 52, pixelGap: 64, lowerLimit: 0, similaritySensitivity: 0, blurAmount: 6, ior: 100, grainSize: 0, grainAmount: 20, isMarkerEnabled: false, isBackgroundBlurEnabled: true, isMonochrome: false }
+    },
+    {
+        id: 3, code: 'BAR', label: 'BARE',
+        desktop: { resolution: 0, pixelGap: 67, lowerLimit: 52, similaritySensitivity: 100, blurAmount: 16, ior: 32, grainSize: 0, grainAmount: 50, isMarkerEnabled: true, isBackgroundBlurEnabled: false, isMonochrome: false },
+        phone:   { resolution: 0, pixelGap: 56, lowerLimit: 32, similaritySensitivity: 100, blurAmount: 8, ior: 12, grainSize: 0, grainAmount: 36, isMarkerEnabled: true, isBackgroundBlurEnabled: false, isMonochrome: false }
+    },
+    {
+        id: 4, code: 'BDS', label: '3D BEADS',
+        desktop: { resolution: 32, pixelGap: 32, lowerLimit: 0, similaritySensitivity: 100, blurAmount: 18, ior: 100, grainSize: 0, grainAmount: 64, isMarkerEnabled: true, isBackgroundBlurEnabled: true, isMonochrome: false },
+        phone:   { resolution: 4, pixelGap: 36, lowerLimit: 0, similaritySensitivity: 100, blurAmount: 21, ior: 100, grainSize: 0, grainAmount: 40, isMarkerEnabled: true, isBackgroundBlurEnabled: true, isMonochrome: false }
+    },
+    {
+        id: 5, code: 'PAL', label: 'PALETTE',
+        desktop: { resolution: 52, pixelGap: 32, lowerLimit: 0, similaritySensitivity: 100, blurAmount: 72, ior: 100, grainSize: 8, grainAmount: 60, isMarkerEnabled: false, isBackgroundBlurEnabled: true, isMonochrome: false },
+        phone:   { resolution: 6, pixelGap: 32, lowerLimit: 0, similaritySensitivity: 100, blurAmount: 72, ior: 100, grainSize: 0, grainAmount: 48, isMarkerEnabled: false, isBackgroundBlurEnabled: true, isMonochrome: false }
+    },
+    {
+        id: 6, code: 'ORG', label: 'ORGANIC',
+        desktop: { resolution: 82, pixelGap: 64, lowerLimit: 0, similaritySensitivity: 78, blurAmount: 12, ior: 80, grainSize: 0, grainAmount: 40, isMarkerEnabled: false, isBackgroundBlurEnabled: false, isMonochrome: false },
+        phone:   { resolution: 36, pixelGap: 36, lowerLimit: 0, similaritySensitivity: 90, blurAmount: 12, ior: 72, grainSize: 0, grainAmount: 50, isMarkerEnabled: false, isBackgroundBlurEnabled: false, isMonochrome: false }
+    },
+    {
+        id: 7, code: 'MGR', label: 'LOW DEPTH GRAIN MONO',
+        desktop: { resolution: 28, pixelGap: 36, lowerLimit: 0, similaritySensitivity: 96, blurAmount: 0, ior: 28, grainSize: 21, grainAmount: 72, isMarkerEnabled: true, isBackgroundBlurEnabled: false, isMonochrome: true },
+        phone:   { resolution: 3, pixelGap: 64, lowerLimit: 20, similaritySensitivity: 96, blurAmount: 0, ior: 24, grainSize: 10, grainAmount: 60, isMarkerEnabled: true, isBackgroundBlurEnabled: false, isMonochrome: true }
+    },
+    {
+        id: 8, code: 'MOD', label: 'MODERATE LOW GRAIN LOW BLUR',
+        desktop: { resolution: 40, pixelGap: 60, lowerLimit: 0, similaritySensitivity: 92, blurAmount: 18, ior: 75, grainSize: 0, grainAmount: 20, isMarkerEnabled: true, isBackgroundBlurEnabled: false, isMonochrome: false },
+        phone:   { resolution: 8, pixelGap: 0, lowerLimit: 14, similaritySensitivity: 67, blurAmount: 17, ior: 84, grainSize: 0, grainAmount: 20, isMarkerEnabled: true, isBackgroundBlurEnabled: false, isMonochrome: false }
+    },
+];
+
 
 const colorDistance = (
     c1: { r: number, g: number, b: number } | null,
@@ -366,18 +371,17 @@ export const useGlassDotsPanel = ({
   const [wallpaperType, setWallpaperType] = useState<'phone' | 'desktop'>(isMobile ? 'phone' : 'desktop');
   const [isFullScreenPreview, setIsFullScreenPreview] = useState(false);
   const [showFsToast, setShowFsToast] = useState(false);
+  const [viewMode, setViewMode] = useState<'presets' | 'controls'>('presets');
+  const [activePresetId, setActivePresetId] = useState<number | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fullScreenCanvasRef = useRef<HTMLCanvasElement>(null);
   const fullScreenContainerRef = useRef<HTMLDivElement>(null);
   const fullScreenFileInputRef = useRef<HTMLInputElement>(null);
   const [isFullScreenControlsOpen, setIsFullScreenControlsOpen] = useState(false);
-  
-  const { outputType } = liveGlassDotsSettings;
 
   const liveActiveState = useMemo(() => {
-      const { wallpaper, print } = liveGlassDotsSettings;
-      return outputType === 'wallpaper' ? wallpaper[wallpaperType] : print;
-  }, [liveGlassDotsSettings, outputType, wallpaperType]);
+      return liveGlassDotsSettings[wallpaperType];
+  }, [liveGlassDotsSettings, wallpaperType]);
 
   const {
     imageSrc,
@@ -395,36 +399,80 @@ export const useGlassDotsPanel = ({
   
   useEffect(() => {
     if (image) {
-        const newOrientation = image.width >= image.height ? 'landscape' : 'portrait';
-        const newInitialState = JSON.parse(JSON.stringify(FULL_GLASSDOTS_INITIAL_STATE));
-        newInitialState.print.size = 'original';
-        newInitialState.print.orientation = newOrientation;
-        resetGlassDotsHistoryStack(newInitialState);
+        resetGlassDotsHistoryStack(FULL_GLASSDOTS_INITIAL_STATE);
+        setActivePresetId(null);
     } else {
         resetGlassDotsHistoryStack(FULL_GLASSDOTS_INITIAL_STATE);
+        setActivePresetId(null);
     }
   }, [image, resetGlassDotsHistoryStack]);
 
   useEffect(() => { setLiveGlassDotsSettings(glassDotsSettings); }, [glassDotsSettings]);
   
   const handleResetCurrent = useCallback(() => {
-    trackEvent('glass_dots_reset_defaults', { output_mode: outputType === 'wallpaper' ? wallpaperType : 'print' });
+    trackEvent('glass_dots_reset_defaults', { wallpaper_type: wallpaperType });
     setGlassDotsSettings(s => {
-        const resetStateForMode = (state: GlassDotsState | GlassDotsPrintState, initial: GlassDotsState | GlassDotsPrintState) => {
-            const { cropOffsetX, cropOffsetY } = state;
-            const printSpecifics = 'size' in state ? { size: state.size, orientation: state.orientation } : {};
-            return { ...initial, cropOffsetX, cropOffsetY, ...printSpecifics };
+        const currentCrop = {
+            cropOffsetX: s[wallpaperType].cropOffsetX,
+            cropOffsetY: s[wallpaperType].cropOffsetY
         };
-
-        if (s.outputType === 'wallpaper') {
-            return { ...s, wallpaper: {
-                ...s.wallpaper,
-                [wallpaperType]: resetStateForMode(s.wallpaper[wallpaperType], FULL_GLASSDOTS_INITIAL_STATE.wallpaper[wallpaperType]) as GlassDotsState
-            }};
-        }
-        return { ...s, print: resetStateForMode(s.print, FULL_GLASSDOTS_INITIAL_STATE.print) as GlassDotsPrintState };
+        return {
+            ...s,
+            [wallpaperType]: {
+                ...FULL_GLASSDOTS_INITIAL_STATE[wallpaperType],
+                ...currentCrop
+            }
+        };
     });
-  }, [wallpaperType, setGlassDotsSettings, outputType]);
+    setActivePresetId(null);
+  }, [wallpaperType, setGlassDotsSettings]);
+
+  const applyPreset = useCallback((preset: PresetDefinition, targetType: 'phone' | 'desktop' = wallpaperType) => {
+      setGlassDotsSettings(s => {
+          const currentCrop = {
+              cropOffsetX: s[targetType].cropOffsetX,
+              cropOffsetY: s[targetType].cropOffsetY
+          };
+          
+          // Get settings for the specific target device type
+          const presetSettings = targetType === 'phone' ? preset.phone : preset.desktop;
+          
+          const finalSettings: GlassDotsState = {
+              ...FULL_GLASSDOTS_INITIAL_STATE[targetType],
+              ...currentCrop,
+              ...presetSettings,
+              isGrainEnabled: true
+          } as GlassDotsState;
+
+          return {
+              ...s,
+              [targetType]: finalSettings
+          };
+      });
+  }, [wallpaperType, setGlassDotsSettings]);
+
+  const handlePresetClick = (preset: PresetDefinition) => {
+      trackEvent('glass_dots_preset_apply', { preset: preset.code, wallpaper_type: wallpaperType });
+      setActivePresetId(preset.id);
+      applyPreset(preset, wallpaperType);
+  };
+
+  const handleViewModeChange = (mode: 'presets' | 'controls') => {
+      setViewMode(mode);
+      if (mode === 'controls') {
+          setActivePresetId(null);
+      }
+  };
+
+  const handleDeviceTypeChange = (type: 'phone' | 'desktop') => {
+      setWallpaperType(type);
+      if (activePresetId && viewMode === 'presets') {
+          const preset = PRESETS_DATA.find(p => p.id === activePresetId);
+          if (preset) {
+              applyPreset(preset, type);
+          }
+      }
+  };
 
   useEffect(() => {
     const handleFullScreenChange = () => {
@@ -450,32 +498,12 @@ export const useGlassDotsPanel = ({
   }, []);
 
   const [fullCanvasWidth, fullCanvasHeight] = useMemo(() => {
-      if (outputType === 'print') {
-          const printState = liveActiveState as GlassDotsPrintState;
-          const sizeInfo = PRINT_SIZES[printState.size];
-          if (!sizeInfo) return [GLASSDOTS_DESKTOP_WIDTH, GLASSDOTS_DESKTOP_HEIGHT];
-          let w, h;
-          if (printState.size === 'original') {
-              if (!image) return [3600, 3600];
-              const baseSize = 12 * PRINT_DPI;
-              const imgAspect = image.width / image.height;
-              if (imgAspect >= 1) { w = baseSize; h = Math.round(baseSize / imgAspect); }
-              else { h = baseSize; w = Math.round(baseSize * imgAspect); }
-          } else {
-              w = sizeInfo.w * PRINT_DPI; h = sizeInfo.h * PRINT_DPI;
-          }
-          return printState.orientation === 'landscape' ? [Math.max(w, h), Math.min(w, h)] : [Math.min(w, h), Math.max(w, h)];
-      }
       return wallpaperType === 'desktop' ? [GLASSDOTS_DESKTOP_WIDTH, GLASSDOTS_DESKTOP_HEIGHT] : [GLASSDOTS_PHONE_WIDTH, GLASSDOTS_PHONE_HEIGHT];
-  }, [outputType, wallpaperType, liveActiveState, image]);
+  }, [wallpaperType]);
   
   const [previewCanvasWidth, previewCanvasHeight] = useMemo(() => {
-    if (outputType === 'wallpaper') return [fullCanvasWidth, fullCanvasHeight];
-    const aspectRatio = fullCanvasWidth / fullCanvasHeight;
-    const MAX_PREVIEW_DIMENSION = 1500;
-    if (fullCanvasWidth >= fullCanvasHeight) return [MAX_PREVIEW_DIMENSION, Math.round(MAX_PREVIEW_DIMENSION / aspectRatio)];
-    return [Math.round(MAX_PREVIEW_DIMENSION * aspectRatio), MAX_PREVIEW_DIMENSION];
-  }, [outputType, fullCanvasWidth, fullCanvasHeight]);
+    return [fullCanvasWidth, fullCanvasHeight];
+  }, [fullCanvasWidth, fullCanvasHeight]);
 
   const glassDotsCropIsNeeded = useMemo(() => image ? Math.abs((image.width / image.height) - (fullCanvasWidth / fullCanvasHeight)) > 0.01 : false, [image, fullCanvasWidth, fullCanvasHeight]);
 
@@ -486,12 +514,10 @@ export const useGlassDotsPanel = ({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     
-    // --- START: New bleed and oversized canvas logic ---
     const { resolution, ior, cropOffsetX, cropOffsetY, isMonochrome, blurAmount, isBackgroundBlurEnabled } = liveActiveState;
 
-    // 1. Calculate required bleed based on IOR and a safe assumption of max blob size
     const gridWidth = Math.floor(10 + (resolution / 100) * 100);
-    const maxBlobSizeFactor = 0.5; // Assume a blob can be up to 50% of the grid width
+    const maxBlobSizeFactor = 0.5;
     const maxBlobPixelWidth = (previewCanvasWidth / gridWidth) * (gridWidth * maxBlobSizeFactor);
     const refractScale = 1 + (ior / 100) * 0.4;
     const scaleFactor = refractScale - 1;
@@ -503,7 +529,6 @@ export const useGlassDotsPanel = ({
     const bleedCanvasWidth = previewCanvasWidth + 2 * bleedX;
     const bleedCanvasHeight = previewCanvasHeight + 2 * bleedY;
     
-    // 2. Prepare oversized source canvas
     const sourceBleedCanvas = document.createElement('canvas');
     sourceBleedCanvas.width = bleedCanvasWidth;
     sourceBleedCanvas.height = bleedCanvasHeight;
@@ -527,7 +552,6 @@ export const useGlassDotsPanel = ({
     }
     sourceBleedCtx.drawImage(image, sx, sy, sWidth, sHeight, 0, 0, bleedCanvasWidth, bleedCanvasHeight);
 
-    // 3. Prepare oversized blurred canvas
     const blurBleedCanvas = document.createElement('canvas');
     blurBleedCanvas.width = bleedCanvasWidth;
     blurBleedCanvas.height = bleedCanvasHeight;
@@ -541,7 +565,6 @@ export const useGlassDotsPanel = ({
     }
     blurBleedCtx.drawImage(sourceBleedCanvas, 0, 0);
 
-    // 4. Prepare final background canvas
     const finalBgCanvas = document.createElement('canvas');
     finalBgCanvas.width = previewCanvasWidth;
     finalBgCanvas.height = previewCanvasHeight;
@@ -549,14 +572,11 @@ export const useGlassDotsPanel = ({
     if (!finalBgCtx) return;
 
     if (isBackgroundBlurEnabled) {
-        // This is a simplified version of the old distortion logic, applied to the oversized canvas
-        // A more complex implementation would be needed for a perfect 1:1 match
-        const distortedCtx = blurBleedCtx; // Use the blurred canvas for a distorted effect
+        const distortedCtx = blurBleedCtx;
         finalBgCtx.drawImage(distortedCtx.canvas, bleedX, bleedY, previewCanvasWidth, previewCanvasHeight, 0, 0, previewCanvasWidth, previewCanvasHeight);
     } else {
         finalBgCtx.drawImage(sourceBleedCanvas, bleedX, bleedY, previewCanvasWidth, previewCanvasHeight, 0, 0, previewCanvasWidth, previewCanvasHeight);
     }
-    // --- END: New bleed and oversized canvas logic ---
 
     drawGlassDots(ctx, { 
         canvasWidth: previewCanvasWidth, 
@@ -584,9 +604,8 @@ export const useGlassDotsPanel = ({
         const ctx = offscreenCanvas.getContext('2d');
         if (!ctx) return resolve(null);
 
-        const settingsToDraw = outputType === 'print' ? glassDotsSettings.print : glassDotsSettings.wallpaper[wallpaperType];
+        const settingsToDraw = glassDotsSettings[wallpaperType];
         
-        // --- Re-run the full pipeline for high quality export ---
         const { resolution, ior, cropOffsetX, cropOffsetY, isMonochrome, blurAmount, isBackgroundBlurEnabled } = settingsToDraw;
         const gridWidth = Math.floor(10 + (resolution / 100) * 100);
         const maxBlobSizeFactor = 0.5;
@@ -628,7 +647,6 @@ export const useGlassDotsPanel = ({
         if (!finalBgCtx) return resolve(null);
         if (isBackgroundBlurEnabled) { finalBgCtx.drawImage(blurBleedCtx.canvas, bleedX, bleedY, targetWidth, targetHeight, 0, 0, targetWidth, targetHeight); }
         else { finalBgCtx.drawImage(sourceBleedCanvas, bleedX, bleedY, targetWidth, targetHeight, 0, 0, targetWidth, targetHeight); }
-        // --- End re-run ---
 
         drawGlassDots(ctx, { 
             canvasWidth: targetWidth, 
@@ -638,19 +656,13 @@ export const useGlassDotsPanel = ({
         });
         offscreenCanvas.toBlob(blob => resolve(blob), 'image/png');
     });
-  }, [image, fullCanvasWidth, fullCanvasHeight, previewCanvasWidth, previewCanvasHeight, glassDotsSettings, wallpaperType, outputType]);
+  }, [image, fullCanvasWidth, fullCanvasHeight, previewCanvasWidth, previewCanvasHeight, glassDotsSettings, wallpaperType]);
 
   const handleDownload = () => {
-    const analyticsParams: Record<string, any> = { feature: 'glass_dots', output_type: outputType, ...liveActiveState };
+    const analyticsParams: Record<string, any> = { feature: 'glass_dots', wallpaper_type: wallpaperType, ...liveActiveState };
     const onSuccess = () => triggerShareToast(isFullScreenPreview ? () => setShowFsToast(true) : undefined);
     
-    let filename: string;
-    if (outputType === 'print') {
-        const { size, orientation } = glassDotsSettings.print;
-        filename = `matrices-glassdots-print-${size}-${orientation}`;
-    } else {
-        filename = `matrices-glassdots-${wallpaperType}`;
-    }
+    const filename = `matrices-glassdots-${wallpaperType}`;
 
     baseHandleDownload(() => getCanvasBlob({ highQuality: true }), filename, analyticsParams, onSuccess);
   };
@@ -720,23 +732,21 @@ export const useGlassDotsPanel = ({
       };
 
       setLiveGlassDotsSettings(s => {
-          if (s.outputType === 'wallpaper') return { ...s, wallpaper: { ...s.wallpaper, [wallpaperType]: { ...s.wallpaper[wallpaperType], ...newCropState }}};
-          return { ...s, print: { ...s.print, ...newCropState }};
+          return { ...s, [wallpaperType]: { ...s[wallpaperType], ...newCropState }};
       });
   }, [image, fullCanvasWidth, fullCanvasHeight, wallpaperType, isFullScreenPreview]);
 
   const handleDragEnd = useCallback(() => {
       if (dragState.current.isDragging) {
           dragState.current.isDragging = false;
-          if (dragState.current.hasMoved) trackEvent('glass_dots_crop', { wallpaper_type: outputType === 'wallpaper' ? wallpaperType : 'print' });
+          if (dragState.current.hasMoved) trackEvent('glass_dots_crop', { wallpaper_type: wallpaperType });
           const { cropOffsetX: liveCropOffsetX, cropOffsetY: liveCropOffsetY } = liveActiveState;
           setGlassDotsSettings(s => {
-            if (s.outputType === 'wallpaper') return { ...s, wallpaper: { ...s.wallpaper, [wallpaperType]: { ...s.wallpaper[wallpaperType], cropOffsetX: liveCropOffsetX, cropOffsetY: liveCropOffsetY }}};
-            return { ...s, print: { ...s.print, cropOffsetX: liveCropOffsetX, cropOffsetY: liveCropOffsetY }};
+            return { ...s, [wallpaperType]: { ...s[wallpaperType], cropOffsetX: liveCropOffsetX, cropOffsetY: liveCropOffsetY }};
           });
           document.body.style.cursor = 'default';
       }
-  }, [liveActiveState, wallpaperType, setGlassDotsSettings, outputType]);
+  }, [liveActiveState, wallpaperType, setGlassDotsSettings]);
 
   useEffect(() => {
       const onMove = (e: MouseEvent | TouchEvent) => handleDragMove(e);
@@ -756,59 +766,53 @@ export const useGlassDotsPanel = ({
   
   const updateLiveSetting = (key: keyof GlassDotsState, value: any) => {
     setLiveGlassDotsSettings(s => {
-        if (s.outputType === 'wallpaper') return { ...s, wallpaper: { ...s.wallpaper, [wallpaperType]: { ...s.wallpaper[wallpaperType], [key]: value }}};
-        return { ...s, print: { ...s.print, [key]: value }};
+        return { ...s, [wallpaperType]: { ...s[wallpaperType], [key]: value }};
     });
   };
 
   const commitSetting = useCallback((key: keyof GlassDotsState, value: any) => {
     setGlassDotsSettings(s => {
-        if (s.outputType === 'wallpaper') {
-            return { ...s, wallpaper: { ...s.wallpaper, [wallpaperType]: { ...s.wallpaper[wallpaperType], [key]: value }}};
-        }
-        return { ...s, print: { ...s.print, [key]: value }};
+        return { ...s, [wallpaperType]: { ...s[wallpaperType], [key]: value }};
     });
-    trackEvent('glass_dots_slider_change', { slider_name: key, value, output_mode: outputType === 'wallpaper' ? wallpaperType : 'print' });
-  }, [setGlassDotsSettings, outputType, wallpaperType]);
-
-  const handleOutputTypeSelect = (type: 'wallpaper' | 'print') => {
-    trackEvent('glass_dots_output_type_select', { type });
-    setGlassDotsSettings(s => ({ ...s, outputType: type }));
-  };
+    trackEvent('glass_dots_slider_change', { slider_name: key, value, wallpaper_type: wallpaperType });
+  }, [setGlassDotsSettings, wallpaperType]);
   
   const wallpaperTypeOptions = [ { key: 'phone', label: 'Phone' }, { key: 'desktop', label: 'Desktop' } ];
-  const outputTypeOptions = [ { key: 'wallpaper', label: 'Wallpaper' }, { key: 'print', label: 'Print' } ];
-  const orientationOptions = [ { key: 'landscape', label: 'Landscape' }, { key: 'portrait', label: 'Portrait' } ];
+  const viewModeOptions = [ { key: 'presets', label: 'Presets' }, { key: 'controls', label: 'Full Control' } ];
 
-  const AllControls = ({ isFullScreen = false }: { isFullScreen?: boolean }) => (
-    <>
-      <div className={`p-4 rounded-lg space-y-4 ${theme === 'dark' ? 'bg-black/40' : 'bg-white/60'}`}>
-        <SegmentedControl options={outputTypeOptions} selected={outputType} onSelect={(key) => handleOutputTypeSelect(key as 'wallpaper' | 'print')} theme={theme} />
-        {outputType === 'wallpaper' ? (
-            <SegmentedControl options={wallpaperTypeOptions} selected={wallpaperType} onSelect={(key) => setWallpaperType(key as 'phone' | 'desktop')} theme={theme} />
-        ) : (
-          <div className="space-y-4">
-              <div>
-                  <label htmlFor={`print-size-select-${isFullScreen}`} className={`block text-sm mb-2 ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'}`}>Print Size</label>
-                  <select
-                      id={`print-size-select-${isFullScreen}`} value={(liveActiveState as GlassDotsPrintState).size}
-                      onChange={(e) => commitSetting('size' as any, e.target.value)}
-                      className={`w-full p-2 rounded-md border text-sm ${theme === 'dark' ? 'bg-nothing-gray-dark border-nothing-gray-dark text-nothing-light' : 'bg-day-gray-light border-gray-300 text-day-text'}`}
-                  >
-                      {PRINT_SIZE_GROUPS.map(group => (
-                          <optgroup label={group} key={group}>
-                              {Object.entries(PRINT_SIZES).filter(([, val]) => val.group === group).map(([key, val]) => (
-                                  <option key={key} value={key}>{val.label}</option>
-                              ))}
-                          </optgroup>
-                      ))}
-                  </select>
-              </div>
-              <SegmentedControl options={orientationOptions} selected={(liveActiveState as GlassDotsPrintState).orientation} onSelect={(key) => commitSetting('orientation' as any, key)} theme={theme} />
+  const PresetsGrid = () => (
+      <div className="grid grid-cols-3 gap-3">
+          {PRESETS_DATA.map((preset) => (
+              <button
+                  key={preset.id}
+                  onClick={() => handlePresetClick(preset)}
+                  className={`aspect-[4/3] flex flex-col items-center justify-center rounded-md border transition-colors duration-200 ${
+                      activePresetId === preset.id 
+                          ? (theme === 'dark' ? 'bg-white border-white text-nothing-dark' : 'bg-black border-black text-white') 
+                          : (theme === 'dark' ? 'bg-gray-800 border-gray-700 hover:bg-gray-700 text-nothing-light' : 'bg-gray-100 border-gray-300 hover:bg-gray-200 text-day-text')
+                  }`}
+              >
+                  <span className="text-2xl sm:text-3xl font-ndot mb-1">{preset.id}</span>
+                  <span className="text-xs font-bold tracking-wider">{preset.code}</span>
+              </button>
+          ))}
+          {/* Placeholder for 9 */}
+          <div className={`aspect-[4/3] flex flex-col items-center justify-center rounded-md border opacity-50 cursor-not-allowed ${theme === 'dark' ? 'bg-gray-900 border-gray-800 text-nothing-light' : 'bg-gray-50 border-gray-200 text-day-text'}`}>
+             <span className="text-2xl sm:text-3xl font-ndot mb-1">9</span>
           </div>
-        )}
+          {/* Empty spacer for grid layout to center 0 */}
+          <div></div>
+           {/* Placeholder for 0 */}
+          <div className={`aspect-[4/3] flex flex-col items-center justify-center rounded-md border opacity-50 cursor-not-allowed ${theme === 'dark' ? 'bg-gray-900 border-gray-800 text-nothing-light' : 'bg-gray-50 border-gray-200 text-day-text'}`}>
+             <span className="text-2xl sm:text-3xl font-ndot mb-1">0</span>
+          </div>
+          {/* Empty spacer */}
+          <div></div>
       </div>
-      <UndoRedoControls onUndo={() => { undoGlassDots(); trackEvent('glass_dots_undo'); }} onRedo={() => { redoGlassDots(); trackEvent('glass_dots_redo'); }} canUndo={canUndoGlassDots} canRedo={canRedoGlassDots} theme={theme} />
+  );
+
+  const ManualControls = () => (
+    <>
       <div className={`p-4 rounded-lg space-y-4 ${theme === 'dark' ? 'bg-black/40' : 'bg-white/60'}`}>
         <EnhancedSlider theme={theme} isMobile={isMobile} label="Resolution" value={liveActiveState.resolution} onChange={v => updateLiveSetting('resolution', v)} onChangeCommitted={v => commitSetting('resolution', v)} onReset={() => commitSetting('resolution', DEFAULT_SLIDER_VALUE)} disabled={isLoading} />
         <EnhancedSlider theme={theme} isMobile={isMobile} label="Pixel Gap" value={liveActiveState.pixelGap} onChange={v => updateLiveSetting('pixelGap', v)} onChangeCommitted={v => commitSetting('pixelGap', v)} onReset={() => commitSetting('pixelGap', 50)} disabled={isLoading} />
@@ -818,11 +822,11 @@ export const useGlassDotsPanel = ({
 
       <div className={`p-4 rounded-lg space-y-4 ${theme === 'dark' ? 'bg-black/40' : 'bg-white/60'}`}>
         <EnhancedSlider theme={theme} isMobile={isMobile} label="Glass Blur Amount" value={liveActiveState.blurAmount} onChange={v => updateLiveSetting('blurAmount', v)} onChangeCommitted={v => commitSetting('blurAmount', v)} onReset={() => commitSetting('blurAmount', 50)} disabled={isLoading} />
-        <EnhancedSlider theme={theme} isMobile={isMobile} label="Index of Refraction" value={liveActiveState.ior} onChange={v => updateLiveSetting('ior', v)} onChangeCommitted={v => commitSetting('ior', v)} onReset={() => commitSetting('ior', 25)} disabled={isLoading} />
+        <EnhancedSlider theme={theme} isMobile={isMobile} label="Index of Refraction" value={liveActiveState.ior} onChange={v => updateLiveSetting('ior', v)} onChangeCommitted={v => commitSetting('ior', v)} onReset={() => commitSetting('ior', 50)} disabled={isLoading} />
       </div>
       
       <div className={`p-4 rounded-lg space-y-4 ${theme === 'dark' ? 'bg-black/40' : 'bg-white/60'}`}>
-        <div className={`flex items-center justify-between ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'}`}><label htmlFor={`grain-toggle-${isFullScreen}`} className="text-sm">Grain</label><button id={`grain-toggle-${isFullScreen}`} role="switch" aria-checked={liveActiveState.isGrainEnabled} onClick={() => commitSetting('isGrainEnabled', !liveActiveState.isGrainEnabled)} disabled={isLoading} className={`relative inline-flex items-center h-6 w-11 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 rounded-full ${theme === 'dark' ? 'focus:ring-offset-nothing-dark' : 'focus:ring-offset-day-bg'} ${liveActiveState.isGrainEnabled ? 'bg-nothing-red' : (theme === 'dark' ? 'bg-nothing-gray-dark' : 'bg-day-gray-light')}`}><span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform duration-300 ${liveActiveState.isGrainEnabled ? 'translate-x-6' : 'translate-x-1'}`} /></button></div>
+        <div className={`flex items-center justify-between ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'}`}><label htmlFor={`grain-toggle-${isFullScreenPreview}`} className="text-sm">Grain</label><button id={`grain-toggle-${isFullScreenPreview}`} role="switch" aria-checked={liveActiveState.isGrainEnabled} onClick={() => commitSetting('isGrainEnabled', !liveActiveState.isGrainEnabled)} disabled={isLoading} className={`relative inline-flex items-center h-6 w-11 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 rounded-full ${theme === 'dark' ? 'focus:ring-offset-nothing-dark' : 'focus:ring-offset-day-bg'} ${liveActiveState.isGrainEnabled ? 'bg-nothing-red' : (theme === 'dark' ? 'bg-nothing-gray-dark' : 'bg-day-gray-light')}`}><span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform duration-300 ${liveActiveState.isGrainEnabled ? 'translate-x-6' : 'translate-x-1'}`} /></button></div>
          <div className={`transition-all duration-300 ease-in-out overflow-hidden ${liveActiveState.isGrainEnabled ? 'max-h-96 opacity-100 pt-4 space-y-4' : 'max-h-0 opacity-0'}`}>
             <EnhancedSlider theme={theme} isMobile={isMobile} label="Grain Size" value={liveActiveState.grainSize} onChange={v => updateLiveSetting('grainSize', v)} onChangeCommitted={v => commitSetting('grainSize', v)} onReset={() => commitSetting('grainSize', 0)} disabled={isLoading} />
             <EnhancedSlider theme={theme} isMobile={isMobile} label="Grain Amount" value={liveActiveState.grainAmount} onChange={v => updateLiveSetting('grainAmount', v)} onChangeCommitted={v => commitSetting('grainAmount', v)} onReset={() => commitSetting('grainAmount', DEFAULT_SLIDER_VALUE)} disabled={isLoading} />
@@ -830,10 +834,25 @@ export const useGlassDotsPanel = ({
       </div>
 
       <div className={`p-4 rounded-lg space-y-4 ${theme === 'dark' ? 'bg-black/40' : 'bg-white/60'}`}>
-        <div className={`flex items-center justify-between ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'}`}><label htmlFor={`marker-toggle-${isFullScreen}`} className="text-sm">Markers</label><button id={`marker-toggle-${isFullScreen}`} role="switch" aria-checked={liveActiveState.isMarkerEnabled} onClick={() => commitSetting('isMarkerEnabled', !liveActiveState.isMarkerEnabled)} disabled={isLoading} className={`relative inline-flex items-center h-6 w-11 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 rounded-full ${theme === 'dark' ? 'focus:ring-offset-nothing-dark' : 'focus:ring-offset-day-bg'} ${liveActiveState.isMarkerEnabled ? 'bg-nothing-red' : (theme === 'dark' ? 'bg-nothing-gray-dark' : 'bg-day-gray-light')}`}><span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform duration-300 ${liveActiveState.isMarkerEnabled ? 'translate-x-6' : 'translate-x-1'}`} /></button></div>
-        <div className={`flex items-center justify-between ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'}`}><label htmlFor={`bg-blur-toggle-${isFullScreen}`} className="text-sm">Background Blur</label><button id={`bg-blur-toggle-${isFullScreen}`} role="switch" aria-checked={liveActiveState.isBackgroundBlurEnabled} onClick={() => commitSetting('isBackgroundBlurEnabled', !liveActiveState.isBackgroundBlurEnabled)} disabled={isLoading} className={`relative inline-flex items-center h-6 w-11 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 rounded-full ${theme === 'dark' ? 'focus:ring-offset-nothing-dark' : 'focus:ring-offset-day-bg'} ${liveActiveState.isBackgroundBlurEnabled ? 'bg-nothing-red' : (theme === 'dark' ? 'bg-nothing-gray-dark' : 'bg-day-gray-light')}`}><span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform duration-300 ${liveActiveState.isBackgroundBlurEnabled ? 'translate-x-6' : 'translate-x-1'}`} /></button></div>
-        <div className={`flex items-center justify-between ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'}`}><label htmlFor={`mono-toggle-${isFullScreen}`} className="text-sm">Monochrome</label><button id={`mono-toggle-${isFullScreen}`} role="switch" aria-checked={liveActiveState.isMonochrome} onClick={() => commitSetting('isMonochrome', !liveActiveState.isMonochrome)} disabled={isLoading} className={`relative inline-flex items-center h-6 w-11 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 rounded-full ${theme === 'dark' ? 'focus:ring-offset-nothing-dark' : 'focus:ring-offset-day-bg'} ${liveActiveState.isMonochrome ? 'bg-nothing-red' : (theme === 'dark' ? 'bg-nothing-gray-dark' : 'bg-day-gray-light')}`}><span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform duration-300 ${liveActiveState.isMonochrome ? 'translate-x-6' : 'translate-x-1'}`} /></button></div>
+        <div className={`flex items-center justify-between ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'}`}><label htmlFor={`marker-toggle-${isFullScreenPreview}`} className="text-sm">Markers</label><button id={`marker-toggle-${isFullScreenPreview}`} role="switch" aria-checked={liveActiveState.isMarkerEnabled} onClick={() => commitSetting('isMarkerEnabled', !liveActiveState.isMarkerEnabled)} disabled={isLoading} className={`relative inline-flex items-center h-6 w-11 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 rounded-full ${theme === 'dark' ? 'focus:ring-offset-nothing-dark' : 'focus:ring-offset-day-bg'} ${liveActiveState.isMarkerEnabled ? 'bg-nothing-red' : (theme === 'dark' ? 'bg-nothing-gray-dark' : 'bg-day-gray-light')}`}><span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform duration-300 ${liveActiveState.isMarkerEnabled ? 'translate-x-6' : 'translate-x-1'}`} /></button></div>
+        <div className={`flex items-center justify-between ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'}`}><label htmlFor={`bg-blur-toggle-${isFullScreenPreview}`} className="text-sm">Background Blur</label><button id={`bg-blur-toggle-${isFullScreenPreview}`} role="switch" aria-checked={liveActiveState.isBackgroundBlurEnabled} onClick={() => commitSetting('isBackgroundBlurEnabled', !liveActiveState.isBackgroundBlurEnabled)} disabled={isLoading} className={`relative inline-flex items-center h-6 w-11 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 rounded-full ${theme === 'dark' ? 'focus:ring-offset-nothing-dark' : 'focus:ring-offset-day-bg'} ${liveActiveState.isBackgroundBlurEnabled ? 'bg-nothing-red' : (theme === 'dark' ? 'bg-nothing-gray-dark' : 'bg-day-gray-light')}`}><span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform duration-300 ${liveActiveState.isBackgroundBlurEnabled ? 'translate-x-6' : 'translate-x-1'}`} /></button></div>
+        <div className={`flex items-center justify-between ${theme === 'dark' ? 'text-nothing-gray-light' : 'text-day-gray-dark'}`}><label htmlFor={`mono-toggle-${isFullScreenPreview}`} className="text-sm">Monochrome</label><button id={`mono-toggle-${isFullScreenPreview}`} role="switch" aria-checked={liveActiveState.isMonochrome} onClick={() => commitSetting('isMonochrome', !liveActiveState.isMonochrome)} disabled={isLoading} className={`relative inline-flex items-center h-6 w-11 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 rounded-full ${theme === 'dark' ? 'focus:ring-offset-nothing-dark' : 'focus:ring-offset-day-bg'} ${liveActiveState.isMonochrome ? 'bg-nothing-red' : (theme === 'dark' ? 'bg-nothing-gray-dark' : 'bg-day-gray-light')}`}><span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform duration-300 ${liveActiveState.isMonochrome ? 'translate-x-6' : 'translate-x-1'}`} /></button></div>
       </div>
+    </>
+  );
+
+  const AllControls = ({ isFullScreen = false }: { isFullScreen?: boolean }) => (
+    <>
+      <div className={`p-4 rounded-lg space-y-4 ${theme === 'dark' ? 'bg-black/40' : 'bg-white/60'}`}>
+        <SegmentedControl options={wallpaperTypeOptions} selected={wallpaperType} onSelect={(key) => handleDeviceTypeChange(key as 'phone' | 'desktop')} theme={theme} />
+      </div>
+      <UndoRedoControls onUndo={() => { undoGlassDots(); trackEvent('glass_dots_undo'); }} onRedo={() => { redoGlassDots(); trackEvent('glass_dots_redo'); }} canUndo={canUndoGlassDots} canRedo={canRedoGlassDots} theme={theme} />
+      
+      <div className={`p-4 rounded-lg space-y-4 ${theme === 'dark' ? 'bg-black/40' : 'bg-white/60'}`}>
+         <SegmentedControl options={viewModeOptions} selected={viewMode} onSelect={(key) => handleViewModeChange(key as 'presets' | 'controls')} theme={theme} />
+      </div>
+      
+      {viewMode === 'presets' ? <PresetsGrid /> : <ManualControls />}
     </>
   );
 
@@ -849,12 +868,12 @@ export const useGlassDotsPanel = ({
   ) : null;
   
   const previewPanel = !imageSrc ? (
-    <Dropzone onFileSelect={handleFileSelect} isLoading={isLoading} theme={theme} context="glassDots"/>
+    <Dropzone onFileSelect={handleFileSelect} isLoading={isLoading} theme={theme} context="glassDots" isMobile={isMobile}/>
   ) : (
     <>
         <input type="file" ref={fullScreenFileInputRef} onChange={handleFullScreenFileInputChange} className="hidden" accept="image/*"/>
         <div className="relative flex items-center justify-center w-full h-full">
-            <canvas ref={canvasRef} width={previewCanvasWidth} height={previewCanvasHeight} className={`border-2 rounded-lg ${theme === 'dark' ? 'border-nothing-gray-dark' : 'border-gray-300'} ${outputType === 'wallpaper' && wallpaperType === 'phone' ? (isMobile ? 'w-4/5 h-auto' : 'max-h-full w-auto') : 'max-w-full max-h-full'}`} aria-label="Glass Dots Canvas" onMouseDown={handleDragStart} onTouchStart={handleDragStart} style={{ cursor: glassDotsCropIsNeeded ? 'grab' : 'default', touchAction: glassDotsCropIsNeeded ? 'none' : 'auto' }}/>
+            <canvas ref={canvasRef} width={previewCanvasWidth} height={previewCanvasHeight} className={`border-2 rounded-lg ${theme === 'dark' ? 'border-nothing-gray-dark' : 'border-gray-300'} ${wallpaperType === 'phone' ? (isMobile ? 'w-4/5 h-auto' : 'max-h-full w-auto') : 'max-w-full max-h-full'}`} aria-label="Glass Dots Canvas" onMouseDown={handleDragStart} onTouchStart={handleDragStart} style={{ cursor: glassDotsCropIsNeeded ? 'grab' : 'default', touchAction: glassDotsCropIsNeeded ? 'none' : 'auto' }}/>
             <div className="absolute bottom-3 right-3 z-10 flex items-center space-x-2">
                 <button onClick={() => handleShare()} className={`p-2 rounded-md transition-colors duration-300 ${theme === 'dark' ? 'text-nothing-light bg-nothing-gray-dark hover:bg-nothing-gray-light hover:text-nothing-dark' : 'text-day-text bg-day-gray-light hover:bg-day-gray-dark hover:text-day-bg'}`} aria-label="Share this creation"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 8.81C7.5 8.31 6.79 8 6 8c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.66 1.34 3 3 3s3-1.34 3-3-1.34-3-3-3z"/></svg></button>
                 <button onClick={enterFullScreen} className={`p-2 rounded-md transition-colors duration-300 ${theme === 'dark' ? 'text-nothing-light bg-nothing-gray-dark hover:bg-nothing-gray-light hover:text-nothing-dark' : 'text-day-text bg-day-gray-light hover:bg-day-gray-dark hover:text-day-bg'}`} aria-label="Enter full-screen preview"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg></button>
@@ -891,7 +910,7 @@ export const useGlassDotsPanel = ({
   );
 
   const downloadButton = <button onClick={handleDownload} disabled={isLoading || isDownloading} className={`w-full h-full p-4 text-center text-lg font-bold transition-all duration-300 disabled:opacity-50 ${theme === 'dark' ? 'bg-nothing-red text-nothing-light hover:bg-opacity-80' : 'bg-day-accent text-white hover:bg-opacity-80'}`} aria-label="Download image">{isDownloading ? 'Generating...' : 'Download'}</button>;
-  const replaceButton = <Dropzone onFileSelect={handleFileSelect} isLoading={isLoading} compact={true} theme={theme}/>;
+  const replaceButton = <Dropzone onFileSelect={handleFileSelect} isLoading={isLoading} compact={true} theme={theme} isMobile={isMobile}/>;
 
   return { previewPanel, controlsPanel, imageSrc, isLoading, handleFileSelect, downloadButton, replaceButton, glassDotsWallpaperType: wallpaperType, getCanvasBlob, undo: undoGlassDots, redo: redoGlassDots, canUndo: canUndoGlassDots, canRedo: canRedoGlassDots };
 };

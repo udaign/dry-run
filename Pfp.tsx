@@ -551,7 +551,7 @@ export const usePfpPanel = ({ theme, isMobile, footerLinks, triggerShareToast, h
   ) : null;
 
   const previewPanel = !imageSrc ? (
-    <Dropzone onFileSelect={handleFileSelect} isLoading={isLoading} theme={theme} context="pfp" />
+    <Dropzone onFileSelect={handleFileSelect} isLoading={isLoading} theme={theme} context="pfp" isMobile={isMobile} />
   ) : (
     <div className="relative w-full h-full flex flex-col items-center justify-center">
         <div className="w-full max-w-md">
@@ -594,7 +594,7 @@ export const usePfpPanel = ({ theme, isMobile, footerLinks, triggerShareToast, h
 
   const downloadButton = <button onClick={handleDownload} disabled={isLoading || isDownloading} className={`w-full h-full p-4 text-center text-lg font-bold transition-all duration-300 disabled:opacity-50 ${theme === 'dark' ? 'bg-nothing-red text-nothing-light hover:bg-opacity-80' : 'bg-day-accent text-white hover:bg-opacity-80'}`} aria-label="Download the current image"> Download </button>;
 
-  const replaceButton = <Dropzone onFileSelect={handleFileSelect} isLoading={isLoading} compact={true} theme={theme}/>;
+  const replaceButton = <Dropzone onFileSelect={handleFileSelect} isLoading={isLoading} compact={true} theme={theme} isMobile={isMobile}/>;
 
   return { previewPanel, controlsPanel, imageSrc, isLoading, handleFileSelect, handleDownload, downloadButton, replaceButton, getCanvasBlob, undo: undoPfp, redo: redoPfp, canUndo: canUndoPfp, canRedo: canRedoPfp };
 };

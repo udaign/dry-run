@@ -1,3 +1,4 @@
+
 export type RawPixel = number | { r: number; g: number; b: number };
 export type Theme = 'light' | 'dark';
 export type Tab = 'pfp' | 'wallpaper' | 'photoWidget' | 'valueAliasing' | 'glassDots';
@@ -96,16 +97,7 @@ export type GlassDotsState = {
     isMarkerEnabled: boolean;
 };
 
-export type GlassDotsPrintState = GlassDotsState & {
-    size: string;
-    orientation: 'landscape' | 'portrait';
-};
-
 export type GlassDotsSettingsContainer = {
-    outputType: 'wallpaper' | 'print';
-    wallpaper: {
-        phone: GlassDotsState;
-        desktop: GlassDotsState;
-    };
-    print: GlassDotsPrintState;
+    phone: GlassDotsState;
+    desktop: GlassDotsState;
 };

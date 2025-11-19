@@ -428,7 +428,7 @@ export const useWallpaperPanel = ({
   ) : null;
   
   const previewPanel = !imageSrc ? (
-    <Dropzone onFileSelect={handleFileSelect} isLoading={isLoading} theme={theme} context="wallpaper"/>
+    <Dropzone onFileSelect={handleFileSelect} isLoading={isLoading} theme={theme} context="wallpaper" isMobile={isMobile} />
   ) : (
     <>
         <input
@@ -638,7 +638,7 @@ export const useWallpaperPanel = ({
 
   const downloadButton = <button onClick={handleDownload} disabled={isLoading || isDownloading} className={`w-full h-full p-4 text-center text-lg font-bold transition-all duration-300 disabled:opacity-50 ${theme === 'dark' ? 'bg-nothing-red text-nothing-light hover:bg-opacity-80' : 'bg-day-accent text-white hover:bg-opacity-80'}`} aria-label="Download the current wallpaper"> Download </button>;
 
-  const replaceButton = <Dropzone onFileSelect={handleFileSelect} isLoading={isLoading} compact={true} theme={theme}/>;
+  const replaceButton = <Dropzone onFileSelect={handleFileSelect} isLoading={isLoading} compact={true} theme={theme} isMobile={isMobile}/>;
 
   return { previewPanel, controlsPanel, imageSrc, isLoading, handleFileSelect, handleDownload, downloadButton, replaceButton, wallpaperType, getCanvasBlob, undo: undoWallpaper, redo: redoWallpaper, canUndo: canUndoWallpaper, canRedo: canRedoWallpaper };
 };
