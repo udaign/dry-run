@@ -45,42 +45,42 @@ type PresetDefinition = {
 
 const PRESETS_DATA: PresetDefinition[] = [
     {
-        id: 1, code: 'UNI', label: 'UNIFORM',
+        id: 1, code: 'UNI', label: 'Uniform',
         desktop: { resolution: 96, pixelGap: 50, lowerLimit: 0, similaritySensitivity: 0, blurAmount: 24, ior: 12, grainSize: 0, grainAmount: 42, isMarkerEnabled: false, isBackgroundBlurEnabled: false, isMonochrome: false },
         phone: { resolution: 36, pixelGap: 36, lowerLimit: 0, similaritySensitivity: 0, blurAmount: 20, ior: 12, grainSize: 0, grainAmount: 28, isMarkerEnabled: false, isBackgroundBlurEnabled: false, isMonochrome: false }
     },
     {
-        id: 2, code: 'UBL', label: 'UNIFORM BLURRED',
+        id: 2, code: 'UBL', label: 'Uniform Blurred',
         desktop: { resolution: 96, pixelGap: 64, lowerLimit: 0, similaritySensitivity: 0, blurAmount: 6, ior: 100, grainSize: 0, grainAmount: 36, isMarkerEnabled: false, isBackgroundBlurEnabled: true, isMonochrome: false },
         phone: { resolution: 52, pixelGap: 64, lowerLimit: 0, similaritySensitivity: 0, blurAmount: 6, ior: 100, grainSize: 0, grainAmount: 20, isMarkerEnabled: false, isBackgroundBlurEnabled: true, isMonochrome: false }
     },
     {
-        id: 3, code: 'BAR', label: 'BARE',
+        id: 3, code: 'BAR', label: 'Bare',
         desktop: { resolution: 0, pixelGap: 67, lowerLimit: 36, similaritySensitivity: 100, blurAmount: 16, ior: 32, grainSize: 0, grainAmount: 50, isMarkerEnabled: true, isBackgroundBlurEnabled: false, isMonochrome: false },
         phone: { resolution: 0, pixelGap: 56, lowerLimit: 21, similaritySensitivity: 100, blurAmount: 25, ior: 36, grainSize: 0, grainAmount: 36, isMarkerEnabled: true, isBackgroundBlurEnabled: false, isMonochrome: false }
     },
     {
-        id: 4, code: 'BDS', label: '3D BEADS',
+        id: 4, code: 'BDS', label: '3D Beads',
         desktop: { resolution: 32, pixelGap: 32, lowerLimit: 0, similaritySensitivity: 87, blurAmount: 32, ior: 64, grainSize: 0, grainAmount: 64, isMarkerEnabled: true, isBackgroundBlurEnabled: true, isMonochrome: false },
         phone: { resolution: 4, pixelGap: 36, lowerLimit: 0, similaritySensitivity: 87, blurAmount: 28, ior: 64, grainSize: 0, grainAmount: 40, isMarkerEnabled: true, isBackgroundBlurEnabled: true, isMonochrome: false }
     },
     {
-        id: 5, code: 'PAL', label: 'PALETTE',
+        id: 5, code: 'PAL', label: 'Palette',
         desktop: { resolution: 52, pixelGap: 32, lowerLimit: 0, similaritySensitivity: 100, blurAmount: 84, ior: 100, grainSize: 8, grainAmount: 60, isMarkerEnabled: false, isBackgroundBlurEnabled: true, isMonochrome: false },
         phone: { resolution: 6, pixelGap: 32, lowerLimit: 0, similaritySensitivity: 100, blurAmount: 84, ior: 100, grainSize: 0, grainAmount: 48, isMarkerEnabled: false, isBackgroundBlurEnabled: true, isMonochrome: false }
     },
     {
-        id: 6, code: 'ORG', label: 'ORGANIC',
+        id: 6, code: 'ORG', label: 'Organic',
         desktop: { resolution: 82, pixelGap: 64, lowerLimit: 0, similaritySensitivity: 78, blurAmount: 12, ior: 80, grainSize: 0, grainAmount: 40, isMarkerEnabled: false, isBackgroundBlurEnabled: false, isMonochrome: false },
         phone: { resolution: 32, pixelGap: 36, lowerLimit: 0, similaritySensitivity: 90, blurAmount: 24, ior: 56, grainSize: 0, grainAmount: 50, isMarkerEnabled: false, isBackgroundBlurEnabled: false, isMonochrome: false }
     },
     {
-        id: 7, code: 'MGR', label: 'LOW DEPTH GRAIN MONO',
+        id: 7, code: 'MGR', label: 'Low Depth Grain Mono',
         desktop: { resolution: 20, pixelGap: 36, lowerLimit: 0, similaritySensitivity: 96, blurAmount: 12, ior: 28, grainSize: 21, grainAmount: 72, isMarkerEnabled: true, isBackgroundBlurEnabled: false, isMonochrome: true },
         phone: { resolution: 3, pixelGap: 64, lowerLimit: 20, similaritySensitivity: 96, blurAmount: 16, ior: 24, grainSize: 10, grainAmount: 60, isMarkerEnabled: true, isBackgroundBlurEnabled: false, isMonochrome: true }
     },
     {
-        id: 8, code: 'MOD', label: 'MODERATE LOW GRAIN LOW BLUR',
+        id: 8, code: 'MOD', label: 'Moderate Grain & Blur',
         desktop: { resolution: 40, pixelGap: 60, lowerLimit: 0, similaritySensitivity: 92, blurAmount: 18, ior: 75, grainSize: 0, grainAmount: 20, isMarkerEnabled: true, isBackgroundBlurEnabled: false, isMonochrome: false },
         phone: { resolution: 8, pixelGap: 0, lowerLimit: 14, similaritySensitivity: 67, blurAmount: 17, ior: 84, grainSize: 0, grainAmount: 20, isMarkerEnabled: true, isBackgroundBlurEnabled: false, isMonochrome: false }
     },
@@ -143,6 +143,7 @@ const drawGlassDots = (ctx: CanvasRenderingContext2D, options: {
     const similarityThreshold = (similaritySensitivity / 100) * 160;
 
     const findMaxBlobSize = (startX: number, startY: number, limitX: number, limitY: number, checkSimilarity: boolean) => {
+        if (similaritySensitivity === 0) return 1;
         const anchorColor = colorGrid[startY][startX];
         let currentSize = 1;
 
@@ -469,6 +470,8 @@ export const useGlassDotsPanel = ({
     const fullScreenFileInputRef = useRef<HTMLInputElement>(null);
     const [isFullScreenControlsOpen, setIsFullScreenControlsOpen] = useState(false);
     const [isWarningExpanded, setIsWarningExpanded] = useState(false);
+    const [tooltipPresetId, setTooltipPresetId] = useState<number | null>(null);
+    const tooltipTimer = useRef<any>(null);
 
     const liveActiveState = useMemo(() => {
         return liveGlassDotsSettings[wallpaperType];
@@ -885,6 +888,18 @@ export const useGlassDotsPanel = ({
     const wallpaperTypeOptions = [{ key: 'phone', label: 'Phone' }, { key: 'desktop', label: 'Desktop' }];
     const viewModeOptions = [{ key: 'presets', label: 'Presets' }, { key: 'controls', label: 'Full Control' }];
 
+    const handlePresetMouseEnter = (id: number) => {
+        if (tooltipTimer.current) clearTimeout(tooltipTimer.current);
+        tooltipTimer.current = setTimeout(() => {
+            setTooltipPresetId(id);
+        }, 3600);
+    };
+
+    const handlePresetMouseLeave = () => {
+        if (tooltipTimer.current) clearTimeout(tooltipTimer.current);
+        setTooltipPresetId(null);
+    };
+
     const PresetsGrid = () => (
         <div className={`p-4 rounded-lg ${theme === 'dark' ? 'bg-black/40' : 'bg-white/60'}`}>
             <div className="grid grid-cols-3 gap-3">
@@ -892,13 +907,20 @@ export const useGlassDotsPanel = ({
                     <button
                         key={preset.id}
                         onClick={() => handlePresetClick(preset)}
-                        className={`aspect-[4/3] flex flex-col items-center justify-center rounded-md border transition-colors duration-200 ${activePresetId === preset.id
+                        onMouseEnter={() => handlePresetMouseEnter(preset.id)}
+                        onMouseLeave={handlePresetMouseLeave}
+                        className={`relative aspect-[4/3] flex flex-col items-center justify-center rounded-md border transition-colors duration-200 ${activePresetId === preset.id
                             ? (theme === 'dark' ? 'bg-white border-white text-nothing-dark' : 'bg-black border-black text-white')
                             : (theme === 'dark' ? 'bg-gray-800 border-gray-700 hover:bg-gray-700 text-nothing-light' : 'bg-gray-100 border-gray-300 hover:bg-gray-200 text-day-text')
                             }`}
                     >
                         <span className="text-2xl sm:text-3xl font-ndot mb-1">{preset.id}</span>
                         <span className="text-xs font-bold tracking-wider">{preset.code}</span>
+                        {tooltipPresetId === preset.id && (
+                            <div className={`absolute -top-10 left-1/2 -translate-x-1/2 px-2 py-1 rounded text-xs whitespace-nowrap z-10 pointer-events-none shadow-lg ${theme === 'dark' ? 'bg-gray-700 text-white' : 'bg-gray-800 text-white'}`}>
+                                {preset.label}
+                            </div>
+                        )}
                     </button>
                 ))}
                 {/* Placeholder for 9 */}
