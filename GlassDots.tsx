@@ -279,7 +279,7 @@ const drawGlassDots = (ctx: CanvasRenderingContext2D, options: {
     ctx.clearRect(0, 0, canvasWidth, canvasHeight);
     ctx.drawImage(finalBgCanvas, 0, 0);
 
-    const refractScale = 1 + (ior / 100) * 0.4;
+    const refractScale = 1 + ((ior * 0.93) / 100) * 0.4;
 
     const cellWidth = canvasWidth / gridWidth;
     const cellHeight = canvasHeight / gridHeight;
@@ -468,6 +468,7 @@ export const useGlassDotsPanel = ({
     const fullScreenContainerRef = useRef<HTMLDivElement>(null);
     const fullScreenFileInputRef = useRef<HTMLInputElement>(null);
     const [isFullScreenControlsOpen, setIsFullScreenControlsOpen] = useState(false);
+    const [isWarningExpanded, setIsWarningExpanded] = useState(false);
 
     const liveActiveState = useMemo(() => {
         return liveGlassDotsSettings[wallpaperType];
@@ -607,9 +608,9 @@ export const useGlassDotsPanel = ({
         const { resolution, ior, cropOffsetX, cropOffsetY, isMonochrome, blurAmount, isBackgroundBlurEnabled } = liveActiveState;
 
         const gridWidth = Math.floor(10 + (resolution / 100) * 100);
-        const maxBlobSizeFactor = 0.5;
+        const maxBlobSizeFactor = 1.0;
         const maxBlobPixelWidth = (previewCanvasWidth / gridWidth) * (gridWidth * maxBlobSizeFactor);
-        const refractScale = 1 + (ior / 100) * 0.4;
+        const refractScale = 1 + ((ior * 0.93) / 100) * 0.4;
         const scaleFactor = refractScale - 1;
         const bleed = (maxBlobPixelWidth / 2) * scaleFactor;
 
@@ -625,7 +626,6 @@ export const useGlassDotsPanel = ({
         const sourceBleedCtx = sourceBleedCanvas.getContext('2d', { willReadFrequently: true });
         if (!sourceBleedCtx) return;
 
-        if (isMonochrome) sourceBleedCtx.filter = 'grayscale(100%)';
 
         const imgAspect = image.width / image.height;
         const bleedCanvasAspect = bleedCanvasWidth / bleedCanvasHeight;
@@ -650,8 +650,13 @@ export const useGlassDotsPanel = ({
 
         const effectiveBlurAmount = 12 + (blurAmount * 0.88);
         const blurPx = (effectiveBlurAmount / 100) * Math.max(bleedCanvasWidth, bleedCanvasHeight) * 0.02;
-        if (blurPx > 0) {
-            blurBleedCtx.filter = `blur(${blurPx}px)`;
+
+        const filters = [];
+        if (blurPx > 0) filters.push(`blur(${blurPx}px)`);
+        if (isMonochrome) filters.push('grayscale(100%)');
+
+        if (filters.length > 0) {
+            blurBleedCtx.filter = filters.join(' ');
         }
         blurBleedCtx.drawImage(sourceBleedCanvas, 0, 0);
 
@@ -665,7 +670,9 @@ export const useGlassDotsPanel = ({
             const distortedCtx = blurBleedCtx;
             finalBgCtx.drawImage(distortedCtx.canvas, bleedX, bleedY, previewCanvasWidth, previewCanvasHeight, 0, 0, previewCanvasWidth, previewCanvasHeight);
         } else {
+            if (isMonochrome) finalBgCtx.filter = 'grayscale(100%)';
             finalBgCtx.drawImage(sourceBleedCanvas, bleedX, bleedY, previewCanvasWidth, previewCanvasHeight, 0, 0, previewCanvasWidth, previewCanvasHeight);
+            finalBgCtx.filter = 'none';
         }
 
         drawGlassDots(ctx, {
@@ -698,9 +705,9 @@ export const useGlassDotsPanel = ({
 
             const { resolution, ior, cropOffsetX, cropOffsetY, isMonochrome, blurAmount, isBackgroundBlurEnabled } = settingsToDraw;
             const gridWidth = Math.floor(10 + (resolution / 100) * 100);
-            const maxBlobSizeFactor = 0.5;
+            const maxBlobSizeFactor = 1.0;
             const maxBlobPixelWidth = (targetWidth / gridWidth) * (gridWidth * maxBlobSizeFactor);
-            const refractScale = 1 + (ior / 100) * 0.4;
+            const refractScale = 1 + ((ior * 0.93) / 100) * 0.4;
             const scaleFactor = refractScale - 1;
             const bleed = (maxBlobPixelWidth / 2) * scaleFactor;
             const bleedX = bleed;
@@ -713,7 +720,6 @@ export const useGlassDotsPanel = ({
             sourceBleedCanvas.height = bleedCanvasHeight;
             const sourceBleedCtx = sourceBleedCanvas.getContext('2d', { willReadFrequently: true });
             if (!sourceBleedCtx) return resolve(null);
-            if (isMonochrome) sourceBleedCtx.filter = 'grayscale(100%)';
             const imgAspect = image.width / image.height, bleedCanvasAspect = bleedCanvasWidth / bleedCanvasHeight;
             let sx = 0, sy = 0, sWidth = image.width, sHeight = image.height;
             if (imgAspect > bleedCanvasAspect) { sHeight = image.height; sWidth = sHeight * bleedCanvasAspect; sx = (image.width - sWidth) * cropOffsetX; }
@@ -727,7 +733,12 @@ export const useGlassDotsPanel = ({
             if (!blurBleedCtx) return resolve(null);
             const effectiveBlurAmount = 12 + (blurAmount * 0.88);
             const blurPx = (effectiveBlurAmount / 100) * Math.max(bleedCanvasWidth, bleedCanvasHeight) * 0.02;
-            if (blurPx > 0) blurBleedCtx.filter = `blur(${blurPx}px)`;
+
+            const filters = [];
+            if (blurPx > 0) filters.push(`blur(${blurPx}px)`);
+            if (isMonochrome) filters.push('grayscale(100%)');
+
+            if (filters.length > 0) blurBleedCtx.filter = filters.join(' ');
             blurBleedCtx.drawImage(sourceBleedCanvas, 0, 0);
 
             const finalBgCanvas = document.createElement('canvas');
@@ -736,7 +747,11 @@ export const useGlassDotsPanel = ({
             const finalBgCtx = finalBgCanvas.getContext('2d');
             if (!finalBgCtx) return resolve(null);
             if (isBackgroundBlurEnabled) { finalBgCtx.drawImage(blurBleedCtx.canvas, bleedX, bleedY, targetWidth, targetHeight, 0, 0, targetWidth, targetHeight); }
-            else { finalBgCtx.drawImage(sourceBleedCanvas, bleedX, bleedY, targetWidth, targetHeight, 0, 0, targetWidth, targetHeight); }
+            else {
+                if (isMonochrome) finalBgCtx.filter = 'grayscale(100%)';
+                finalBgCtx.drawImage(sourceBleedCanvas, bleedX, bleedY, targetWidth, targetHeight, 0, 0, targetWidth, targetHeight);
+                finalBgCtx.filter = 'none';
+            }
 
             drawGlassDots(ctx, {
                 canvasWidth: targetWidth,
@@ -871,32 +886,34 @@ export const useGlassDotsPanel = ({
     const viewModeOptions = [{ key: 'presets', label: 'Presets' }, { key: 'controls', label: 'Full Control' }];
 
     const PresetsGrid = () => (
-        <div className="grid grid-cols-3 gap-3">
-            {PRESETS_DATA.map((preset) => (
-                <button
-                    key={preset.id}
-                    onClick={() => handlePresetClick(preset)}
-                    className={`aspect-[4/3] flex flex-col items-center justify-center rounded-md border transition-colors duration-200 ${activePresetId === preset.id
-                        ? (theme === 'dark' ? 'bg-white border-white text-nothing-dark' : 'bg-black border-black text-white')
-                        : (theme === 'dark' ? 'bg-gray-800 border-gray-700 hover:bg-gray-700 text-nothing-light' : 'bg-gray-100 border-gray-300 hover:bg-gray-200 text-day-text')
-                        }`}
-                >
-                    <span className="text-2xl sm:text-3xl font-ndot mb-1">{preset.id}</span>
-                    <span className="text-xs font-bold tracking-wider">{preset.code}</span>
-                </button>
-            ))}
-            {/* Placeholder for 9 */}
-            <div className={`aspect-[4/3] flex flex-col items-center justify-center rounded-md border opacity-50 cursor-not-allowed ${theme === 'dark' ? 'bg-gray-900 border-gray-800 text-nothing-light' : 'bg-gray-50 border-gray-200 text-day-text'}`}>
-                <span className="text-2xl sm:text-3xl font-ndot mb-1">9</span>
+        <div className={`p-4 rounded-lg ${theme === 'dark' ? 'bg-black/40' : 'bg-white/60'}`}>
+            <div className="grid grid-cols-3 gap-3">
+                {PRESETS_DATA.map((preset) => (
+                    <button
+                        key={preset.id}
+                        onClick={() => handlePresetClick(preset)}
+                        className={`aspect-[4/3] flex flex-col items-center justify-center rounded-md border transition-colors duration-200 ${activePresetId === preset.id
+                            ? (theme === 'dark' ? 'bg-white border-white text-nothing-dark' : 'bg-black border-black text-white')
+                            : (theme === 'dark' ? 'bg-gray-800 border-gray-700 hover:bg-gray-700 text-nothing-light' : 'bg-gray-100 border-gray-300 hover:bg-gray-200 text-day-text')
+                            }`}
+                    >
+                        <span className="text-2xl sm:text-3xl font-ndot mb-1">{preset.id}</span>
+                        <span className="text-xs font-bold tracking-wider">{preset.code}</span>
+                    </button>
+                ))}
+                {/* Placeholder for 9 */}
+                <div className={`aspect-[4/3] flex flex-col items-center justify-center rounded-md border opacity-50 cursor-not-allowed ${theme === 'dark' ? 'bg-gray-900 border-gray-800 text-nothing-light' : 'bg-gray-50 border-gray-200 text-day-text'}`}>
+                    <span className="text-2xl sm:text-3xl font-ndot mb-1">9</span>
+                </div>
+                {/* Empty spacer for grid layout to center 0 */}
+                <div></div>
+                {/* Placeholder for 0 */}
+                <div className={`aspect-[4/3] flex flex-col items-center justify-center rounded-md border opacity-50 cursor-not-allowed ${theme === 'dark' ? 'bg-gray-900 border-gray-800 text-nothing-light' : 'bg-gray-50 border-gray-200 text-day-text'}`}>
+                    <span className="text-2xl sm:text-3xl font-ndot mb-1">0</span>
+                </div>
+                {/* Empty spacer */}
+                <div></div>
             </div>
-            {/* Empty spacer for grid layout to center 0 */}
-            <div></div>
-            {/* Placeholder for 0 */}
-            <div className={`aspect-[4/3] flex flex-col items-center justify-center rounded-md border opacity-50 cursor-not-allowed ${theme === 'dark' ? 'bg-gray-900 border-gray-800 text-nothing-light' : 'bg-gray-50 border-gray-200 text-day-text'}`}>
-                <span className="text-2xl sm:text-3xl font-ndot mb-1">0</span>
-            </div>
-            {/* Empty spacer */}
-            <div></div>
         </div>
     );
 
@@ -934,12 +951,35 @@ export const useGlassDotsPanel = ({
         <>
             <div className={`p-4 rounded-lg space-y-4 ${theme === 'dark' ? 'bg-black/40' : 'bg-white/60'}`}>
                 <SegmentedControl options={wallpaperTypeOptions} selected={wallpaperType} onSelect={(key) => handleDeviceTypeChange(key as 'phone' | 'desktop')} theme={theme} />
+                <SegmentedControl options={viewModeOptions} selected={viewMode} onSelect={(key) => handleViewModeChange(key as 'presets' | 'controls')} theme={theme} />
             </div>
             <UndoRedoControls onUndo={() => { undoGlassDots(); trackEvent('glass_dots_undo'); }} onRedo={() => { redoGlassDots(); trackEvent('glass_dots_redo'); }} canUndo={canUndoGlassDots} canRedo={canRedoGlassDots} theme={theme} />
 
-            <div className={`p-4 rounded-lg space-y-4 ${theme === 'dark' ? 'bg-black/40' : 'bg-white/60'}`}>
-                <SegmentedControl options={viewModeOptions} selected={viewMode} onSelect={(key) => handleViewModeChange(key as 'presets' | 'controls')} theme={theme} />
-            </div>
+            {viewMode === 'controls' && (
+                <div className={`rounded-lg text-sm overflow-hidden transition-all duration-300 ${theme === 'dark' ? 'bg-black/40 text-nothing-gray-light' : 'bg-white/60 text-day-gray-dark'}`}>
+                    <button
+                        onClick={() => setIsWarningExpanded(!isWarningExpanded)}
+                        className="w-full p-4 flex items-center justify-between focus:outline-none"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
+                        </svg>
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            strokeWidth={2.5}
+                            stroke="currentColor"
+                            className={`w-4 h-4 transition-transform duration-300 ${isWarningExpanded ? 'rotate-180' : ''}`}
+                        >
+                            <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+                        </svg>
+                    </button>
+                    <div className={`px-4 pb-4 transition-all duration-300 ${isWarningExpanded ? 'max-h-40 opacity-100' : 'max-h-0 opacity-0 pb-0'}`}>
+                        Due to the feature's performance-intensive nature, there can be some unexpected hiccups in the Full Control mode. The sliders won't slide, so tap on the sliders instead of sliding.
+                    </div>
+                </div>
+            )}
 
             {viewMode === 'presets' ? <PresetsGrid /> : <ManualControls />}
         </>
