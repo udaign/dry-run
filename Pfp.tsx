@@ -234,7 +234,7 @@ export const usePfpPanel = ({ theme, isMobile, footerLinks, triggerShareToast, h
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d', { colorSpace: 'display-p3' });
     if (!ctx || !gridColors || gridColors.length !== diameter || matrixMask.length !== diameter) return;
     
     // Draw main canvas
@@ -254,7 +254,7 @@ export const usePfpPanel = ({ theme, isMobile, footerLinks, triggerShareToast, h
     
     const previewCanvas = previewCanvasRef.current;
     if (!previewCanvas) return;
-    const previewCtx = previewCanvas.getContext('2d');
+    const previewCtx = previewCanvas.getContext('2d', { colorSpace: 'display-p3' });
     if (!previewCtx) return;
 
     // Prepare preview canvas background
@@ -299,7 +299,7 @@ export const usePfpPanel = ({ theme, isMobile, footerLinks, triggerShareToast, h
               const canvas = document.createElement('canvas');
               canvas.width = CANVAS_SIZE;
               canvas.height = CANVAS_SIZE;
-              const ctx = canvas.getContext('2d');
+              const ctx = canvas.getContext('2d', { colorSpace: 'display-p3' });
               if (!ctx) {
                   throw new Error('Failed to get canvas context for download.');
               }

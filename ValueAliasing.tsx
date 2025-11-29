@@ -575,7 +575,7 @@ export const useValueAliasingPanel = ({
     const canvas = isFullScreenPreview ? fullScreenCanvasRef.current : canvasRef.current;
     if (!canvas) return;
 
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d', { colorSpace: 'display-p3' });
     if (!ctx) return;
     
     const drawOptions = {
@@ -628,7 +628,7 @@ export const useValueAliasingPanel = ({
         const offscreenCanvas = document.createElement('canvas');
         offscreenCanvas.width = fullCanvasWidth;
         offscreenCanvas.height = fullCanvasHeight;
-        const ctx = offscreenCanvas.getContext('2d');
+        const ctx = offscreenCanvas.getContext('2d', { colorSpace: 'display-p3' });
 
         if (!ctx) {
             console.error("Could not create offscreen canvas context for high-quality export.");

@@ -656,7 +656,7 @@ const App: React.FC = () => {
                   >
                     <span className={`truncate px-2 ${!isActive ? 'page-title text-xl' : ''} flex items-center justify-center`}>
                       {isActive ? TAB_LABELS[tab] : TAB_ABBREVIATIONS[tab]}
-                      {tab === 'glassDots' && !isActive && (
+                      {tab === 'glassDots' && (
                         <span className={`ml-1 text-[0.6rem] px-1 rounded-sm font-bold leading-tight font-sans ${theme === 'dark' ? 'bg-white text-nothing-dark' : 'bg-black text-white'}`}>
                           NEW
                         </span>
@@ -714,7 +714,7 @@ const App: React.FC = () => {
                       >
                         <span className={`truncate px-2 ${!isActive ? 'page-title text-xl' : ''} flex items-center justify-center`}>
                           {isActive ? TAB_LABELS[tab] : TAB_ABBREVIATIONS[tab]}
-                          {tab === 'glassDots' && !isActive && (
+                          {tab === 'glassDots' && (
                             <span className={`ml-1 text-[0.6rem] px-1 rounded-sm font-bold leading-tight font-sans ${theme === 'dark' ? 'bg-white text-nothing-dark' : 'bg-black text-white'}`}>
                               NEW
                             </span>

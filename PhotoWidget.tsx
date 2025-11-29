@@ -202,7 +202,7 @@ export const usePhotoWidgetPanel = ({ theme, isMobile, footerLinks, triggerShare
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || !colorMatrix) return;
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d', { colorSpace: 'display-p3' });
     if (!ctx) return;
     drawPhotoWidgetMatrix(ctx, { width: canvasWidth, height: canvasHeight, outputMode, matrix: colorMatrix, pixelGap, isCircular, isAntiAliased });
   }, [colorMatrix, pixelGap, isCircular, isAntiAliased, outputMode, canvasWidth, canvasHeight]);
@@ -216,7 +216,7 @@ export const usePhotoWidgetPanel = ({ theme, isMobile, footerLinks, triggerShare
         const canvas = document.createElement('canvas');
         canvas.width = downloadWidth;
         canvas.height = downloadHeight;
-        const ctx = canvas.getContext('2d');
+        const ctx = canvas.getContext('2d', { colorSpace: 'display-p3' });
         if (!ctx) throw new Error('Failed to get canvas context for download.');
 
         drawPhotoWidgetMatrix(ctx, { ...photoWidgetSettings[outputMode], outputMode, width: downloadWidth, height: downloadHeight, matrix: colorMatrix });

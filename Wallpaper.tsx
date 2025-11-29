@@ -162,7 +162,7 @@ export const useWallpaperPanel = ({
     const canvas = isFullScreenPreview ? fullScreenCanvasRef.current : canvasRef.current;
     if (!canvas) return;
 
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d', { colorSpace: 'display-p3' });
     if (!ctx) return;
     
     ctx.fillStyle = WALLPAPER_BG_OPTIONS[background]?.color || '#000000';
