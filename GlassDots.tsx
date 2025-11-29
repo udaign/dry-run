@@ -45,49 +45,49 @@ type PresetDefinition = {
 
 const PRESETS_DATA: PresetDefinition[] = [
     {
-        id: 1, code: 'UNI', label: 'Uniform',
+        id: 1, code: 'BDS', label: 'Beads',
+        desktop: { resolution: 24, pixelGap: 32, lowerLimit: 0, similaritySensitivity: 90, blurAmount: 20, ior: 64, grainSize: 0, grainAmount: 64, isMarkerEnabled: true, isBackgroundBlurEnabled: true, isMonochrome: false },
+        phone: { resolution: 8, pixelGap: 36, lowerLimit: 0, similaritySensitivity: 90, blurAmount: 24, ior: 64, grainSize: 0, grainAmount: 40, isMarkerEnabled: true, isBackgroundBlurEnabled: true, isMonochrome: false }
+    },
+    {
+        id: 2, code: 'UNI', label: 'Uniform',
         desktop: { resolution: 96, pixelGap: 50, lowerLimit: 0, similaritySensitivity: 0, blurAmount: 24, ior: 12, grainSize: 0, grainAmount: 42, isMarkerEnabled: false, isBackgroundBlurEnabled: false, isMonochrome: false },
         phone: { resolution: 36, pixelGap: 36, lowerLimit: 0, similaritySensitivity: 0, blurAmount: 20, ior: 12, grainSize: 0, grainAmount: 28, isMarkerEnabled: false, isBackgroundBlurEnabled: false, isMonochrome: false }
     },
     {
-        id: 2, code: 'UBL', label: 'Uniform Blurred',
-        desktop: { resolution: 96, pixelGap: 64, lowerLimit: 0, similaritySensitivity: 0, blurAmount: 6, ior: 100, grainSize: 0, grainAmount: 36, isMarkerEnabled: false, isBackgroundBlurEnabled: true, isMonochrome: false },
-        phone: { resolution: 52, pixelGap: 64, lowerLimit: 0, similaritySensitivity: 0, blurAmount: 6, ior: 100, grainSize: 0, grainAmount: 20, isMarkerEnabled: false, isBackgroundBlurEnabled: true, isMonochrome: false }
-    },
-    {
-        id: 3, code: 'BAR', label: 'Bare',
-        desktop: { resolution: 0, pixelGap: 67, lowerLimit: 36, similaritySensitivity: 100, blurAmount: 16, ior: 32, grainSize: 0, grainAmount: 50, isMarkerEnabled: true, isBackgroundBlurEnabled: false, isMonochrome: false },
-        phone: { resolution: 0, pixelGap: 56, lowerLimit: 21, similaritySensitivity: 100, blurAmount: 25, ior: 36, grainSize: 0, grainAmount: 36, isMarkerEnabled: true, isBackgroundBlurEnabled: false, isMonochrome: false }
-    },
-    {
-        id: 4, code: 'BDS', label: '3D Beads',
-        desktop: { resolution: 32, pixelGap: 32, lowerLimit: 0, similaritySensitivity: 87, blurAmount: 20, ior: 64, grainSize: 0, grainAmount: 64, isMarkerEnabled: true, isBackgroundBlurEnabled: true, isMonochrome: false },
-        phone: { resolution: 4, pixelGap: 36, lowerLimit: 0, similaritySensitivity: 87, blurAmount: 24, ior: 64, grainSize: 0, grainAmount: 40, isMarkerEnabled: true, isBackgroundBlurEnabled: true, isMonochrome: false }
-    },
-    {
-        id: 5, code: 'PAL', label: 'Palette',
+        id: 3, code: 'PAL', label: 'Palette',
         desktop: { resolution: 52, pixelGap: 32, lowerLimit: 0, similaritySensitivity: 100, blurAmount: 84, ior: 100, grainSize: 8, grainAmount: 60, isMarkerEnabled: false, isBackgroundBlurEnabled: true, isMonochrome: false },
         phone: { resolution: 6, pixelGap: 32, lowerLimit: 0, similaritySensitivity: 100, blurAmount: 84, ior: 100, grainSize: 0, grainAmount: 48, isMarkerEnabled: false, isBackgroundBlurEnabled: true, isMonochrome: false }
     },
     {
-        id: 6, code: 'ORG', label: 'Organic',
-        desktop: { resolution: 82, pixelGap: 64, lowerLimit: 0, similaritySensitivity: 78, blurAmount: 12, ior: 80, grainSize: 0, grainAmount: 40, isMarkerEnabled: false, isBackgroundBlurEnabled: false, isMonochrome: false },
-        phone: { resolution: 32, pixelGap: 36, lowerLimit: 0, similaritySensitivity: 90, blurAmount: 24, ior: 56, grainSize: 0, grainAmount: 50, isMarkerEnabled: false, isBackgroundBlurEnabled: false, isMonochrome: false }
-    },
-    {
-        id: 7, code: 'MGR', label: 'Low Depth Grain Mono',
+        id: 4, code: 'MGR', label: 'Mono Grain',
         desktop: { resolution: 20, pixelGap: 36, lowerLimit: 0, similaritySensitivity: 96, blurAmount: 12, ior: 28, grainSize: 21, grainAmount: 72, isMarkerEnabled: true, isBackgroundBlurEnabled: false, isMonochrome: true },
         phone: { resolution: 3, pixelGap: 64, lowerLimit: 20, similaritySensitivity: 96, blurAmount: 16, ior: 24, grainSize: 10, grainAmount: 60, isMarkerEnabled: true, isBackgroundBlurEnabled: false, isMonochrome: true }
     },
     {
-        id: 8, code: 'MOD', label: 'Moderate Grain & Blur',
-        desktop: { resolution: 40, pixelGap: 60, lowerLimit: 0, similaritySensitivity: 92, blurAmount: 18, ior: 75, grainSize: 0, grainAmount: 20, isMarkerEnabled: true, isBackgroundBlurEnabled: false, isMonochrome: false },
-        phone: { resolution: 8, pixelGap: 0, lowerLimit: 14, similaritySensitivity: 67, blurAmount: 17, ior: 84, grainSize: 0, grainAmount: 20, isMarkerEnabled: true, isBackgroundBlurEnabled: false, isMonochrome: false }
+        id: 5, code: 'MBR', label: 'Membrane',
+        desktop: { resolution: 96, pixelGap: 64, lowerLimit: 0, similaritySensitivity: 0, blurAmount: 6, ior: 100, grainSize: 0, grainAmount: 36, isMarkerEnabled: false, isBackgroundBlurEnabled: true, isMonochrome: false },
+        phone: { resolution: 52, pixelGap: 64, lowerLimit: 0, similaritySensitivity: 0, blurAmount: 6, ior: 100, grainSize: 0, grainAmount: 20, isMarkerEnabled: false, isBackgroundBlurEnabled: true, isMonochrome: false }
     },
     {
-        id: 9, code: 'BGR', label: 'Big Grainy',
+        id: 6, code: 'BAR', label: 'Bare',
+        desktop: { resolution: 0, pixelGap: 67, lowerLimit: 36, similaritySensitivity: 100, blurAmount: 16, ior: 32, grainSize: 0, grainAmount: 50, isMarkerEnabled: true, isBackgroundBlurEnabled: false, isMonochrome: false },
+        phone: { resolution: 0, pixelGap: 56, lowerLimit: 21, similaritySensitivity: 100, blurAmount: 25, ior: 36, grainSize: 0, grainAmount: 36, isMarkerEnabled: true, isBackgroundBlurEnabled: false, isMonochrome: false }
+    },
+    {
+        id: 7, code: 'ORG', label: 'Organic',
+        desktop: { resolution: 82, pixelGap: 64, lowerLimit: 0, similaritySensitivity: 78, blurAmount: 12, ior: 80, grainSize: 0, grainAmount: 40, isMarkerEnabled: false, isBackgroundBlurEnabled: false, isMonochrome: false },
+        phone: { resolution: 32, pixelGap: 36, lowerLimit: 0, similaritySensitivity: 90, blurAmount: 24, ior: 56, grainSize: 0, grainAmount: 50, isMarkerEnabled: false, isBackgroundBlurEnabled: false, isMonochrome: false }
+    },
+    {
+        id: 8, code: 'BGR', label: 'Big Grain',
         desktop: { resolution: 7, pixelGap: 50, lowerLimit: 40, similaritySensitivity: 92, blurAmount: 25, ior: 80, grainSize: 10, grainAmount: 64, isMarkerEnabled: false, isBackgroundBlurEnabled: true, isMonochrome: false },
         phone: { resolution: 4, pixelGap: 50, lowerLimit: 32, similaritySensitivity: 67, blurAmount: 24, ior: 87, grainSize: 4, grainAmount: 64, isMarkerEnabled: false, isBackgroundBlurEnabled: true, isMonochrome: false }
+    },
+    {
+        id: 9, code: 'MOD', label: 'Moderate',
+        desktop: { resolution: 40, pixelGap: 60, lowerLimit: 0, similaritySensitivity: 92, blurAmount: 18, ior: 75, grainSize: 0, grainAmount: 20, isMarkerEnabled: true, isBackgroundBlurEnabled: false, isMonochrome: false },
+        phone: { resolution: 8, pixelGap: 0, lowerLimit: 14, similaritySensitivity: 67, blurAmount: 17, ior: 84, grainSize: 0, grainAmount: 20, isMarkerEnabled: true, isBackgroundBlurEnabled: false, isMonochrome: false }
     },
 ];
 
