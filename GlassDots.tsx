@@ -1136,8 +1136,8 @@ export const useGlassDotsPanel = ({
                         <div className="overflow-hidden">
                             <div className="px-4 pb-4">
                                 {isMobile
-                                    ? "Due to the feature's performance-intensive nature, there can be some unexpected hiccups in the Full Control mode. The sliders won't slide, so tap on the sliders instead of sliding. Chrome performs better than other browsers."
-                                    : "Due to the feature's performance-intensive nature, the sliders won't slide. So tap on the sliders instead of sliding. Firefox performs better than chromium-based browsers."
+                                    ? "Due to the feature's performance-intensive nature, there can be some unexpected hiccups in the Full Control mode. The sliders won't slide, so tap on the sliders instead of sliding."
+                                    : "Due to the feature's performance-intensive nature, the sliders won't slide. So tap on the sliders instead of sliding."
                                 }
                             </div>
                         </div>
