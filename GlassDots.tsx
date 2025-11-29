@@ -1156,8 +1156,8 @@ export const useGlassDotsPanel = ({
                         <p className={`font-semibold ${theme === 'dark' ? 'text-yellow-200' : 'text-yellow-900'}`}>Performance Notice</p>
                         <p className={`${theme === 'dark' ? 'text-yellow-400' : 'text-yellow-700'}`}>
                             {isMobile
-                                ? "For a smoother experience on mobile, we recommend using a Chromium-based browser like Chrome."
-                                : "For a smoother experience on desktop, we recommend using Firefox."
+                                ? "For a smoother experience on mobile, using a Chromium-based browser is recommended (e.g. Chrome)."
+                                : "For a smoother experience on desktop, using a firefox-based browser is recommended."
                             }
                         </p>
                     </div>
