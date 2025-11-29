@@ -478,6 +478,9 @@ export const useGlassDotsPanel = ({
     const [isWarningExpanded, setIsWarningExpanded] = useState(true);
     const [tooltipPresetId, setTooltipPresetId] = useState<number | null>(null);
     const tooltipTimer = useRef<any>(null);
+    const [isShuffling, setIsShuffling] = useState(false);
+    const [showPerformanceWarning, setShowPerformanceWarning] = useState(false);
+    const [hasDismissedPerformanceWarning, setHasDismissedPerformanceWarning] = useState(false);
 
     const liveActiveState = useMemo(() => {
         return liveGlassDotsSettings[wallpaperType];
@@ -496,6 +499,21 @@ export const useGlassDotsPanel = ({
         onFileSelectCallback: () => { },
         triggerShareToast: triggerShareToast
     });
+    
+    useEffect(() => {
+        if (!imageSrc) {
+            setHasDismissedPerformanceWarning(false);
+            setShowPerformanceWarning(false);
+            return;
+        }
+
+        const ua = navigator.userAgent.toLowerCase();
+        const isFirefox = ua.includes('firefox');
+        const isChromium = !!(window as any).chrome && !isFirefox;
+
+        const shouldShow = (isChromium && !isMobile) || (isFirefox && isMobile);
+        setShowPerformanceWarning(shouldShow);
+    }, [imageSrc, isMobile]);
 
     useEffect(() => {
         if (image) {
@@ -905,7 +923,6 @@ export const useGlassDotsPanel = ({
         document.addEventListener('mouseup', onEnd);
         document.addEventListener('touchmove', onMove);
         document.addEventListener('touchend', onEnd);
-        document.addEventListener('touchcancel', onEnd);
         return () => {
             document.removeEventListener('mousemove', onMove);
             document.removeEventListener('mouseup', onEnd);
@@ -955,6 +972,8 @@ export const useGlassDotsPanel = ({
     const handleShuffle = () => {
         trackEvent('glass_dots_shuffle', { wallpaper_type: wallpaperType });
         setActivePresetId(null);
+        setIsShuffling(true);
+        setTimeout(() => setIsShuffling(false), 250);
 
         const randomBool = (trueChance = 0.5) => Math.random() < trueChance;
         const randomInt = (min: number, max: number) => Math.floor(Math.random() * (max - min + 1)) + min;
@@ -1031,7 +1050,7 @@ export const useGlassDotsPanel = ({
                     onClick={handleShuffle}
                     onMouseEnter={() => handlePresetMouseEnter(0)}
                     onMouseLeave={handlePresetMouseLeave}
-                    className={`relative aspect-[4/3] flex flex-col items-center justify-center rounded-md border transition-colors duration-200 ${activePresetId === 0
+                    className={`relative aspect-[4/3] flex flex-col items-center justify-center rounded-md border transition-colors duration-[250ms] ease-out ${isShuffling
                         ? (theme === 'dark' ? 'bg-white border-white text-nothing-dark' : 'bg-black border-black text-white')
                         : (theme === 'dark' ? 'bg-gray-800 border-gray-700 hover:bg-gray-700 text-nothing-light' : 'bg-gray-100 border-gray-300 hover:bg-gray-200 text-day-text')
                         }`}
@@ -1093,7 +1112,7 @@ export const useGlassDotsPanel = ({
                 <SegmentedControl options={viewModeOptions} selected={viewMode} onSelect={(key) => handleViewModeChange(key as 'presets' | 'controls')} theme={theme} />
             </div>
 
-            {viewMode === 'controls' && (
+            {viewMode === 'controls' && !isFullScreen && (
                 <div className={`rounded-lg text-sm overflow-hidden transition-all duration-300 ${theme === 'dark' ? 'bg-black/40 text-nothing-gray-light' : 'bg-white/60 text-day-gray-dark'}`}>
                     <button
                         onClick={() => setIsWarningExpanded(!isWarningExpanded)}
@@ -1117,7 +1136,7 @@ export const useGlassDotsPanel = ({
                         <div className="overflow-hidden">
                             <div className="px-4 pb-4">
                                 {isMobile
-                                    ? "Due to the feature's performance-intensive nature, there can be some unexpected hiccups in the Full Control mode. The sliders won't slide, so tap on the sliders instead of sliding. Firefox performs better than chromium-based browsers."
+                                    ? "Due to the feature's performance-intensive nature, there can be some unexpected hiccups in the Full Control mode. The sliders won't slide, so tap on the sliders instead of sliding. Chrome performs better than other browsers."
                                     : "Due to the feature's performance-intensive nature, the sliders won't slide. So tap on the sliders instead of sliding. Firefox performs better than chromium-based browsers."
                                 }
                             </div>
@@ -1126,6 +1145,30 @@ export const useGlassDotsPanel = ({
                 </div>
             )}
 
+            {showPerformanceWarning && !hasDismissedPerformanceWarning && imageSrc && viewMode === 'presets' && (
+                 <div className={`p-3 rounded-lg flex items-start space-x-3 text-sm transition-opacity duration-300 ${theme === 'dark' ? 'bg-yellow-900/40 text-yellow-300' : 'bg-yellow-100 text-yellow-800'}`}>
+                    <div className="flex-shrink-0 text-yellow-500 pt-0.5">
+                        <svg className="w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                           <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 15a1 1 0 110-2 1 1 0 010 2zm0-3a1 1 0 00-1 1v1a1 1 0 102 0v-1a1 1 0 00-1-1z" clipRule="evenodd" />
+                        </svg>
+                    </div>
+                    <div className="flex-grow">
+                        <p className={`font-semibold ${theme === 'dark' ? 'text-yellow-200' : 'text-yellow-900'}`}>Performance Notice</p>
+                        <p className={`${theme === 'dark' ? 'text-yellow-400' : 'text-yellow-700'}`}>
+                            {isMobile
+                                ? "For a smoother experience on mobile, we recommend using a Chromium-based browser like Chrome."
+                                : "For a smoother experience on desktop, we recommend using Firefox."
+                            }
+                        </p>
+                    </div>
+                    <button onClick={() => { trackEvent('glass_dots_performance_warning_dismissed'); setHasDismissedPerformanceWarning(true); }} className={`p-1 -m-1 rounded-full ${theme === 'dark' ? 'text-yellow-300 hover:bg-white/10' : 'text-yellow-800 hover:bg-black/10'}`} aria-label="Dismiss">
+                        <svg className="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+            )}
+            
             <UndoRedoControls onUndo={() => { undoGlassDots(); trackEvent('glass_dots_undo'); }} onRedo={() => { redoGlassDots(); trackEvent('glass_dots_redo'); }} canUndo={canUndoGlassDots} canRedo={canRedoGlassDots} theme={theme} />
 
             {viewMode === 'presets' ? <PresetsGrid /> : <ManualControls />}
