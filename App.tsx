@@ -63,13 +63,13 @@ const App: React.FC = () => {
   const glassDotsFileInputRef = useRef<HTMLInputElement>(null);
 
   const linkClasses = theme === 'dark' ? 'font-medium text-nothing-light hover:text-white underline' : 'font-medium text-day-text hover:text-black underline';
-  
+
   const numTabs = TABS.length;
   const activeTabWidthPercent = (2 / numTabs) * 100;
   const inactiveTabWidthPercent = ((numTabs - 2) / numTabs / (numTabs - 1)) * 100;
-  
+
   const underlineLeftPercent = useMemo(() => {
-      return activeTabIndex * inactiveTabWidthPercent;
+    return activeTabIndex * inactiveTabWidthPercent;
   }, [activeTabIndex, inactiveTabWidthPercent]);
 
 
@@ -84,12 +84,12 @@ const App: React.FC = () => {
       window.removeEventListener('beforeinstallprompt', handler);
     };
   }, []);
-  
+
   useEffect(() => {
     const handler = (e: Event) => {
       const source = installTriggeredByApp.current ? 'app_button' : 'browser_ui';
       trackEvent('pwa_install_success', { source });
-      
+
       // Hide the app install button.
       setInstallPrompt(null);
       // Reset the ref.
@@ -141,7 +141,7 @@ const App: React.FC = () => {
         const text = variant === 'special'
           ? "Have you unlocked the secret theme in Matrices Value Aliasing yet? 🗝️ On desktop, type 'feelingnothing' code word. On mobile, hold the celestial body until you are blessed! https://udaign.github.io/matrices/"
           : `Created with Matrices. Link: ${APP_URL}`;
-        
+
         const shareData = {
           files: [file],
           title: 'Matrices for Nothing Community',
@@ -163,8 +163,8 @@ const App: React.FC = () => {
     if (navigator.share) {
       try {
         const text = variant === 'special'
-            ? "Have you unlocked the secret theme in Matrices Value Aliasing yet? 🗝️ On desktop, type 'feelingnothing' code word. On mobile, hold the celestial body until you are blessed! https://udaign.github.io/matrices/"
-            : `Create your own Nothing style dot-matrix imagery with Matrices: ${APP_URL}`;
+          ? "Have you unlocked the secret theme in Matrices Value Aliasing yet? 🗝️ On desktop, type 'feelingnothing' code word. On mobile, hold the celestial body until you are blessed! https://udaign.github.io/matrices/"
+          : `Create your own Nothing style dot-matrix imagery with Matrices: ${APP_URL}`;
 
         await navigator.share({
           title: 'Matrices for Nothing Community',
@@ -178,28 +178,28 @@ const App: React.FC = () => {
         trackEvent('share_error_webshare_api', { method: 'text', error: (error as Error).message, variant });
       }
     }
-    
+
     // --- Custom Popup Fallback ---
     setShareVariant(variant);
     setShowSharePopup(true);
     trackEvent('share_popup_opened', { variant });
   };
-  
+
   const triggerShareToast = useCallback((showSpecificToast?: () => void, isSpecial: boolean = false) => {
     // Special toast logic: show only on the session where the theme was first unlocked.
     if (isSpecial && justUnlockedSpecialTheme && !hasDownloadedSpecialTheme) {
-        setShowSpecialShareToast(true);
-        setHasDownloadedSpecialTheme(true);
-        // If this would have been the trigger for the normal toast, mark it as "shown" to prevent it appearing later.
-        if (downloadCount + 1 === 2 && !hasShownShareToastInSession) {
-            setHasShownShareToastInSession(true);
-        }
-        return; // Prioritize special toast
+      setShowSpecialShareToast(true);
+      setHasDownloadedSpecialTheme(true);
+      // If this would have been the trigger for the normal toast, mark it as "shown" to prevent it appearing later.
+      if (downloadCount + 1 === 2 && !hasShownShareToastInSession) {
+        setHasShownShareToastInSession(true);
+      }
+      return; // Prioritize special toast
     }
 
     // Normal toast logic
     if (hasShownShareToastInSession) {
-        return;
+      return;
     }
     const newCount = downloadCount + 1;
     setDownloadCount(newCount);
@@ -235,19 +235,19 @@ const App: React.FC = () => {
   const handleThemeTogglePress = useCallback((vaImageSrc: string | null) => {
     longPressActivated.current = false;
     if (isMobile && !isEasterEggPermanentlyUnlocked && !easterEggPrimed && activeTab === 'valueAliasing' && !!vaImageSrc) {
-        longPressTimer.current = window.setTimeout(() => {
-            setEasterEggPrimed(true);
-            trackEvent('easter_egg_primed', { method: 'long_press' });
-            longPressActivated.current = true;
-        }, 4800);
+      longPressTimer.current = window.setTimeout(() => {
+        setEasterEggPrimed(true);
+        trackEvent('easter_egg_primed', { method: 'long_press' });
+        longPressActivated.current = true;
+      }, 4800);
     }
   }, [isMobile, isEasterEggPermanentlyUnlocked, easterEggPrimed, activeTab]);
 
   const handleThemeToggleRelease = useCallback(() => {
-      if (longPressTimer.current) {
-          clearTimeout(longPressTimer.current);
-          longPressTimer.current = null;
-      }
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
   }, []);
 
   const footerLinks = (
@@ -274,12 +274,12 @@ const App: React.FC = () => {
       </p>
     </div>
   );
-  
-  const commonProps = { 
-    theme, 
-    isMobile, 
-    footerLinks, 
-    triggerShareToast, 
+
+  const commonProps = {
+    theme,
+    isMobile,
+    footerLinks,
+    triggerShareToast,
     handleShare,
     showSharePopup,
     setShowSharePopup,
@@ -287,20 +287,20 @@ const App: React.FC = () => {
     appUrl: APP_URL,
     shareVariant,
   };
-  
+
   const pfpPanel = usePfpPanel(commonProps);
   const wallpaperPanel = useWallpaperPanel(commonProps);
   const photoWidgetPanel = usePhotoWidgetPanel(commonProps);
   const glassDotsPanel = useGlassDotsPanel(commonProps);
-  const valueAliasingPanel = useValueAliasingPanel({ 
-    ...commonProps, 
-    easterEggPrimed, 
-    setEasterEggPrimed, 
-    isEasterEggPermanentlyUnlocked, 
+  const valueAliasingPanel = useValueAliasingPanel({
+    ...commonProps,
+    easterEggPrimed,
+    setEasterEggPrimed,
+    isEasterEggPermanentlyUnlocked,
     markEasterEggAsUnlocked,
     setJustUnlockedSpecialTheme,
   });
-  
+
   const panels = {
     pfp: pfpPanel,
     wallpaper: wallpaperPanel,
@@ -318,10 +318,10 @@ const App: React.FC = () => {
     // Using a timeout to allow the UI to update to the correct tab
     // before the file is processed, which can be a heavy operation.
     setTimeout(() => {
-        const panel = panels[tab];
-        if (panel && panel.handleFileSelect) {
-            panel.handleFileSelect(fileToLoad, 'share_target');
-        }
+      const panel = panels[tab];
+      if (panel && panel.handleFileSelect) {
+        panel.handleFileSelect(fileToLoad, 'share_target');
+      }
     }, 100);
 
     setShowShareTargetModal(false);
@@ -331,7 +331,7 @@ const App: React.FC = () => {
 
   const activePanel = panels[activeTab];
   const imageSrc = activePanel.imageSrc;
-  
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Ignore if an input, textarea, or select element is focused.
@@ -379,7 +379,7 @@ const App: React.FC = () => {
           if (file) {
             event.preventDefault();
             trackEvent('paste_image', { feature: activeTab });
-            
+
             switch (activeTab) {
               case 'pfp':
                 panels.pfp.handleFileSelect(file, 'paste');
@@ -415,7 +415,7 @@ const App: React.FC = () => {
       if (event.data && event.data.type === 'shared-image' && event.data.file) {
         const file = event.data.file as File;
         trackEvent('share_target_received');
-        
+
         // Show the modal to let user choose the destination
         setSharedFile(file);
         setShowShareTargetModal(true);
@@ -457,7 +457,7 @@ const App: React.FC = () => {
   useEffect(() => {
     // Stop listening for the easter egg if it's already primed or fully active.
     if (easterEggPrimed || valueAliasingPanel.isEasterEggActive || isEasterEggPermanentlyUnlocked) return;
-  
+
     const targetSequence = 'feelingnothing';
     const handler = (e: KeyboardEvent) => {
       // The easter egg can only be unlocked when the code word is typed while an image is present in the value aliasing tab.
@@ -472,9 +472,9 @@ const App: React.FC = () => {
         if (userInput) setUserInput('');
         return;
       }
-  
+
       const newSequence = (userInput + e.key.toLowerCase());
-  
+
       if (targetSequence.startsWith(newSequence)) {
         setUserInput(newSequence);
         if (newSequence === targetSequence) {
@@ -488,35 +488,35 @@ const App: React.FC = () => {
         setUserInput(targetSequence.startsWith(currentKey) ? currentKey : '');
       }
     };
-  
+
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [userInput, easterEggPrimed, activeTab, valueAliasingPanel.isEasterEggActive, valueAliasingPanel.imageSrc, isEasterEggPermanentlyUnlocked]);
 
   const handlePfpFileSelect = (file: File) => {
-      pfpPanel.handleFileSelect(file, 'click');
-      if (pfpFileInputRef.current) pfpFileInputRef.current.value = '';
+    pfpPanel.handleFileSelect(file, 'click');
+    if (pfpFileInputRef.current) pfpFileInputRef.current.value = '';
   };
   const handleWallpaperFileSelect = (file: File) => {
-      wallpaperPanel.handleFileSelect(file, 'click');
-      if (wallpaperFileInputRef.current) wallpaperFileInputRef.current.value = '';
+    wallpaperPanel.handleFileSelect(file, 'click');
+    if (wallpaperFileInputRef.current) wallpaperFileInputRef.current.value = '';
   };
   const handlePhotoWidgetFileSelect = (file: File) => {
-      photoWidgetPanel.handleFileSelect(file, 'click');
-      if (photoWidgetFileInputRef.current) photoWidgetFileInputRef.current.value = '';
+    photoWidgetPanel.handleFileSelect(file, 'click');
+    if (photoWidgetFileInputRef.current) photoWidgetFileInputRef.current.value = '';
   };
   const handleValueAliasingFileSelect = (file: File) => {
-      valueAliasingPanel.handleFileSelect(file, 'click');
-      if (valueAliasingFileInputRef.current) valueAliasingFileInputRef.current.value = '';
+    valueAliasingPanel.handleFileSelect(file, 'click');
+    if (valueAliasingFileInputRef.current) valueAliasingFileInputRef.current.value = '';
   };
   const handleGlassDotsFileSelect = (file: File) => {
-      glassDotsPanel.handleFileSelect(file, 'click');
-      if (glassDotsFileInputRef.current) glassDotsFileInputRef.current.value = '';
+    glassDotsPanel.handleFileSelect(file, 'click');
+    if (glassDotsFileInputRef.current) glassDotsFileInputRef.current.value = '';
   };
 
   useEffect(() => {
     const handleResize = () => {
-        setIsMobile(window.innerWidth < 768);
+      setIsMobile(window.innerWidth < 768);
     };
     window.addEventListener('resize', handleResize);
     handleResize();
@@ -536,17 +536,17 @@ const App: React.FC = () => {
   useEffect(() => {
     document.body.className = theme === 'light' ? 'bg-day-bg' : 'bg-nothing-dark';
   }, [theme]);
-  
+
   const handleThemeToggle = () => {
     if (longPressActivated.current) {
-        longPressActivated.current = false;
-        return;
+      longPressActivated.current = false;
+      return;
     }
     const newTheme = theme === 'dark' ? 'light' : 'dark';
     trackEvent('theme_change', { theme: newTheme });
     setTheme(newTheme);
   };
-  
+
   const handleTabChange = (tab: Tab) => {
     trackEvent('select_tab', { tab_name: tab });
     setActiveTab(tab);
@@ -559,14 +559,14 @@ const App: React.FC = () => {
     wallpaper: <>Create matrix styled wallpapers. <strong className={`font-bold ${theme === 'dark' ? 'text-nothing-light' : 'text-black'}`}>Drag to crop</strong> into desired area.</>,
     photoWidget: "Create matrix styled photo widgets.",
   };
-    
+
   const previewContainerPadding = useMemo(() => {
     if ((activeTab === 'wallpaper' && panels.wallpaper.imageSrc && panels.wallpaper.wallpaperType === 'phone') || (activeTab === 'valueAliasing' && panels.valueAliasing.imageSrc && panels.valueAliasing.valueAliasingType === 'phone')) {
-        return isMobile ? 'py-8 px-6' : 'p-6';
+      return isMobile ? 'py-8 px-6' : 'p-6';
     }
     return 'p-4 sm:p-6';
   }, [activeTab, panels.wallpaper, panels.valueAliasing, isMobile]);
-  
+
   const baseButtonClasses = `flex items-center p-2 md:px-3 transition-colors duration-300 rounded-md text-sm font-semibold ${theme === 'dark' ? 'text-nothing-light bg-nothing-gray-dark hover:bg-nothing-gray-light hover:text-nothing-dark' : 'text-day-text bg-day-gray-light hover:bg-day-gray-dark hover:text-day-bg'}`;
 
   return (
@@ -584,7 +584,7 @@ const App: React.FC = () => {
           <div className="flex items-center space-x-2">
             {isMobile && installPrompt && (
               <button onClick={handleInstallClick} className={baseButtonClasses} aria-label="Install app">
-                <span>App</span>
+                <span>Install</span>
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-6 w-6 ml-2">
                   <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                   <polyline points="7 10 12 15 17 10"></polyline>
@@ -597,8 +597,8 @@ const App: React.FC = () => {
               <button onClick={unlockButtonAction} className={`${baseButtonClasses} easter-egg-glow`} aria-label="Unlock Secret Theme">
                 <span className="hidden md:inline">Unlock Secret</span>
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-6 w-6 md:ml-2">
-                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-                    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
                 </svg>
               </button>
             ) : (
@@ -611,14 +611,14 @@ const App: React.FC = () => {
               </button>
             )}
 
-            <button 
+            <button
               onClick={handleThemeToggle}
               onMouseDown={() => handleThemeTogglePress(panels.valueAliasing.imageSrc)}
               onMouseUp={handleThemeToggleRelease}
               onMouseLeave={handleThemeToggleRelease}
               onTouchStart={() => handleThemeTogglePress(panels.valueAliasing.imageSrc)}
               onTouchEnd={handleThemeToggleRelease}
-              className={`p-2 transition-colors duration-300 rounded-md ${theme === 'dark' ? 'text-nothing-light bg-nothing-gray-dark hover:bg-nothing-gray-light hover:text-nothing-dark' : 'text-day-text bg-day-gray-light hover:bg-day-gray-dark hover:text-day-bg'}`} 
+              className={`p-2 transition-colors duration-300 rounded-md ${theme === 'dark' ? 'text-nothing-light bg-nothing-gray-dark hover:bg-nothing-gray-light hover:text-nothing-dark' : 'text-day-text bg-day-gray-light hover:bg-day-gray-dark hover:text-day-bg'}`}
               aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}>
               {theme === 'dark' ? (
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="feather feather-sun h-6 w-6"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
@@ -631,7 +631,7 @@ const App: React.FC = () => {
 
         <div className="block md:hidden pt-4 sm:pt-6">
           <div className="flex flex-col space-y-4">
-            <div 
+            <div
               className={`relative flex w-full border-b ${theme === 'dark' ? 'border-nothing-gray-dark' : 'border-gray-300'}`}
               style={{
                 '--active-tab-width': `${activeTabWidthPercent}%`,
@@ -654,8 +654,13 @@ const App: React.FC = () => {
                     `}
                     aria-pressed={isActive ? 'true' : 'false'}
                   >
-                    <span className={`truncate px-2 ${!isActive ? 'page-title text-xl' : ''}`}>
+                    <span className={`truncate px-2 ${!isActive ? 'page-title text-xl' : ''} flex items-center justify-center`}>
                       {isActive ? TAB_LABELS[tab] : TAB_ABBREVIATIONS[tab]}
+                      {tab === 'glassDots' && !isActive && (
+                        <span className={`ml-1 text-[0.6rem] px-1 rounded-sm font-bold leading-tight font-sans ${theme === 'dark' ? 'bg-white text-nothing-dark' : 'bg-black text-white'}`}>
+                          NEW
+                        </span>
+                      )}
                     </span>
                   </button>
                 );
@@ -684,7 +689,7 @@ const App: React.FC = () => {
           <div className="md:w-1/3 w-full flex flex-col">
             <div className="hidden md:block flex-shrink-0 py-4 sm:py-6 md:py-8 md:pb-4">
               <div className="flex flex-col space-y-4">
-                <div 
+                <div
                   className="relative flex border-b dark:border-nothing-gray-dark border-gray-300"
                   style={{
                     '--active-tab-width': `${activeTabWidthPercent}%`,
@@ -707,8 +712,13 @@ const App: React.FC = () => {
                         `}
                         aria-pressed={isActive ? 'true' : 'false'}
                       >
-                        <span className={`truncate px-2 ${!isActive ? 'page-title text-xl' : ''}`}>
+                        <span className={`truncate px-2 ${!isActive ? 'page-title text-xl' : ''} flex items-center justify-center`}>
                           {isActive ? TAB_LABELS[tab] : TAB_ABBREVIATIONS[tab]}
+                          {tab === 'glassDots' && !isActive && (
+                            <span className={`ml-1 text-[0.6rem] px-1 rounded-sm font-bold leading-tight font-sans ${theme === 'dark' ? 'bg-white text-nothing-dark' : 'bg-black text-white'}`}>
+                              NEW
+                            </span>
+                          )}
                         </span>
                       </button>
                     );
@@ -719,7 +729,7 @@ const App: React.FC = () => {
                 <hr className={`mt-2 ${theme === 'dark' ? 'border-nothing-gray-dark' : 'border-gray-300'}`} />
               </div>
             </div>
-            
+
             <div className="flex-grow md:overflow-y-auto md:relative md:overflow-hidden">
               <div className="hidden md:flex md:absolute md:top-0 md:left-0 md:w-full md:h-full transition-transform duration-300 ease-in-out controls-panel-container" style={{ '--panel-translate-x': `-${activeTabIndex * 100}%` } as React.CSSProperties}>
                 {TABS.map(tab => (
@@ -768,28 +778,28 @@ const App: React.FC = () => {
         </footer>
 
         <div className={`block md:hidden ${imageSrc ? 'sticky bottom-0' : ''} z-20 w-full ${theme === 'dark' ? 'bg-nothing-dark' : 'bg-day-bg'}`}>
-            {imageSrc ? (
-              <div className={`flex border-t ${theme === 'dark' ? 'border-nothing-gray-dark' : 'border-gray-300'}`}>
-                <div className={`w-1/2 border-r ${theme === 'dark' ? 'border-nothing-gray-dark' : 'border-gray-300'}`}>
-                  <button onClick={() => {
-                    if (activeTab === 'pfp') pfpFileInputRef.current?.click();
-                    if (activeTab === 'wallpaper') wallpaperFileInputRef.current?.click();
-                    if (activeTab === 'photoWidget') photoWidgetFileInputRef.current?.click();
-                    if (activeTab === 'valueAliasing') valueAliasingFileInputRef.current?.click();
-                    if (activeTab === 'glassDots') glassDotsFileInputRef.current?.click();
-                  }} disabled={activePanel.isLoading} className={`w-full h-full p-4 text-center text-lg font-bold transition-all duration-300 disabled:opacity-50 ${theme === 'dark' ? 'bg-nothing-dark text-nothing-light hover:bg-nothing-gray-dark' : 'bg-day-bg text-day-text hover:bg-day-gray-light'}`}>Replace Image</button>
-                </div>
-                <div className="w-1/2">
-                  {activePanel.downloadButton}
-                </div>
+          {imageSrc ? (
+            <div className={`flex border-t ${theme === 'dark' ? 'border-nothing-gray-dark' : 'border-gray-300'}`}>
+              <div className={`w-1/2 border-r ${theme === 'dark' ? 'border-nothing-gray-dark' : 'border-gray-300'}`}>
+                <button onClick={() => {
+                  if (activeTab === 'pfp') pfpFileInputRef.current?.click();
+                  if (activeTab === 'wallpaper') wallpaperFileInputRef.current?.click();
+                  if (activeTab === 'photoWidget') photoWidgetFileInputRef.current?.click();
+                  if (activeTab === 'valueAliasing') valueAliasingFileInputRef.current?.click();
+                  if (activeTab === 'glassDots') glassDotsFileInputRef.current?.click();
+                }} disabled={activePanel.isLoading} className={`w-full h-full p-4 text-center text-lg font-bold transition-all duration-300 disabled:opacity-50 ${theme === 'dark' ? 'bg-nothing-dark text-nothing-light hover:bg-nothing-gray-dark' : 'bg-day-bg text-day-text hover:bg-day-gray-light'}`}>Replace Image</button>
               </div>
-            ) : (
-              <footer className={`text-center tracking-wide p-4 border-t ${theme === 'dark' ? 'border-nothing-gray-dark' : 'border-gray-300'}`}>
-                {footerLinks}
-              </footer>
-            )}
+              <div className="w-1/2">
+                {activePanel.downloadButton}
+              </div>
+            </div>
+          ) : (
+            <footer className={`text-center tracking-wide p-4 border-t ${theme === 'dark' ? 'border-nothing-gray-dark' : 'border-gray-300'}`}>
+              {footerLinks}
+            </footer>
+          )}
         </div>
-        
+
         {isMobile && (
           <>
             <ToastNotification
@@ -811,31 +821,31 @@ const App: React.FC = () => {
             />
           </>
         )}
-        
-        <SharePopup 
-            show={showSharePopup}
-            onClose={() => setShowSharePopup(false)}
-            theme={theme}
-            communityLink={NOTHING_COMMUNITY_SHARE_LINK}
-            appUrl={APP_URL}
-            variant={shareVariant}
-        />
-        
-        <SupportModal 
-            show={showSupportModal}
-            onClose={() => setShowSupportModal(false)}
-            theme={theme}
+
+        <SharePopup
+          show={showSharePopup}
+          onClose={() => setShowSharePopup(false)}
+          theme={theme}
+          communityLink={NOTHING_COMMUNITY_SHARE_LINK}
+          appUrl={APP_URL}
+          variant={shareVariant}
         />
 
-        <ShareTargetModal 
-            show={showShareTargetModal}
-            onClose={() => {
-                setShowShareTargetModal(false);
-                setSharedFile(null);
-                trackEvent('share_target_dismissed');
-            }}
-            onSelect={handleShareTargetSelect}
-            theme={theme}
+        <SupportModal
+          show={showSupportModal}
+          onClose={() => setShowSupportModal(false)}
+          theme={theme}
+        />
+
+        <ShareTargetModal
+          show={showShareTargetModal}
+          onClose={() => {
+            setShowShareTargetModal(false);
+            setSharedFile(null);
+            trackEvent('share_target_dismissed');
+          }}
+          onSelect={handleShareTargetSelect}
+          theme={theme}
         />
       </div>
     </>

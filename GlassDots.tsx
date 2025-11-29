@@ -61,8 +61,8 @@ const PRESETS_DATA: PresetDefinition[] = [
     },
     {
         id: 4, code: 'BDS', label: '3D Beads',
-        desktop: { resolution: 32, pixelGap: 32, lowerLimit: 0, similaritySensitivity: 87, blurAmount: 32, ior: 64, grainSize: 0, grainAmount: 64, isMarkerEnabled: true, isBackgroundBlurEnabled: true, isMonochrome: false },
-        phone: { resolution: 4, pixelGap: 36, lowerLimit: 0, similaritySensitivity: 87, blurAmount: 28, ior: 64, grainSize: 0, grainAmount: 40, isMarkerEnabled: true, isBackgroundBlurEnabled: true, isMonochrome: false }
+        desktop: { resolution: 32, pixelGap: 32, lowerLimit: 0, similaritySensitivity: 87, blurAmount: 20, ior: 64, grainSize: 0, grainAmount: 64, isMarkerEnabled: true, isBackgroundBlurEnabled: true, isMonochrome: false },
+        phone: { resolution: 4, pixelGap: 36, lowerLimit: 0, similaritySensitivity: 87, blurAmount: 24, ior: 64, grainSize: 0, grainAmount: 40, isMarkerEnabled: true, isBackgroundBlurEnabled: true, isMonochrome: false }
     },
     {
         id: 5, code: 'PAL', label: 'Palette',
@@ -83,6 +83,11 @@ const PRESETS_DATA: PresetDefinition[] = [
         id: 8, code: 'MOD', label: 'Moderate Grain & Blur',
         desktop: { resolution: 40, pixelGap: 60, lowerLimit: 0, similaritySensitivity: 92, blurAmount: 18, ior: 75, grainSize: 0, grainAmount: 20, isMarkerEnabled: true, isBackgroundBlurEnabled: false, isMonochrome: false },
         phone: { resolution: 8, pixelGap: 0, lowerLimit: 14, similaritySensitivity: 67, blurAmount: 17, ior: 84, grainSize: 0, grainAmount: 20, isMarkerEnabled: true, isBackgroundBlurEnabled: false, isMonochrome: false }
+    },
+    {
+        id: 9, code: 'BGR', label: 'Big Grainy',
+        desktop: { resolution: 7, pixelGap: 50, lowerLimit: 40, similaritySensitivity: 92, blurAmount: 25, ior: 80, grainSize: 10, grainAmount: 64, isMarkerEnabled: false, isBackgroundBlurEnabled: true, isMonochrome: false },
+        phone: { resolution: 4, pixelGap: 50, lowerLimit: 32, similaritySensitivity: 67, blurAmount: 24, ior: 87, grainSize: 4, grainAmount: 64, isMarkerEnabled: false, isBackgroundBlurEnabled: true, isMonochrome: false }
     },
 ];
 
@@ -274,7 +279,8 @@ const drawGlassDots = (ctx: CanvasRenderingContext2D, options: {
     // 3. Identify top blobs for markers before any filtering
     const sortedAllBlobs = [...blobs].sort((a, b) => b.size - a.size);
     const top4PercentIndex = Math.ceil(sortedAllBlobs.length * 0.04);
-    const topBlobsForMarkers = new Set(sortedAllBlobs.slice(0, top4PercentIndex));
+    const markerCount = Math.min(top4PercentIndex, 5);
+    const topBlobsForMarkers = new Set(sortedAllBlobs.slice(0, markerCount));
 
     // 4. Draw final image with blobs
     ctx.clearRect(0, 0, canvasWidth, canvasHeight);
@@ -469,7 +475,7 @@ export const useGlassDotsPanel = ({
     const fullScreenContainerRef = useRef<HTMLDivElement>(null);
     const fullScreenFileInputRef = useRef<HTMLInputElement>(null);
     const [isFullScreenControlsOpen, setIsFullScreenControlsOpen] = useState(false);
-    const [isWarningExpanded, setIsWarningExpanded] = useState(false);
+    const [isWarningExpanded, setIsWarningExpanded] = useState(true);
     const [tooltipPresetId, setTooltipPresetId] = useState<number | null>(null);
     const tooltipTimer = useRef<any>(null);
 
@@ -493,8 +499,26 @@ export const useGlassDotsPanel = ({
 
     useEffect(() => {
         if (image) {
-            resetGlassDotsHistoryStack(FULL_GLASSDOTS_INITIAL_STATE);
-            setActivePresetId(null);
+            const defaultPreset = PRESETS_DATA.find(p => p.id === 1);
+            if (defaultPreset) {
+                const newInitialState: GlassDotsSettingsContainer = {
+                    phone: {
+                        ...FULL_GLASSDOTS_INITIAL_STATE.phone,
+                        ...defaultPreset.phone,
+                        isGrainEnabled: true
+                    },
+                    desktop: {
+                        ...FULL_GLASSDOTS_INITIAL_STATE.desktop,
+                        ...defaultPreset.desktop,
+                        isGrainEnabled: true
+                    }
+                };
+                resetGlassDotsHistoryStack(newInitialState);
+                setActivePresetId(defaultPreset.id);
+            } else {
+                resetGlassDotsHistoryStack(FULL_GLASSDOTS_INITIAL_STATE);
+                setActivePresetId(null);
+            }
         } else {
             resetGlassDotsHistoryStack(FULL_GLASSDOTS_INITIAL_STATE);
             setActivePresetId(null);
@@ -505,21 +529,35 @@ export const useGlassDotsPanel = ({
 
     const handleResetCurrent = useCallback(() => {
         trackEvent('glass_dots_reset_defaults', { wallpaper_type: wallpaperType });
+
+        const presetToRestore = activePresetId ? PRESETS_DATA.find(p => p.id === activePresetId) : null;
+
         setGlassDotsSettings(s => {
             const currentCrop = {
                 cropOffsetX: s[wallpaperType].cropOffsetX,
                 cropOffsetY: s[wallpaperType].cropOffsetY
             };
+
+            let newSettings = { ...FULL_GLASSDOTS_INITIAL_STATE[wallpaperType] };
+
+            if (presetToRestore) {
+                const presetSettings = wallpaperType === 'phone' ? presetToRestore.phone : presetToRestore.desktop;
+                newSettings = { ...newSettings, ...presetSettings, isGrainEnabled: true };
+            }
+
             return {
                 ...s,
                 [wallpaperType]: {
-                    ...FULL_GLASSDOTS_INITIAL_STATE[wallpaperType],
+                    ...newSettings,
                     ...currentCrop
                 }
             };
         });
-        setActivePresetId(null);
-    }, [wallpaperType, setGlassDotsSettings]);
+        // We do NOT clear activePresetId here anymore if we are resetting TO a preset.
+        if (!presetToRestore) {
+            setActivePresetId(null);
+        }
+    }, [wallpaperType, setGlassDotsSettings, activePresetId]);
 
     const applyPreset = useCallback((preset: PresetDefinition, targetType: 'phone' | 'desktop' = wallpaperType) => {
         setGlassDotsSettings(s => {
@@ -553,9 +591,6 @@ export const useGlassDotsPanel = ({
 
     const handleViewModeChange = (mode: 'presets' | 'controls') => {
         setViewMode(mode);
-        if (mode === 'controls') {
-            setActivePresetId(null);
-        }
     };
 
     const handleDeviceTypeChange = (type: 'phone' | 'desktop') => {
@@ -900,6 +935,55 @@ export const useGlassDotsPanel = ({
         setTooltipPresetId(null);
     };
 
+    const handleShuffle = () => {
+        trackEvent('glass_dots_shuffle', { wallpaper_type: wallpaperType });
+        setActivePresetId(0);
+
+        const randomBool = (trueChance = 0.5) => Math.random() < trueChance;
+        const randomInt = (min: number, max: number) => Math.floor(Math.random() * (max - min + 1)) + min;
+
+        // Biased Size Variance (similaritySensitivity)
+        // 80% chance > 25, 20% chance <= 25
+        const isHighVariance = Math.random() < 0.8;
+        const similaritySensitivity = isHighVariance ? randomInt(26, 100) : randomInt(0, 25);
+
+        // Marker constraint: when size variance is less than 25, Markers toggle shouldn't turn on.
+        let isMarkerEnabled = randomBool();
+        if (similaritySensitivity < 25) {
+            isMarkerEnabled = false;
+        }
+
+        // Biased Monochrome: 80% off, 20% on.
+        const isMonochrome = randomBool(0.2);
+
+        // Lower Limit Constraint: 0 to 32
+        const lowerLimit = randomInt(0, 32);
+
+        const ior = randomInt(0, 100);
+
+        const newSettings: GlassDotsState = {
+            resolution: randomInt(0, 100),
+            pixelGap: randomInt(0, 100),
+            blurAmount: randomInt(0, 100),
+            isMonochrome: isMonochrome,
+            cropOffsetX: liveActiveState.cropOffsetX,
+            cropOffsetY: liveActiveState.cropOffsetY,
+            isGrainEnabled: true,
+            grainAmount: randomInt(0, 100),
+            grainSize: randomInt(0, 100),
+            ior: ior,
+            similaritySensitivity: similaritySensitivity,
+            isBackgroundBlurEnabled: ior >= 36 ? randomBool() : false,
+            lowerLimit: lowerLimit,
+            isMarkerEnabled: isMarkerEnabled,
+        };
+
+        setGlassDotsSettings(s => ({
+            ...s,
+            [wallpaperType]: newSettings
+        }));
+    };
+
     const PresetsGrid = () => (
         <div className={`p-4 rounded-lg ${theme === 'dark' ? 'bg-black/40' : 'bg-white/60'}`}>
             <div className="grid grid-cols-3 gap-3">
@@ -923,16 +1007,32 @@ export const useGlassDotsPanel = ({
                         )}
                     </button>
                 ))}
-                {/* Placeholder for 9 */}
-                <div className={`aspect-[4/3] flex flex-col items-center justify-center rounded-md border opacity-50 cursor-not-allowed ${theme === 'dark' ? 'bg-gray-900 border-gray-800 text-nothing-light' : 'bg-gray-50 border-gray-200 text-day-text'}`}>
-                    <span className="text-2xl sm:text-3xl font-ndot mb-1">9</span>
-                </div>
                 {/* Empty spacer for grid layout to center 0 */}
                 <div></div>
-                {/* Placeholder for 0 */}
-                <div className={`aspect-[4/3] flex flex-col items-center justify-center rounded-md border opacity-50 cursor-not-allowed ${theme === 'dark' ? 'bg-gray-900 border-gray-800 text-nothing-light' : 'bg-gray-50 border-gray-200 text-day-text'}`}>
+                {/* Shuffle Button (Slot 0) */}
+                <button
+                    onClick={handleShuffle}
+                    onMouseEnter={() => handlePresetMouseEnter(0)}
+                    onMouseLeave={handlePresetMouseLeave}
+                    className={`relative aspect-[4/3] flex flex-col items-center justify-center rounded-md border transition-colors duration-200 ${activePresetId === 0
+                        ? (theme === 'dark' ? 'bg-white border-white text-nothing-dark' : 'bg-black border-black text-white')
+                        : (theme === 'dark' ? 'bg-gray-800 border-gray-700 hover:bg-gray-700 text-nothing-light' : 'bg-gray-100 border-gray-300 hover:bg-gray-200 text-day-text')
+                        }`}
+                >
                     <span className="text-2xl sm:text-3xl font-ndot mb-1">0</span>
-                </div>
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="16 3 21 3 21 8"></polyline>
+                        <line x1="4" y1="20" x2="21" y2="3"></line>
+                        <polyline points="21 16 21 21 16 21"></polyline>
+                        <line x1="15" y1="15" x2="21" y2="21"></line>
+                        <line x1="4" y1="4" x2="9" y2="9"></line>
+                    </svg>
+                    {tooltipPresetId === 0 && (
+                        <div className={`absolute -top-10 left-1/2 -translate-x-1/2 px-2 py-1 rounded text-xs whitespace-nowrap z-10 pointer-events-none shadow-lg ${theme === 'dark' ? 'bg-gray-700 text-white' : 'bg-gray-800 text-white'}`}>
+                            Random
+                        </div>
+                    )}
+                </button>
                 {/* Empty spacer */}
                 <div></div>
             </div>
@@ -975,7 +1075,6 @@ export const useGlassDotsPanel = ({
                 <SegmentedControl options={wallpaperTypeOptions} selected={wallpaperType} onSelect={(key) => handleDeviceTypeChange(key as 'phone' | 'desktop')} theme={theme} />
                 <SegmentedControl options={viewModeOptions} selected={viewMode} onSelect={(key) => handleViewModeChange(key as 'presets' | 'controls')} theme={theme} />
             </div>
-            <UndoRedoControls onUndo={() => { undoGlassDots(); trackEvent('glass_dots_undo'); }} onRedo={() => { redoGlassDots(); trackEvent('glass_dots_redo'); }} canUndo={canUndoGlassDots} canRedo={canRedoGlassDots} theme={theme} />
 
             {viewMode === 'controls' && (
                 <div className={`rounded-lg text-sm overflow-hidden transition-all duration-300 ${theme === 'dark' ? 'bg-black/40 text-nothing-gray-light' : 'bg-white/60 text-day-gray-dark'}`}>
@@ -997,11 +1096,20 @@ export const useGlassDotsPanel = ({
                             <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
                         </svg>
                     </button>
-                    <div className={`px-4 pb-4 transition-all duration-300 ${isWarningExpanded ? 'max-h-40 opacity-100' : 'max-h-0 opacity-0 pb-0'}`}>
-                        Due to the feature's performance-intensive nature, there can be some unexpected hiccups in the Full Control mode. The sliders won't slide, so tap on the sliders instead of sliding.
+                    <div className={`grid transition-[grid-template-rows] duration-300 ease-out ${isWarningExpanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
+                        <div className="overflow-hidden">
+                            <div className="px-4 pb-4">
+                                {isMobile
+                                    ? "Due to the feature's performance-intensive nature, there can be some unexpected hiccups in the Full Control mode. The sliders won't slide, so tap on the sliders instead of sliding. Firefox performs better than chromium-based browsers."
+                                    : "Due to the feature's performance-intensive nature, the sliders won't slide. So tap on the sliders instead of sliding. Firefox performs better than chromium-based browsers."
+                                }
+                            </div>
+                        </div>
                     </div>
                 </div>
             )}
+
+            <UndoRedoControls onUndo={() => { undoGlassDots(); trackEvent('glass_dots_undo'); }} onRedo={() => { redoGlassDots(); trackEvent('glass_dots_redo'); }} canUndo={canUndoGlassDots} canRedo={canRedoGlassDots} theme={theme} />
 
             {viewMode === 'presets' ? <PresetsGrid /> : <ManualControls />}
         </>
@@ -1011,8 +1119,10 @@ export const useGlassDotsPanel = ({
         <div className="max-w-md mx-auto w-full flex flex-col space-y-4 px-6 sm:px-6 md:px-8 pt-6 md:pt-3 pb-8 sm:pb-6 md:pb-8">
             <AllControls />
             <div className="pt-2 flex space-x-2">
-                <button onClick={clearImage} disabled={isLoading} className={`w-1/2 border font-semibold py-2 px-4 transition-all duration-300 disabled:opacity-50 rounded-md ${theme === 'dark' ? 'border-gray-700 text-nothing-gray-light hover:bg-gray-800' : 'border-gray-300 text-day-gray-dark hover:bg-gray-200'}`} aria-label="Clear the current image">Clear Image</button>
-                <button onClick={handleResetCurrent} disabled={isLoading} className={`w-1/2 border font-semibold py-2 px-4 transition-all duration-300 disabled:opacity-50 rounded-md ${theme === 'dark' ? 'border-gray-700 text-nothing-gray-light hover:bg-gray-800' : 'border-gray-300 text-day-gray-dark hover:bg-gray-200'}`} aria-label="Reset controls to their default values">Reset Controls</button>
+                <button onClick={clearImage} disabled={isLoading} className={`${viewMode === 'controls' ? 'w-1/2' : 'w-full'} border font-semibold py-2 px-4 transition-all duration-300 disabled:opacity-50 rounded-md ${theme === 'dark' ? 'border-gray-700 text-nothing-gray-light hover:bg-gray-800' : 'border-gray-300 text-day-gray-dark hover:bg-gray-200'}`} aria-label="Clear the current image">Clear Image</button>
+                {viewMode === 'controls' && (
+                    <button onClick={handleResetCurrent} disabled={isLoading} className={`w-1/2 border font-semibold py-2 px-4 transition-all duration-300 disabled:opacity-50 rounded-md ${theme === 'dark' ? 'border-gray-700 text-nothing-gray-light hover:bg-gray-800' : 'border-gray-300 text-day-gray-dark hover:bg-gray-200'}`} aria-label="Reset controls to their default values">Reset Controls</button>
+                )}
             </div>
             <div className="block md:hidden pt-8"><footer className="text-center tracking-wide">{footerLinks}</footer></div>
         </div>
@@ -1039,9 +1149,11 @@ export const useGlassDotsPanel = ({
                         <div className="overflow-y-auto space-y-4 pr-2 -mr-2">
                             <AllControls isFullScreen />
                             <div>
-                                <button onClick={handleResetCurrent} disabled={isLoading} className={`w-full font-semibold py-2 px-4 transition-all duration-300 disabled:opacity-50 rounded-md ${theme === 'dark' ? 'border border-gray-600 text-gray-300 hover:bg-gray-700' : 'border border-gray-300 text-day-gray-dark hover:bg-gray-200'}`} aria-label="Reset controls to their default values">
-                                    Reset Controls
-                                </button>
+                                {viewMode === 'controls' && (
+                                    <button onClick={handleResetCurrent} disabled={isLoading} className={`w-full font-semibold py-2 px-4 transition-all duration-300 disabled:opacity-50 rounded-md ${theme === 'dark' ? 'border border-gray-600 text-gray-300 hover:bg-gray-700' : 'border border-gray-300 text-day-gray-dark hover:bg-gray-200'}`} aria-label="Reset controls to their default values">
+                                        Reset Controls
+                                    </button>
+                                )}
                             </div>
                         </div>
                     </div> : <button onClick={() => setIsFullScreenControlsOpen(true)} className={`w-full ${theme === 'dark' ? 'bg-nothing-dark/80 text-white hover:bg-nothing-dark' : 'bg-day-bg/90 text-day-text hover:bg-day-gray-light border border-gray-300/50'} backdrop-blur-sm font-semibold py-3 px-4 rounded-lg flex items-center justify-between shadow-lg transition-colors`} aria-label="Expand controls"><span>Controls</span><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6"><path d="M7.41 15.41 12 10.83l4.59 4.58L18 14l-6-6-6 6 1.41 1.41z" /></svg></button>}
